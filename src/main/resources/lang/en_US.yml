@@ -1,0 +1,20 @@
+internal:
+  info:
+    using_language: "Now using language: %s"
+    command_complete: "Command Executed!"
+    usage_prompt: "Usage: %s"
+user:
+  status:
+    line_0: "World | Entities | disable AI"
+    line_1: "%s %d %s"
+manual:
+  no_description: "No description"
+  no_usage: "No usage"
+
+  help:
+    description: "Show help message"
+    usage: "/yasui [subCommands...] help"
+
+  reload:
+    description: "Reload config from config file. Unsaved changes will lost"
+    usage: "/yasui reload"

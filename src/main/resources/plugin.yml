@@ -1,0 +1,10 @@
+name: yasui
+version: 1.0
+main: cat.nyaa.yasui.Main
+depend: [NyaaUtils]
+authors: [cylin]
+commands:
+  yasui:
+permissions:
+  yasui.admin:
+    default: op
