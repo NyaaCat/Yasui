@@ -1,0 +1,34 @@
+apply plugin: 'java'
+
+sourceCompatibility = 1.8
+targetCompatibility = 1.8
+
+repositories {
+    jcenter()
+    maven {
+        name 'spigot-repo'
+        url 'https://hub.spigotmc.org/nexus/content/repositories/snapshots/'
+    }
+
+    maven {
+        name 'sonatype'
+        url 'https://oss.sonatype.org/content/groups/public'
+    }
+
+    maven {
+        name 'ess-repo'
+        url 'http://repo.ess3.net/content/groups/essentials'
+    }
+
+    maven {
+        name 'nyaa'
+        url 'https://raw.githubusercontent.com/NyaaCat/nyaautils/maven-repo'
+    }
+}
+
+dependencies {
+    compile 'org.spigotmc:spigot-api:1.11.2-R0.1-SNAPSHOT'
+    compile('cat.nyaa:nyaautils:2.0-SNAPSHOT') {
+        transitive = false
+    }
+}
