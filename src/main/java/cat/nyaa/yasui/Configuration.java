@@ -5,6 +5,10 @@ import cat.nyaa.utils.PluginConfigure;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.plugin.java.JavaPlugin;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+
 public class Configuration extends PluginConfigure {
     private final Main plugin;
 
@@ -22,11 +26,12 @@ public class Configuration extends PluginConfigure {
     public int world_entity = 2000;
     @Serializable
     public int chunk_entity = 20;
+    @Serializable
+    public List<String> ignored_world = Arrays.asList("v1_the_end", "v2_the_end");
 
     public Configuration(Main plugin) {
         this.plugin = plugin;
     }
-
 
     @Override
     protected JavaPlugin getPlugin() {
