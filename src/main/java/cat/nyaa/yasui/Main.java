@@ -46,6 +46,9 @@ public final class Main extends JavaPlugin {
 
     public void disableAI() {
         for (World world : getServer().getWorlds()) {
+            if (config.ignored_world.contains(world.getName())){
+                continue;
+            }
             if (world.getLivingEntities().size() >= this.config.world_entity) {
                 if (!disableAIWorlds.contains(world.getName())) {
                     disableAIWorlds.add(world.getName());
