@@ -1,9 +1,10 @@
 package cat.nyaa.yasui;
 
-import cat.nyaa.utils.Internationalization;
+import cat.nyaa.nyaacore.LanguageRepository;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.librazy.nyaautils_lang_checker.LangKey;
 
-public class I18n extends Internationalization {
+public class I18n extends LanguageRepository {
     public static I18n instance = null;
     private final Main plugin;
     private String lang = null;
@@ -15,7 +16,7 @@ public class I18n extends Internationalization {
         load();
     }
 
-    public static String format(String key, Object... args) {
+    public static String format(@LangKey String key, Object... args) {
         return instance.get(key, args);
     }
 

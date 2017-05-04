@@ -1,11 +1,10 @@
 package cat.nyaa.yasui;
 
-import cat.nyaa.utils.ISerializable;
-import cat.nyaa.utils.PluginConfigure;
+import cat.nyaa.nyaacore.configuration.ISerializable;
+import cat.nyaa.nyaacore.configuration.PluginConfigure;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.plugin.java.JavaPlugin;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 

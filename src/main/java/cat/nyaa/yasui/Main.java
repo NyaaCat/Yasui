@@ -1,6 +1,6 @@
 package cat.nyaa.yasui;
 
-import cat.nyaa.utils.ReflectionUtil;
+import cat.nyaa.nyaacore.utils.ReflectionUtils;
 import org.bukkit.Chunk;
 import org.bukkit.World;
 import org.bukkit.entity.ArmorStand;
@@ -41,12 +41,11 @@ public final class Main extends JavaPlugin {
         getCommand("yasui").setTabCompleter(null);
         HandlerList.unregisterAll(this);
         config.save();
-        i18n.reset();
     }
 
     public void disableAI() {
         for (World world : getServer().getWorlds()) {
-            if (config.ignored_world.contains(world.getName())){
+            if (config.ignored_world.contains(world.getName())) {
                 continue;
             }
             if (world.getLivingEntities().size() >= this.config.world_entity) {
@@ -94,10 +93,10 @@ public final class Main extends JavaPlugin {
     public void setAI(LivingEntity entity, boolean ai) {
         try {
             if (entity.isValid() && !(entity instanceof ArmorStand)) {
-                Class craftEntityClazz = ReflectionUtil.getOBCClass("entity.CraftEntity");
+                Class craftEntityClazz = ReflectionUtils.getOBCClass("entity.CraftEntity");
                 Method getNMSEntityMethod = craftEntityClazz.getMethod("getHandle");
                 Object e = getNMSEntityMethod.invoke(entity);
-                Class nmsEntityClazz = ReflectionUtil.getNMSClass("Entity");
+                Class nmsEntityClazz = ReflectionUtils.getNMSClass("Entity");
                 Field field = nmsEntityClazz.getField("fromMobSpawner");
                 field.setBoolean(e, !ai);
             }

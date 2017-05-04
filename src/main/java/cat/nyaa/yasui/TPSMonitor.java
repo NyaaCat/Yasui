@@ -1,7 +1,7 @@
 package cat.nyaa.yasui;
 
 
-import cat.nyaa.utils.ReflectionUtil;
+import cat.nyaa.nyaacore.utils.ReflectionUtils;
 import org.bukkit.scheduler.BukkitRunnable;
 
 import java.lang.reflect.Field;
@@ -17,7 +17,7 @@ public class TPSMonitor extends BukkitRunnable {
 
     public static double[] getTPS() {
         try {
-            Object nmsServer = ReflectionUtil.getNMSClass("MinecraftServer").getMethod("getServer").invoke(null);
+            Object nmsServer = ReflectionUtils.getNMSClass("MinecraftServer").getMethod("getServer").invoke(null);
             Field field = nmsServer.getClass().getField("recentTps");
             return (double[]) field.get(nmsServer);
         } catch (IllegalAccessException e) {

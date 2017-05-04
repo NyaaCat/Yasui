@@ -1,15 +1,15 @@
 package cat.nyaa.yasui;
 
 
-import cat.nyaa.utils.CommandReceiver;
-import cat.nyaa.utils.Internationalization;
+import cat.nyaa.nyaacore.CommandReceiver;
+import cat.nyaa.nyaacore.LanguageRepository;
 import org.bukkit.World;
 import org.bukkit.command.CommandSender;
 
 public class CommandHandler extends CommandReceiver<Main> {
     private final Main plugin;
 
-    public CommandHandler(Main plugin, Internationalization i18n) {
+    public CommandHandler(Main plugin, LanguageRepository i18n) {
         super(plugin, i18n);
         this.plugin = plugin;
     }
