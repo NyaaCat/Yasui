@@ -15,19 +15,24 @@ public class TPSMonitor extends BukkitRunnable {
         this.runTaskTimer(plugin, 20, plugin.config.check_interval_tick);
     }
 
-    public static double[] getTPS() {
-        try {
-            Object nmsServer = ReflectionUtils.getNMSClass("MinecraftServer").getMethod("getServer").invoke(null);
-            Field field = nmsServer.getClass().getField("recentTps");
-            return (double[]) field.get(nmsServer);
-        } catch (IllegalAccessException e) {
-            e.printStackTrace();
-        } catch (InvocationTargetException e) {
-            e.printStackTrace();
-        } catch (NoSuchMethodException e) {
-            e.printStackTrace();
-        } catch (NoSuchFieldException e) {
-            e.printStackTrace();
+    public double[] getTPS() {
+        if (plugin.config.use_essentials_tps && plugin.ess != null) {
+            double averageTPS = plugin.ess.getTimer().getAverageTPS();
+            return new double[]{averageTPS, averageTPS, averageTPS};
+        } else {
+            try {
+                Object nmsServer = ReflectionUtils.getNMSClass("MinecraftServer").getMethod("getServer").invoke(null);
+                Field field = nmsServer.getClass().getField("recentTps");
+                return (double[]) field.get(nmsServer);
+            } catch (IllegalAccessException e) {
+                e.printStackTrace();
+            } catch (InvocationTargetException e) {
+                e.printStackTrace();
+            } catch (NoSuchMethodException e) {
+                e.printStackTrace();
+            } catch (NoSuchFieldException e) {
+                e.printStackTrace();
+            }
         }
         return null;
     }

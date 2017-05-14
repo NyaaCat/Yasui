@@ -1,6 +1,7 @@
 package cat.nyaa.yasui;
 
 import cat.nyaa.nyaacore.utils.ReflectionUtils;
+import com.earth2me.essentials.Essentials;
 import org.bukkit.Chunk;
 import org.bukkit.World;
 import org.bukkit.entity.ArmorStand;
@@ -21,6 +22,7 @@ public final class Main extends JavaPlugin {
     public CommandHandler commandHandler;
     public ArrayList<String> disableAIWorlds = new ArrayList<>();
     public TPSMonitor tpsMonitor;
+    public Essentials ess;
 
     @Override
     public void onEnable() {
@@ -31,16 +33,25 @@ public final class Main extends JavaPlugin {
         commandHandler = new CommandHandler(this, this.i18n);
         getCommand("yasui").setExecutor(commandHandler);
         getCommand("yasui").setTabCompleter(commandHandler);
+        if (getServer().getPluginManager().getPlugin("Essentials") != null) {
+            this.ess = (Essentials) getServer().getPluginManager().getPlugin("Essentials");
+        }
         tpsMonitor = new TPSMonitor(this);
     }
 
     @Override
     public void onDisable() {
+        disable(true);
+    }
+
+    public void disable(boolean saveConfig) {
         getServer().getScheduler().cancelTasks(this);
         getCommand("yasui").setExecutor(null);
         getCommand("yasui").setTabCompleter(null);
         HandlerList.unregisterAll(this);
-        config.save();
+        if (saveConfig) {
+            config.save();
+        }
     }
 
     public void disableAI() {
@@ -112,7 +123,7 @@ public final class Main extends JavaPlugin {
     }
 
     public void reload() {
-        onDisable();
+        disable(false);
         onEnable();
     }
 }

@@ -41,6 +41,6 @@ public class CommandHandler extends CommandReceiver<Main> {
 
     @SubCommand(value = "reload", permission = "yasui.admin")
     public void commandReload(CommandSender sender, Arguments args) {
-        plugin.enableAI();
+        plugin.reload();
     }
 }

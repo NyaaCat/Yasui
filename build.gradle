@@ -39,6 +39,9 @@ dependencies {
     compile('cat.nyaa:nyaacore:2.0-SNAPSHOT') {
         transitive = false
     }
+    compile('net.ess3:Essentials:2.13-SNAPSHOT') {
+        transitive = false
+    }
     processor 'org.librazy:NyaaUtilsLangChecker:1.0-SNAPSHOT'
 }
 

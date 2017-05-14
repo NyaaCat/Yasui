@@ -16,6 +16,8 @@ public class Configuration extends PluginConfigure {
     @Serializable
     public boolean enable = true;
     @Serializable
+    public boolean use_essentials_tps = false;
+    @Serializable
     public int check_interval_tick = 20 * 60;
     @Serializable
     public double tps_disable_ai = 18.0D;
