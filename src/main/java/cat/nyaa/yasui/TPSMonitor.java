@@ -47,10 +47,10 @@ public class TPSMonitor extends BukkitRunnable {
         double tps_5m = tps[1];
         double tps_15m = tps[2];
         if (!plugin.disableAIWorlds.isEmpty()) {
-            if (tps_1m <= plugin.config.tps_disable_ai) {
-                plugin.disableAI();
-            } else if (tps_15m >= plugin.config.tps_enable_ai) {
+            if (tps_15m >= plugin.config.tps_enable_ai) {
                 plugin.enableAI();
+            } else {
+                plugin.disableAI();
             }
         } else {
             if (tps_5m <= plugin.config.tps_disable_ai) {

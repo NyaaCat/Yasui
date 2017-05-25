@@ -14,6 +14,8 @@ import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.Set;
+import java.util.UUID;
 
 public final class Main extends JavaPlugin {
 
@@ -23,6 +25,8 @@ public final class Main extends JavaPlugin {
     public ArrayList<String> disableAIWorlds = new ArrayList<>();
     public TPSMonitor tpsMonitor;
     public Essentials ess;
+    public Set<UUID> noAIMobs;
+    public EntityListener entityListener;
 
     @Override
     public void onEnable() {
@@ -37,6 +41,15 @@ public final class Main extends JavaPlugin {
             this.ess = (Essentials) getServer().getPluginManager().getPlugin("Essentials");
         }
         tpsMonitor = new TPSMonitor(this);
+        try {
+            Field field = ReflectionUtils.getNMSClass("Entity").getField("noAIMobs");
+            noAIMobs = (Set<UUID>) field.get(null);
+        } catch (NoSuchFieldException e) {
+            e.printStackTrace();
+        } catch (IllegalAccessException e) {
+            e.printStackTrace();
+        }
+        entityListener = new EntityListener(this);
     }
 
     @Override
@@ -65,15 +78,10 @@ public final class Main extends JavaPlugin {
                     getLogger().info("disable entity ai in " + world.getName());
                 }
                 for (Chunk chunk : world.getLoadedChunks()) {
-                    int entityCount = 0;
-                    for (Entity entity : chunk.getEntities()) {
-                        if (entity instanceof LivingEntity) {
-                            entityCount++;
-                        }
-                    }
+                    int entityCount = getEntityCount(chunk);
                     if (entityCount >= this.config.chunk_entity) {
                         for (Entity entity : chunk.getEntities()) {
-                            if (entity instanceof LivingEntity) {
+                            if (entity instanceof LivingEntity && !noAIMobs.contains(entity.getUniqueId())) {
                                 setAI((LivingEntity) entity, false);
                             }
                         }
@@ -81,6 +89,16 @@ public final class Main extends JavaPlugin {
                 }
             }
         }
+    }
+
+    public int getEntityCount(Chunk chunk) {
+        int entityCount = 0;
+        for (Entity entity : chunk.getEntities()) {
+            if (entity instanceof LivingEntity) {
+                entityCount++;
+            }
+        }
+        return entityCount;
     }
 
     public void enableAI() {
@@ -91,14 +109,13 @@ public final class Main extends JavaPlugin {
                 disableAIWorlds.remove(world.getName());
             }
             getLogger().info("enable entity ai in " + world.getName());
-            for (Chunk chunk : world.getLoadedChunks()) {
-                for (Entity entity : chunk.getEntities()) {
-                    if (entity instanceof LivingEntity) {
-                        setAI((LivingEntity) entity, true);
-                    }
+            for (LivingEntity entity : world.getLivingEntities()) {
+                if (noAIMobs.contains(entity.getUniqueId())) {
+                    setAI(entity, true);
                 }
             }
         }
+        noAIMobs.clear();
     }
 
     public void setAI(LivingEntity entity, boolean ai) {
@@ -108,8 +125,13 @@ public final class Main extends JavaPlugin {
                 Method getNMSEntityMethod = craftEntityClazz.getMethod("getHandle");
                 Object e = getNMSEntityMethod.invoke(entity);
                 Class nmsEntityClazz = ReflectionUtils.getNMSClass("Entity");
-                Field field = nmsEntityClazz.getField("fromMobSpawner");
+                Field field = nmsEntityClazz.getField("disableAI");
                 field.setBoolean(e, !ai);
+                if (!ai) {
+                    noAIMobs.add(entity.getUniqueId());
+                } else {
+                    noAIMobs.remove(entity.getUniqueId());
+                }
             }
         } catch (NoSuchMethodException e) {
             e.printStackTrace();
