@@ -35,7 +35,7 @@ repositories {
 }
 
 dependencies {
-    compile 'org.spigotmc:spigot-api:1.11.2-R0.1-SNAPSHOT'
+    compile 'org.spigotmc:spigot-api:1.12-R0.1-SNAPSHOT'
     compile('cat.nyaa:nyaacore:2.0-SNAPSHOT') {
         transitive = false
     }

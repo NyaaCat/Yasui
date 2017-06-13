@@ -14,6 +14,9 @@ import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.Set;
+import java.util.UUID;
 
 public final class Main extends JavaPlugin {
 
@@ -23,6 +26,8 @@ public final class Main extends JavaPlugin {
     public ArrayList<String> disableAIWorlds = new ArrayList<>();
     public TPSMonitor tpsMonitor;
     public Essentials ess;
+    public Set<UUID> noAIMobs = new HashSet<>();
+    public EntityListener entityListener;
 
     @Override
     public void onEnable() {
@@ -37,6 +42,7 @@ public final class Main extends JavaPlugin {
             this.ess = (Essentials) getServer().getPluginManager().getPlugin("Essentials");
         }
         tpsMonitor = new TPSMonitor(this);
+        entityListener = new EntityListener(this);
     }
 
     @Override
@@ -65,16 +71,11 @@ public final class Main extends JavaPlugin {
                     getLogger().info("disable entity ai in " + world.getName());
                 }
                 for (Chunk chunk : world.getLoadedChunks()) {
-                    int entityCount = 0;
-                    for (Entity entity : chunk.getEntities()) {
-                        if (entity instanceof LivingEntity) {
-                            entityCount++;
-                        }
-                    }
+                    int entityCount = getLivingEntityCount(chunk);
                     if (entityCount >= this.config.chunk_entity) {
                         for (Entity entity : chunk.getEntities()) {
                             if (entity instanceof LivingEntity) {
-                                setAI((LivingEntity) entity, false);
+                                setFromMobSpawner((LivingEntity) entity, true);
                             }
                         }
                     }
@@ -94,14 +95,24 @@ public final class Main extends JavaPlugin {
             for (Chunk chunk : world.getLoadedChunks()) {
                 for (Entity entity : chunk.getEntities()) {
                     if (entity instanceof LivingEntity) {
-                        setAI((LivingEntity) entity, true);
+                        setFromMobSpawner((LivingEntity) entity, false);
                     }
                 }
             }
         }
     }
 
-    public void setAI(LivingEntity entity, boolean ai) {
+    public int getLivingEntityCount(Chunk chunk) {
+        int entityCount = 0;
+        for (Entity entity : chunk.getEntities()) {
+            if (entity instanceof LivingEntity && !(entity instanceof ArmorStand)) {
+                entityCount++;
+            }
+        }
+        return entityCount;
+    }
+    
+    public void setFromMobSpawner(LivingEntity entity, boolean fromMobSpawner) {
         try {
             if (entity.isValid() && !(entity instanceof ArmorStand)) {
                 Class craftEntityClazz = ReflectionUtils.getOBCClass("entity.CraftEntity");
@@ -109,7 +120,14 @@ public final class Main extends JavaPlugin {
                 Object e = getNMSEntityMethod.invoke(entity);
                 Class nmsEntityClazz = ReflectionUtils.getNMSClass("Entity");
                 Field field = nmsEntityClazz.getField("fromMobSpawner");
-                field.setBoolean(e, !ai);
+                field.setBoolean(e, fromMobSpawner);
+                if (fromMobSpawner) {
+                    if (!noAIMobs.contains(entity.getUniqueId())) {
+                        noAIMobs.add(entity.getUniqueId());
+                    }
+                } else {
+                    noAIMobs.remove(entity.getUniqueId());
+                }
             }
         } catch (NoSuchMethodException e) {
             e.printStackTrace();
