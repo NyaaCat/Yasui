@@ -34,6 +34,7 @@ env:
   global:
     - main_version=1
     - archivesBaseName=yasui
+    - trigger_ci=20170624
 before_cache:
   - rm -f  $HOME/.gradle/caches/modules-2/modules-2.lock
   - rm -f  $HOME/.gradle/caches/3.5/fileHashes/fileHashes.bin
