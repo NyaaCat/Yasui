@@ -6,7 +6,7 @@ import cat.nyaa.nyaacore.LanguageRepository;
 import org.bukkit.World;
 import org.bukkit.command.CommandSender;
 
-public class CommandHandler extends CommandReceiver<Main> {
+public class CommandHandler extends CommandReceiver {
     private final Main plugin;
 
     public CommandHandler(Main plugin, LanguageRepository i18n) {
