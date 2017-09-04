@@ -33,7 +33,7 @@ branches:
 env:
   global:
     - main_version=1
-    - archivesBaseName=yasui
+    - archivesBaseName=Yasui
     - trigger_ci=20170624
 before_cache:
   - rm -f  $HOME/.gradle/caches/modules-2/modules-2.lock
