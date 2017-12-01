@@ -35,7 +35,7 @@ repositories {
 
 dependencies {
     compile 'org.spigotmc:spigot-api:1.12.1-R0.1-SNAPSHOT'
-    compile('cat.nyaa:nyaacore:4.0-SNAPSHOT') {
+    compile('cat.nyaa:nyaacore:4.1-SNAPSHOT') {
         transitive = false
     }
     compile('net.ess3:Essentials:2.13-SNAPSHOT') {
