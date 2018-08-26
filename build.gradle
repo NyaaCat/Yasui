@@ -8,13 +8,8 @@ targetCompatibility = 1.8
 repositories {
     jcenter()
     maven {
-        name 'spigot-repo'
-        url 'https://hub.spigotmc.org/nexus/content/repositories/snapshots/'
-    }
-
-    maven {
-        name 'sonatype'
-        url 'https://oss.sonatype.org/content/groups/public'
+        name 'Spigot'
+        url 'https://hub.spigotmc.org/nexus/content/groups/public/'
     }
 
     maven {
@@ -24,24 +19,19 @@ repositories {
 
     maven {
         name 'NyaaCore'
-        url 'https://raw.githubusercontent.com/NyaaCat/NyaaCore/maven-repo'
-    }
-
-    maven {
-        name 'nu-langchecker'
-        url 'https://raw.githubusercontent.com/Librazy/NyaaUtilsLangChecker/maven-repo'
+        url 'https://raw.githubusercontent.com/NyaaCat/NyaaCentral/maven-repo'
     }
 }
 
 dependencies {
-    compile 'org.spigotmc:spigot-api:1.12.1-R0.1-SNAPSHOT'
-    compile('cat.nyaa:nyaacore:4.1-SNAPSHOT') {
+    compile 'org.spigotmc:spigot-api:1.13.1-R0.1-SNAPSHOT'
+    compile('cat.nyaa:nyaacore:6.2-SNAPSHOT') {
         transitive = false
     }
     compile('net.ess3:Essentials:2.13-SNAPSHOT') {
         transitive = false
     }
-    compile 'org.librazy:NyaaUtilsLangChecker:1.0-SNAPSHOT'
+    compile 'org.librazy:NyaaUtilsLangChecker:2.0-SNAPSHOT'
 }
 
 String nyaaCoreLangDir = System.getenv("NYAACORE_LANG_DIR")

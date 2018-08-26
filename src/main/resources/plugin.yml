@@ -4,6 +4,7 @@ main: cat.nyaa.yasui.Main
 depend: [NyaaCore]
 softdepend: [Essentials]
 authors: [cylin]
+api-version: 1.13
 commands:
   yasui:
 permissions:
