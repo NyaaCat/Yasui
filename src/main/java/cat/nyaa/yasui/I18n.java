@@ -6,10 +6,10 @@ import org.librazy.nclangchecker.LangKey;
 
 public class I18n extends LanguageRepository {
     public static I18n instance = null;
-    private final Main plugin;
+    private final Yasui plugin;
     private String lang = null;
 
-    public I18n(Main plugin, String lang) {
+    public I18n(Yasui plugin, String lang) {
         instance = this;
         this.plugin = plugin;
         this.lang = lang;

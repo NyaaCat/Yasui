@@ -6,10 +6,12 @@ import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class Configuration extends PluginConfigure {
-    private final Main plugin;
+    private final Yasui plugin;
 
     @Serializable
     public String language = "en_US";
@@ -18,7 +20,7 @@ public class Configuration extends PluginConfigure {
     @Serializable
     public boolean use_essentials_tps = false;
     @Serializable
-    public int check_interval_tick = 20 * 60;
+    public int check_interval_tick = 20 * 30;
     @Serializable
     public double tps_disable_ai = 18.0D;
     @Serializable
@@ -29,8 +31,10 @@ public class Configuration extends PluginConfigure {
     public int chunk_entity = 20;
     @Serializable
     public List<String> ignored_world = Arrays.asList("v1_the_end", "v2_the_end");
+    @Serializable
+    public Map<String, Rule> rules = new HashMap<>();
 
-    public Configuration(Main plugin) {
+    public Configuration(Yasui plugin) {
         this.plugin = plugin;
     }
 

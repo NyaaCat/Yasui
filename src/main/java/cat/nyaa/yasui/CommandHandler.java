@@ -3,13 +3,14 @@ package cat.nyaa.yasui;
 
 import cat.nyaa.nyaacore.CommandReceiver;
 import cat.nyaa.nyaacore.LanguageRepository;
+import org.bukkit.GameRule;
 import org.bukkit.World;
 import org.bukkit.command.CommandSender;
 
 public class CommandHandler extends CommandReceiver {
-    private final Main plugin;
+    private final Yasui plugin;
 
-    public CommandHandler(Main plugin, LanguageRepository i18n) {
+    public CommandHandler(Yasui plugin, LanguageRepository i18n) {
         super(plugin, i18n);
         this.plugin = plugin;
     }
@@ -23,7 +24,7 @@ public class CommandHandler extends CommandReceiver {
         msg(sender, "user.status.line_0");
         for (World world : plugin.getServer().getWorlds()) {
             msg(sender, "user.status.line_1", world.getName(), world.getLivingEntities().size(),
-                    plugin.disableAIWorlds.contains(world.getName()) ? "YES" : "NO");
+                    plugin.disableAIWorlds.contains(world.getName()) ? "YES" : "NO", world.getGameRuleValue(GameRule.RANDOM_TICK_SPEED));
         }
     }
 
@@ -32,9 +33,9 @@ public class CommandHandler extends CommandReceiver {
         if (args.length() == 2) {
             String s = args.next();
             if (s.equalsIgnoreCase("disableAI")) {
-                plugin.disableAI();
+                plugin.disableAI(null);
             } else if (s.equalsIgnoreCase("enableAI")) {
-                plugin.enableAI();
+                plugin.enableAI(null);
             }
         }
     }

@@ -1,25 +1,22 @@
 package cat.nyaa.yasui;
 
-import cat.nyaa.nyaacore.utils.ReflectionUtils;
+import cat.nyaa.nyaacore.utils.NmsUtils;
 import com.earth2me.essentials.Essentials;
 import org.bukkit.Chunk;
 import org.bukkit.World;
-import org.bukkit.entity.ArmorStand;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.event.HandlerList;
 import org.bukkit.plugin.java.JavaPlugin;
 
-import java.lang.reflect.Field;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
 
-public final class Main extends JavaPlugin {
+public final class Yasui extends JavaPlugin {
 
+    public static Yasui INSTANCE;
     public Configuration config;
     public I18n i18n;
     public CommandHandler commandHandler;
@@ -31,6 +28,7 @@ public final class Main extends JavaPlugin {
 
     @Override
     public void onEnable() {
+        INSTANCE = this;
         config = new Configuration(this);
         config.load();
         i18n = new I18n(this, this.config.language);
@@ -60,9 +58,12 @@ public final class Main extends JavaPlugin {
         }
     }
 
-    public void disableAI() {
+    public void disableAI(World w) {
         for (World world : getServer().getWorlds()) {
             if (config.ignored_world.contains(world.getName())) {
+                continue;
+            }
+            if (w != null && !w.getName().equalsIgnoreCase(world.getName())) {
                 continue;
             }
             if (world.getLivingEntities().size() >= this.config.world_entity) {
@@ -71,11 +72,11 @@ public final class Main extends JavaPlugin {
                     getLogger().info("disable entity ai in " + world.getName());
                 }
                 for (Chunk chunk : world.getLoadedChunks()) {
-                    int entityCount = getLivingEntityCount(chunk);
+                    int entityCount = Utils.getLivingEntityCount(chunk);
                     if (entityCount >= this.config.chunk_entity) {
                         for (Entity entity : chunk.getEntities()) {
                             if (entity instanceof LivingEntity) {
-                                setFromMobSpawner((LivingEntity) entity, true);
+                                NmsUtils.setFromMobSpawner((LivingEntity) entity, true);
                             }
                         }
                     }
@@ -84,59 +85,24 @@ public final class Main extends JavaPlugin {
         }
     }
 
-    public void enableAI() {
+    public void enableAI(World w) {
         for (World world : getServer().getWorlds()) {
             if (!disableAIWorlds.contains(world.getName())) {
                 continue;
             } else {
                 disableAIWorlds.remove(world.getName());
             }
+            if (w != null && !w.getName().equalsIgnoreCase(world.getName())) {
+                continue;
+            }
             getLogger().info("enable entity ai in " + world.getName());
             for (Chunk chunk : world.getLoadedChunks()) {
                 for (Entity entity : chunk.getEntities()) {
                     if (entity instanceof LivingEntity) {
-                        setFromMobSpawner((LivingEntity) entity, false);
+                        NmsUtils.setFromMobSpawner((LivingEntity) entity, false);
                     }
                 }
             }
-        }
-    }
-
-    public int getLivingEntityCount(Chunk chunk) {
-        int entityCount = 0;
-        for (Entity entity : chunk.getEntities()) {
-            if (entity instanceof LivingEntity && !(entity instanceof ArmorStand)) {
-                entityCount++;
-            }
-        }
-        return entityCount;
-    }
-    
-    public void setFromMobSpawner(LivingEntity entity, boolean fromMobSpawner) {
-        try {
-            if (entity.isValid() && !(entity instanceof ArmorStand)) {
-                Class craftEntityClazz = ReflectionUtils.getOBCClass("entity.CraftEntity");
-                Method getNMSEntityMethod = craftEntityClazz.getMethod("getHandle");
-                Object e = getNMSEntityMethod.invoke(entity);
-                Class nmsEntityClazz = ReflectionUtils.getNMSClass("Entity");
-                Field field = nmsEntityClazz.getField("fromMobSpawner");
-                field.setBoolean(e, fromMobSpawner);
-                if (fromMobSpawner) {
-                    if (!noAIMobs.contains(entity.getUniqueId())) {
-                        noAIMobs.add(entity.getUniqueId());
-                    }
-                } else {
-                    noAIMobs.remove(entity.getUniqueId());
-                }
-            }
-        } catch (NoSuchMethodException e) {
-            e.printStackTrace();
-        } catch (IllegalAccessException e) {
-            e.printStackTrace();
-        } catch (NoSuchFieldException e) {
-            e.printStackTrace();
-        } catch (InvocationTargetException e) {
-            e.printStackTrace();
         }
     }
 

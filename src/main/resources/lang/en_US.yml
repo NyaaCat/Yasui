@@ -5,8 +5,8 @@ internal:
     usage_prompt: "Usage: %s"
 user:
   status:
-    line_0: "World | Entities | disable AI"
-    line_1: "%s %d %s"
+    line_0: "World | Entities | disable AI | random tick"
+    line_1: "%s %d %s %d"
 manual:
   no_description: "No description"
   no_usage: "No usage"

@@ -24,14 +24,17 @@ repositories {
 }
 
 dependencies {
-    compile 'org.spigotmc:spigot-api:1.13.1-R0.1-SNAPSHOT'
-    compile('cat.nyaa:nyaacore:6.2-SNAPSHOT') {
-        transitive = false
+    compile 'org.spigotmc:spigot-api:1.13.2-R0.1-SNAPSHOT'
+    compile('cat.nyaa:nyaacore:6.3-SNAPSHOT') {
+        //transitive = false
     }
     compile('net.ess3:Essentials:2.13-SNAPSHOT') {
         transitive = false
     }
-    compile 'org.librazy:NyaaUtilsLangChecker:2.0-SNAPSHOT'
+    compileOnly 'org.librazy:NyaaUtilsLangChecker:2.0-SNAPSHOT'
+    compile 'com.udojava:EvalEx:2.1'
+    annotationProcessor 'org.librazy:NyaaUtilsLangChecker:2.0-SNAPSHOT'
+    annotationProcessor "org.spigotmc:spigot-api:1.13.2-R0.1-SNAPSHOT"
 }
 
 String nyaaCoreLangDir = System.getenv("NYAACORE_LANG_DIR")

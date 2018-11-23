@@ -1,6 +1,7 @@
 package cat.nyaa.yasui;
 
 
+import cat.nyaa.nyaacore.utils.NmsUtils;
 import org.bukkit.Chunk;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
@@ -11,9 +12,9 @@ import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.event.world.ChunkLoadEvent;
 
 public class EntityListener implements Listener {
-    private Main plugin;
+    private Yasui plugin;
 
-    public EntityListener(Main pl) {
+    public EntityListener(Yasui pl) {
         pl.getServer().getPluginManager().registerEvents(this, pl);
         this.plugin = pl;
     }
@@ -26,7 +27,7 @@ public class EntityListener implements Listener {
         }
         for (Entity entity : chunk.getEntities()) {
             if (entity instanceof LivingEntity && plugin.noAIMobs.contains(entity.getUniqueId())) {
-                plugin.setFromMobSpawner((LivingEntity) entity, true);
+                NmsUtils.setFromMobSpawner(entity, true);
             }
         }
     }
@@ -34,8 +35,6 @@ public class EntityListener implements Listener {
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onEntityDeath(EntityDeathEvent event) {
         LivingEntity entity = event.getEntity();
-        if (plugin.noAIMobs.contains(entity.getUniqueId())) {
-            plugin.noAIMobs.remove(entity.getUniqueId());
-        }
+        plugin.noAIMobs.remove(entity.getUniqueId());
     }
 }

@@ -1,6 +1,6 @@
 name: yasui
 version: 1.0
-main: cat.nyaa.yasui.Main
+main: cat.nyaa.yasui.Yasui
 depend: [NyaaCore]
 softdepend: [Essentials]
 authors: [cylin]
