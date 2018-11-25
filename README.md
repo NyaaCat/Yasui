@@ -5,7 +5,7 @@ Control entity resource consumption by drop AI computing. Mobは安い。
 
 Yasui is the plugin for servers that would like to keep minimum impact on vanilla gameplay.
 
-By drop AI computing and reduce server random tick speed on demand automatically, yasui enables much higher entity load on your server.
+By dropping AI computing and reduce server random tick speed on demand automatically, yasui enables much higher entity load on your server.
 
 ### Get Started
 
