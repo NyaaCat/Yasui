@@ -1,8 +1,10 @@
 package cat.nyaa.yasui;
 
 
+import cat.nyaa.nyaacore.Message;
 import com.udojava.evalex.Expression;
 import org.bukkit.Bukkit;
+import org.bukkit.ChatColor;
 import org.bukkit.GameRule;
 import org.bukkit.World;
 import org.bukkit.scheduler.BukkitRunnable;
@@ -61,11 +63,22 @@ public class TPSMonitor extends BukkitRunnable {
         if (disableAI != null && disableAI.intValue() > 0) {
             plugin.disableAI(world);
         }
+        BigDecimal tickSpeed = null;
         if (world != null) {
-            BigDecimal tickSpeed = eval(rule.world_random_tick_speed, world);
+            tickSpeed = eval(rule.world_random_tick_speed, world);
             if (tickSpeed != null && tickSpeed.intValue() >= 0) {
                 Utils.setRandomTickSpeed(world, tickSpeed.intValue());
             }
+        }
+        if (rule.messageType != null && rule.message != null) {
+            String msg = rule.message.replaceAll("\\{tps_1m}", String.format("%.2f", tps_1m.doubleValue()))
+                    .replaceAll("\\{tps_5m}", String.format("%.2f", tps_5m.doubleValue()))
+                    .replaceAll("\\{tps_15m}", String.format("%.2f", tps_15m.doubleValue()))
+                    .replaceAll("\\{tps_1m}", String.format("%.2f", tps_1m.doubleValue()));
+            if (tickSpeed != null) {
+                msg = msg.replaceAll("\\{world_random_tick_speed}", String.valueOf(tickSpeed.intValue()));
+            }
+            new Message(ChatColor.translateAlternateColorCodes('&', msg)).broadcast(rule.messageType, p -> (world == null || p.getWorld().equals(world)));
         }
     }
 

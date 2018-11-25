@@ -1,5 +1,6 @@
 package cat.nyaa.yasui;
 
+import cat.nyaa.nyaacore.Message;
 import cat.nyaa.nyaacore.configuration.ISerializable;
 
 import java.util.List;
@@ -17,4 +18,8 @@ public class Rule implements ISerializable {
     public String disable_ai;
     @Serializable
     public String world_random_tick_speed;
+    @Serializable
+    public Message.MessageType messageType;
+    @Serializable
+    public String message;
 }

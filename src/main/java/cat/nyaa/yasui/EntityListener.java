@@ -8,6 +8,7 @@ import org.bukkit.entity.LivingEntity;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.event.entity.CreatureSpawnEvent;
 import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.event.world.ChunkLoadEvent;
 
@@ -36,5 +37,15 @@ public class EntityListener implements Listener {
     public void onEntityDeath(EntityDeathEvent event) {
         LivingEntity entity = event.getEntity();
         plugin.noAIMobs.remove(entity.getUniqueId());
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onMobSpawn(CreatureSpawnEvent event) {
+        if (plugin.config.listen_mob_spawn && !plugin.config.ignored_spawn_reason.contains(event.getSpawnReason().name()) & plugin.disableAIWorlds.contains(event.getLocation().getWorld().getName())) {
+            if (Utils.getLivingEntityCount(event.getLocation().getChunk()) >= plugin.config.chunk_entity && plugin.config.ignored_entity_type.contains(event.getEntityType().name())) {
+                NmsUtils.setFromMobSpawner(event.getEntity(), true);
+                plugin.noAIMobs.add(event.getEntity().getUniqueId());
+            }
+        }
     }
 }

@@ -75,8 +75,8 @@ public final class Yasui extends JavaPlugin {
                     int entityCount = Utils.getLivingEntityCount(chunk);
                     if (entityCount >= this.config.chunk_entity) {
                         for (Entity entity : chunk.getEntities()) {
-                            if (entity instanceof LivingEntity) {
-                                NmsUtils.setFromMobSpawner((LivingEntity) entity, true);
+                            if (entity instanceof LivingEntity && !config.ignored_entity_type.contains(entity.getType().name())) {
+                                NmsUtils.setFromMobSpawner(entity, true);
                             }
                         }
                     }
