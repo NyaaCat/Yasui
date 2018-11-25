@@ -31,8 +31,8 @@ dependencies {
     compile('net.ess3:Essentials:2.13-SNAPSHOT') {
         transitive = false
     }
-    compileOnly 'org.librazy:NyaaUtilsLangChecker:2.0-SNAPSHOT'
     compile 'com.udojava:EvalEx:2.1'
+    implementation 'org.librazy:NyaaUtilsLangChecker:2.0-SNAPSHOT'
     annotationProcessor 'org.librazy:NyaaUtilsLangChecker:2.0-SNAPSHOT'
     annotationProcessor "org.spigotmc:spigot-api:1.13.2-R0.1-SNAPSHOT"
 }
