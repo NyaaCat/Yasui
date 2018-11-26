@@ -2,6 +2,7 @@ package cat.nyaa.yasui;
 
 
 import cat.nyaa.nyaacore.Message;
+import com.udojava.evalex.AbstractFunction;
 import com.udojava.evalex.Expression;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
@@ -10,6 +11,7 @@ import org.bukkit.World;
 import org.bukkit.scheduler.BukkitRunnable;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 public class TPSMonitor extends BukkitRunnable {
     private final Yasui plugin;
@@ -61,7 +63,7 @@ public class TPSMonitor extends BukkitRunnable {
         }
         BigDecimal disableAI = eval(rule.disable_ai, world);
         if (disableAI != null && disableAI.intValue() > 0) {
-            plugin.disableAI(world);
+            plugin.disableAI(world, false);
         }
         BigDecimal tickSpeed = null;
         if (world != null) {
@@ -90,6 +92,14 @@ public class TPSMonitor extends BukkitRunnable {
                     .with("tps_15m", tps_15m)
                     .with("online_players", new BigDecimal(Bukkit.getOnlinePlayers().size()))
                     .with("random_tick_speed", new BigDecimal(Bukkit.getWorlds().get(0).getGameRuleValue(GameRule.RANDOM_TICK_SPEED)));
+            if (Yasui.hasNU) {
+                exp.addFunction(new AbstractFunction("getTPSFromNU", 1) {
+                    @Override
+                    public BigDecimal eval(List<BigDecimal> parameters) {
+                        return Utils.getTPSFromNU(parameters.get(0).intValue());
+                    }
+                });
+            }
             if (world != null) {
                 exp.with("world_random_tick_speed", new BigDecimal(world.getGameRuleValue(GameRule.RANDOM_TICK_SPEED)))
                         .with("loaded_chunks", new BigDecimal(world.getLoadedChunks().length))
@@ -102,7 +112,6 @@ public class TPSMonitor extends BukkitRunnable {
     }
 
     public void updateTPS() {
-        long now = System.currentTimeMillis();
         double[] tps = Utils.getTPS();
         tps_1m = new BigDecimal(tps[0]);
         tps_5m = new BigDecimal(tps[1]);

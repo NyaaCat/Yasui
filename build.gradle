@@ -13,11 +13,6 @@ repositories {
     }
 
     maven {
-        name 'ess-repo'
-        url 'http://repo.ess3.net/content/groups/essentials'
-    }
-
-    maven {
         name 'NyaaCore'
         url 'https://raw.githubusercontent.com/NyaaCat/NyaaCentral/maven-repo'
     }
@@ -28,7 +23,7 @@ dependencies {
     compile('cat.nyaa:nyaacore:6.3-SNAPSHOT') {
         //transitive = false
     }
-    compile('net.ess3:Essentials:2.13-SNAPSHOT') {
+    compile('cat.nyaa:nyaautils:6.1-SNAPSHOT') {
         transitive = false
     }
     compile 'com.udojava:EvalEx:2.1'

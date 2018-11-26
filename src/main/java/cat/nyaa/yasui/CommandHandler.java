@@ -3,6 +3,7 @@ package cat.nyaa.yasui;
 
 import cat.nyaa.nyaacore.CommandReceiver;
 import cat.nyaa.nyaacore.LanguageRepository;
+import org.bukkit.Bukkit;
 import org.bukkit.GameRule;
 import org.bukkit.World;
 import org.bukkit.command.CommandSender;
@@ -30,12 +31,16 @@ public class CommandHandler extends CommandReceiver {
 
     @SubCommand(value = "debug", permission = "yasui.admin")
     public void commandDebug(CommandSender sender, Arguments args) {
-        if (args.length() == 2) {
-            String s = args.next();
+        if (args.length() >= 2) {
+            String s = args.nextString();
+            World world = null;
+            if (args.top() != null) {
+                world = Bukkit.getWorld(args.nextString());
+            }
             if (s.equalsIgnoreCase("disableAI")) {
-                plugin.disableAI(null);
+                plugin.disableAI(world, true);
             } else if (s.equalsIgnoreCase("enableAI")) {
-                plugin.enableAI(null);
+                plugin.enableAI(world);
             }
         }
     }
