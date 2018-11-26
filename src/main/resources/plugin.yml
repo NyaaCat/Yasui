@@ -2,7 +2,7 @@ name: yasui
 version: 1.0
 main: cat.nyaa.yasui.Yasui
 depend: [NyaaCore]
-softdepend: [Essentials]
+softdepend: [NyaaUtils]
 authors: [cylin]
 api-version: 1.13
 commands:

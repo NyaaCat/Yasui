@@ -23,8 +23,6 @@ Configuration file `yasui/config.yml`
 language: en_US
 enable: true  # enable yasui auto nerfing
 check_interval_tick: 60
-tps_disable_ai: 17.0  # remove AI if server tps lower than this value for 60 ticks
-tps_enable_ai: 19.0  # restore AI if server tps higher than this value for 60 ticks
 world_entity: 2400  # allow disable AI when entity amount greater than this value
 chunk_entity: 3  # remove AI for chunks containing more entities than this value
 ignored_world:
@@ -33,12 +31,11 @@ __class__: cat.nyaa.yasui.Configuration  # DON'T TOUCH THIS
 ignored_entity_type:    # those entities will not be removed AI                                                                                                                       
 - SNOWMAN
 - ARMOR_STAND
-use_essentials_tps: true  # use Essentials for realtime TPS logging (will be replaced by NyaaUtils)
 rules:
   1:    # Restore AI when 1 / 5 / 15 minutes tps value higher than 19.0
     __class__: cat.nyaa.yasui.Rule
     enable: false
-    condition: tps_1m >= 19.0 && tps_5m >= 19.0 && tps_15m >= 19.0
+    condition: tps_1m >= 19.0 && tps_5m >= 19.0 && tps_15m >= 19.0 # you can also use getTPSFromNU(seconds) to get TPS if NyaaUtils is installed 
     enable_ai: '1'
   2:    # Remove AI when 1 minute tps lower than 18.0
     __class__: cat.nyaa.yasui.Rule
