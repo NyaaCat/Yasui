@@ -1,10 +1,5 @@
 package cat.nyaa.yasui;
 
-import cat.nyaa.nyaacore.utils.NmsUtils;
-import org.bukkit.Chunk;
-import org.bukkit.World;
-import org.bukkit.entity.Entity;
-import org.bukkit.entity.LivingEntity;
 import org.bukkit.event.HandlerList;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -21,6 +16,7 @@ public final class Yasui extends JavaPlugin {
     public Set<String> disableAIWorlds = new HashSet<>();
     public TPSMonitor tpsMonitor;
     public EntityListener entityListener;
+    public Set<String> entityLimitWorlds = new HashSet<>();
 
     @Override
     public void onEnable() {
@@ -49,54 +45,6 @@ public final class Yasui extends JavaPlugin {
         HandlerList.unregisterAll(this);
         if (saveConfig) {
             config.save();
-        }
-    }
-
-    public void disableAI(World w, boolean ignoreWorldEntityCount) {
-        for (World world : getServer().getWorlds()) {
-            if (config.ignored_world.contains(world.getName())) {
-                continue;
-            }
-            if (w != null && !w.getName().equalsIgnoreCase(world.getName())) {
-                continue;
-            }
-            if (ignoreWorldEntityCount || world.getLivingEntities().size() >= this.config.world_entity) {
-                if (!disableAIWorlds.contains(world.getName())) {
-                    disableAIWorlds.add(world.getName());
-                    getLogger().info("disable entity ai in " + world.getName());
-                }
-                for (Chunk chunk : world.getLoadedChunks()) {
-                    int entityCount = Utils.getLivingEntityCount(chunk);
-                    if (entityCount >= this.config.chunk_entity) {
-                        for (Entity entity : chunk.getEntities()) {
-                            if (entity instanceof LivingEntity && !config.ignored_entity_type.contains(entity.getType().name())) {
-                                NmsUtils.setFromMobSpawner(entity, true);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    public void enableAI(World w) {
-        for (World world : getServer().getWorlds()) {
-            if (!disableAIWorlds.contains(world.getName())) {
-                continue;
-            } else {
-                disableAIWorlds.remove(world.getName());
-            }
-            if (w != null && !w.getName().equalsIgnoreCase(world.getName())) {
-                continue;
-            }
-            getLogger().info("enable entity ai in " + world.getName());
-            for (Chunk chunk : world.getLoadedChunks()) {
-                for (Entity entity : chunk.getEntities()) {
-                    if (entity instanceof LivingEntity) {
-                        NmsUtils.setFromMobSpawner((LivingEntity) entity, false);
-                    }
-                }
-            }
         }
     }
 

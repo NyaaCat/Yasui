@@ -25,23 +25,26 @@ public class CommandHandler extends CommandReceiver {
         msg(sender, "user.status.line_0");
         for (World world : plugin.getServer().getWorlds()) {
             msg(sender, "user.status.line_1", world.getName(), world.getLivingEntities().size(),
-                    plugin.disableAIWorlds.contains(world.getName()) ? "YES" : "NO", world.getGameRuleValue(GameRule.RANDOM_TICK_SPEED));
+                    plugin.disableAIWorlds.contains(world.getName()) ? "YES" : "NO", world.getGameRuleValue(GameRule.RANDOM_TICK_SPEED),
+                    plugin.entityLimitWorlds.contains(world.getName()) ? "YES" : "NO");
         }
     }
 
     @SubCommand(value = "debug", permission = "yasui.admin")
     public void commandDebug(CommandSender sender, Arguments args) {
-        if (args.length() >= 2) {
-            String s = args.nextString();
-            World world = null;
-            if (args.top() != null) {
-                world = Bukkit.getWorld(args.nextString());
+        if (args.length() >= 4) {
+            World world = Bukkit.getWorld(args.nextString());
+            if (args.nextBoolean()) {
+                plugin.disableAIWorlds.add(world.getName());
+            } else {
+                plugin.disableAIWorlds.remove(world.getName());
             }
-            if (s.equalsIgnoreCase("disableAI")) {
-                plugin.disableAI(world, true);
-            } else if (s.equalsIgnoreCase("enableAI")) {
-                plugin.enableAI(world);
+            if (args.nextBoolean()) {
+                plugin.entityLimitWorlds.add(world.getName());
+            } else {
+                plugin.entityLimitWorlds.remove(world.getName());
             }
+            Utils.checkWorld(world);
         }
     }
 

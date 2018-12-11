@@ -9,6 +9,7 @@ import org.bukkit.World;
 import org.bukkit.entity.ArmorStand;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
+import org.bukkit.entity.Tameable;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
@@ -61,4 +62,46 @@ public class Utils {
         }
         return new BigDecimal(totalTPS / last.size());
     }
+
+    public static void checkEntity(Chunk chunk) {
+        int count = getLivingEntityCount(chunk);
+        int max = Yasui.INSTANCE.entityLimitWorlds.contains(chunk.getWorld().getName()) ? Yasui.INSTANCE.config.entity_limit_per_chunk_max : -1;
+        boolean disableAI = Yasui.INSTANCE.disableAIWorlds.contains(chunk.getWorld().getName());
+        int removed = 0;
+        for (Entity entity : chunk.getEntities()) {
+            if (max >= 0 && count - removed > max && canRemove(entity)) {
+                entity.remove();
+                removed++;
+                continue;
+            }
+            if (count >= Yasui.INSTANCE.config.ai_chunk_entity && entity instanceof LivingEntity && !Yasui.INSTANCE.config.ai_ignored_entity_type.contains(entity.getType().name())) {
+                NmsUtils.setFromMobSpawner(entity, disableAI);
+            } else {
+                NmsUtils.setFromMobSpawner(entity, false);
+            }
+        }
+    }
+
+    public static boolean canRemove(Entity entity) {
+        if (entity instanceof LivingEntity) {
+            if (//entity.isInvulnerable() ||
+                    (Yasui.INSTANCE.config.entity_limit_excluded_has_custom_name && entity.getCustomName() != null) ||
+                            (Yasui.INSTANCE.config.entity_limit_excluded_has_owner && entity instanceof Tameable && ((Tameable) entity).getOwner() != null) ||
+                            (Yasui.INSTANCE.config.entity_limit_excluded_entity_type.contains(entity.getType().name())
+                            )) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    public static void checkWorld(World w) {
+        if (Yasui.INSTANCE.config.entity_limit_per_chunk_max >= 0) {
+            Yasui.INSTANCE.entityLimitWorlds.add(w.getName());
+        }
+        for (Chunk chunk : w.getLoadedChunks()) {
+            checkEntity(chunk);
+        }
+    }
+
 }

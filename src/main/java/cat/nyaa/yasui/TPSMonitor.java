@@ -30,16 +30,13 @@ public class TPSMonitor extends BukkitRunnable {
             return;
         }
         updateTPS();
+        //HashSet<String> old_disableAIWorlds = new HashSet<>(plugin.disableAIWorlds);
+        //HashSet<String> old_entityLimitWorlds = new HashSet<>(plugin.entityLimitWorlds);
         for (String key : plugin.config.rules.keySet()) {
             Rule rule = plugin.config.rules.get(key);
             if (rule != null && rule.enable && rule.condition != null && rule.condition.length() > 0) {
                 BigDecimal result = null;
-                if (rule.worlds == null || rule.worlds.isEmpty()) {
-                    result = eval(rule.condition, null);
-                    if (result != null && result.intValue() > 0) {
-                        runRule(rule, null);
-                    }
-                } else {
+                if (rule.worlds != null && !rule.worlds.isEmpty()) {
                     for (String worldName : rule.worlds) {
                         World w = Bukkit.getWorld(worldName);
                         if (w != null) {
@@ -54,23 +51,37 @@ public class TPSMonitor extends BukkitRunnable {
                 }
             }
         }
+        for (World world : Bukkit.getWorlds()) {
+            if (!plugin.config.ignored_world.contains(world.getName())) {
+                String name = world.getName();
+                //if ((!old_entityLimitWorlds.contains(name) && plugin.entityLimitWorlds.contains(name)) ||
+                //        (old_disableAIWorlds.contains(name) != plugin.disableAIWorlds.contains(name))) {
+                    Utils.checkWorld(world);
+                //}
+            }
+        }
     }
 
     public void runRule(Rule rule, World world) {
         BigDecimal enableAI = eval(rule.enable_ai, world);
         if (enableAI != null && enableAI.intValue() > 0) {
-            plugin.enableAI(world);
+            plugin.disableAIWorlds.remove(world.getName());
         }
         BigDecimal disableAI = eval(rule.disable_ai, world);
         if (disableAI != null && disableAI.intValue() > 0) {
-            plugin.disableAI(world, false);
+            plugin.disableAIWorlds.add(world.getName());
         }
-        BigDecimal tickSpeed = null;
-        if (world != null) {
-            tickSpeed = eval(rule.world_random_tick_speed, world);
-            if (tickSpeed != null && tickSpeed.intValue() >= 0) {
-                Utils.setRandomTickSpeed(world, tickSpeed.intValue());
-            }
+        BigDecimal tickSpeed = eval(rule.world_random_tick_speed, world);
+        if (tickSpeed != null && tickSpeed.intValue() >= 0) {
+            Utils.setRandomTickSpeed(world, tickSpeed.intValue());
+        }
+        BigDecimal limitEnable = eval(rule.entity_limit_enable, world);
+        if (limitEnable != null && limitEnable.intValue() > 0) {
+            plugin.entityLimitWorlds.add(world.getName());
+        }
+        BigDecimal limitDisable = eval(rule.entity_limit_disable, world);
+        if (limitDisable != null && limitDisable.intValue() > 0) {
+            plugin.entityLimitWorlds.remove(world.getName());
         }
         if (rule.messageType != null && rule.message != null) {
             String msg = rule.message.replaceAll("\\{tps_1m}", String.format("%.2f", tps_1m.doubleValue()))
@@ -80,7 +91,7 @@ public class TPSMonitor extends BukkitRunnable {
             if (tickSpeed != null) {
                 msg = msg.replaceAll("\\{world_random_tick_speed}", String.valueOf(tickSpeed.intValue()));
             }
-            new Message(ChatColor.translateAlternateColorCodes('&', msg)).broadcast(rule.messageType, p -> (world == null || p.getWorld().equals(world)));
+            new Message(ChatColor.translateAlternateColorCodes('&', msg)).broadcast(rule.messageType, p -> (p.getWorld().equals(world)));
         }
     }
 
@@ -91,7 +102,7 @@ public class TPSMonitor extends BukkitRunnable {
                     .with("tps_5m", tps_5m)
                     .with("tps_15m", tps_15m)
                     .with("online_players", new BigDecimal(Bukkit.getOnlinePlayers().size()))
-                    .with("random_tick_speed", new BigDecimal(Bukkit.getWorlds().get(0).getGameRuleValue(GameRule.RANDOM_TICK_SPEED)));
+                    .with("random_tick_speed", new BigDecimal(world.getGameRuleValue(GameRule.RANDOM_TICK_SPEED)));
             if (Yasui.hasNU) {
                 exp.addFunction(new AbstractFunction("getTPSFromNU", 1) {
                     @Override
@@ -100,12 +111,10 @@ public class TPSMonitor extends BukkitRunnable {
                     }
                 });
             }
-            if (world != null) {
-                exp.with("world_random_tick_speed", new BigDecimal(world.getGameRuleValue(GameRule.RANDOM_TICK_SPEED)))
-                        .with("loaded_chunks", new BigDecimal(world.getLoadedChunks().length))
-                        .with("world_players", new BigDecimal(world.getPlayers().size()))
-                        .with("world_living_entities", new BigDecimal(world.getEntities().size()));
-            }
+            exp.with("world_random_tick_speed", new BigDecimal(world.getGameRuleValue(GameRule.RANDOM_TICK_SPEED)))
+                    .with("loaded_chunks", new BigDecimal(world.getLoadedChunks().length))
+                    .with("world_players", new BigDecimal(world.getPlayers().size()))
+                    .with("world_living_entities", new BigDecimal(world.getLivingEntities().size()));
             return exp.eval();
         }
         return null;
