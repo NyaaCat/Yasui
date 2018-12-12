@@ -93,6 +93,11 @@ public class TPSMonitor extends BukkitRunnable {
             }
             new Message(ChatColor.translateAlternateColorCodes('&', msg)).broadcast(rule.messageType, p -> (p.getWorld().equals(world)));
         }
+        if (rule.commands != null) {
+            for (String cmd : rule.commands) {
+                Bukkit.dispatchCommand(Bukkit.getConsoleSender(), cmd);
+            }
+        }
     }
 
     public BigDecimal eval(String condition, World world) {
