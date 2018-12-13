@@ -11,6 +11,7 @@ import org.bukkit.World;
 import org.bukkit.scheduler.BukkitRunnable;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
 
 public class TPSMonitor extends BukkitRunnable {
@@ -37,17 +38,20 @@ public class TPSMonitor extends BukkitRunnable {
             if (rule != null && rule.enable && rule.condition != null && rule.condition.length() > 0) {
                 BigDecimal result = null;
                 if (rule.worlds != null && !rule.worlds.isEmpty()) {
+                    List<World> worldList = new ArrayList<>();
                     for (String worldName : rule.worlds) {
                         World w = Bukkit.getWorld(worldName);
                         if (w != null) {
                             result = eval(rule.condition, w);
                             if (result != null && result.intValue() > 0) {
                                 runRule(rule, w);
+                                worldList.add(w);
                             }
                         } else {
                             plugin.getLogger().warning(String.format("rule: %s, world %s not exist.", key, worldName));
                         }
                     }
+                    runCommands(rule, worldList);
                 }
             }
         }
@@ -93,11 +97,6 @@ public class TPSMonitor extends BukkitRunnable {
             }
             new Message(ChatColor.translateAlternateColorCodes('&', msg)).broadcast(rule.messageType, p -> (p.getWorld().equals(world)));
         }
-        if (rule.commands != null) {
-            for (String cmd : rule.commands) {
-                Bukkit.dispatchCommand(Bukkit.getConsoleSender(), cmd);
-            }
-        }
     }
 
     public BigDecimal eval(String condition, World world) {
@@ -130,5 +129,19 @@ public class TPSMonitor extends BukkitRunnable {
         tps_1m = new BigDecimal(tps[0]);
         tps_5m = new BigDecimal(tps[1]);
         tps_15m = new BigDecimal(tps[2]);
+    }
+
+    public void runCommands(Rule rule, List<World> worlds) {
+        if (rule.commands != null && !rule.commands.isEmpty() && !worlds.isEmpty()) {
+            for (String cmd : rule.commands) {
+                for (World world : worlds) {
+                    String s = cmd.replaceAll("\\{world_name}", world.getName());
+                    Bukkit.dispatchCommand(Bukkit.getConsoleSender(), s);
+                    if (!cmd.contains("{world_name}")) {
+                        break;
+                    }
+                }
+            }
+        }
     }
 }
