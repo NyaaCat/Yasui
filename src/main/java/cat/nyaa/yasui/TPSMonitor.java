@@ -22,7 +22,7 @@ public class TPSMonitor extends BukkitRunnable {
 
     public TPSMonitor(Yasui pl) {
         plugin = pl;
-        this.runTaskTimer(plugin, 20, plugin.config.check_interval_tick);
+        this.runTaskTimer(plugin, plugin.config.task_delay_tick, plugin.config.check_interval_tick);
     }
 
     @Override
