@@ -87,12 +87,13 @@ public class Utils {
             if (//entity.isInvulnerable() ||
                     (Yasui.INSTANCE.config.entity_limit_excluded_has_custom_name && entity.getCustomName() != null) ||
                             (Yasui.INSTANCE.config.entity_limit_excluded_has_owner && entity instanceof Tameable && ((Tameable) entity).getOwner() != null) ||
-                            (Yasui.INSTANCE.config.entity_limit_excluded_entity_type.contains(entity.getType().name())
-                            )) {
+                            (Yasui.INSTANCE.config.entity_limit_excluded_entity_type.contains(entity.getType().name()))
+            ) {
                 return false;
             }
+            return true;
         }
-        return true;
+        return false;
     }
 
     public static void checkWorld(World w) {
