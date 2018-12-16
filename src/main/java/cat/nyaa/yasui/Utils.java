@@ -96,7 +96,7 @@ public class Utils {
     }
 
     public static void checkWorld(World w) {
-        if (Yasui.INSTANCE.config.entity_limit_per_chunk_max >= 0) {
+        if (Yasui.INSTANCE.config.entity_limit_global_enable) {
             Yasui.INSTANCE.entityLimitWorlds.add(w.getName());
         }
         for (Chunk chunk : w.getLoadedChunks()) {

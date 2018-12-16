@@ -44,6 +44,8 @@ public class Configuration extends PluginConfigure {
     public boolean entity_limit_excluded_has_owner = true;
     @Serializable(name = "entity_limit.per_chunk_max")
     public int entity_limit_per_chunk_max = 50;
+    @Serializable(name = "entity_limit.global_enable")
+    public boolean entity_limit_global_enable = true;
 
     public Configuration(Yasui plugin) {
         this.plugin = plugin;
