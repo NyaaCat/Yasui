@@ -87,6 +87,15 @@ rules:
 listen_mob_spawn: false    # do not catch new mob spawn
 ignored_spawn_reason:
 - CUSTOM    # spawned by plugins (all nature spawned mobs will be removed AI when in high load)
+entity_limit:  
+  excluded:
+    entity_type:
+    - PLAYER
+    - ARMOR_STAND
+    has_custom_name: true
+    has_owner: true
+  per_chunk_max: 50
+  global_enable: false
 ```
 
 
