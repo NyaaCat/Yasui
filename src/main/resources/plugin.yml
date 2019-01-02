@@ -10,3 +10,5 @@ commands:
 permissions:
   yasui.admin:
     default: op
+  yasui.profiler:
+    default: op

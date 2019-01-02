@@ -4,6 +4,19 @@ internal:
     command_complete: "Command Executed!"
     usage_prompt: "Usage: %s"
 user:
+  error:
+    bad_world: Unknown world %s
+  chunk:
+    coord: "Chunk: x %d, z %d"
+    total: ", total: %d"
+    hover: "x:%d~%d, z:%d~%d, click to teleport to chunk center"
+    tp: "/minecraft:tp %d 255 %d"
+  profiler:
+    not_enabled: Not enabled
+    header_entity: Top %d Chunks by Count of Entities
+    header_tileentity: Top %d Chunks by Count of TileEntities
+    entity: "    Entity: %s, count: %d"
+    tileentity: "    TileEntity: %s, count: %d"
   status:
     line_0: "World | Entities | disable AI | random tick | entity limit"
     line_1: "%s %d %s %d %s"

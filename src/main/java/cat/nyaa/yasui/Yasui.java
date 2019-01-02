@@ -17,6 +17,8 @@ public final class Yasui extends JavaPlugin {
     public TPSMonitor tpsMonitor;
     public EntityListener entityListener;
     public Set<String> entityLimitWorlds = new HashSet<>();
+    public ProfilerStatsMonitor profilerStatsMonitor;
+    public ProfilerListener profilerListener;
 
     @Override
     public void onEnable() {
@@ -31,6 +33,10 @@ public final class Yasui extends JavaPlugin {
         getCommand("yasui").setTabCompleter(commandHandler);
         tpsMonitor = new TPSMonitor(this);
         entityListener = new EntityListener(this);
+        if (config.profiler_listen_event) {
+            profilerStatsMonitor = new ProfilerStatsMonitor(this);
+            profilerListener = new ProfilerListener(this);
+        }
     }
 
     @Override

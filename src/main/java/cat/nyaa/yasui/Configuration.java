@@ -46,6 +46,12 @@ public class Configuration extends PluginConfigure {
     public int entity_limit_per_chunk_max = 50;
     @Serializable(name = "entity_limit.global_enable")
     public boolean entity_limit_global_enable = true;
+    @Serializable(name = "profiler.listen_event")
+    public boolean profiler_listen_event = true;
+    @Serializable(name = "profiler.event_chunk_count")
+    public int profiler_event_chunk_count = 20;
+    @Serializable(name = "profiler.entity_chunk_count")
+    public int profiler_entity_chunk_count = 10;
 
     public Configuration(Yasui plugin) {
         this.plugin = plugin;
