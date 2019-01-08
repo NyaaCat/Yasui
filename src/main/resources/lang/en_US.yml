@@ -1,33 +1,33 @@
-internal:
-  info:
-    using_language: "Now using language: %s"
-    command_complete: "Command Executed!"
-    usage_prompt: "Usage: %s"
+manual:
+  no_description: No description
+  help:
+    description: Show help message
+    usage: /yasui [subCommands...] help
+  reload:
+    usage: /yasui reload
+    description: Reload config from config file. Unsaved changes will lost
+  no_usage: No usage
 user:
+  chunk:
+    coord: §c>>§r Chunk §6[§b%d§r, §b%d§6]
+    tp: /minecraft:tp %d 255 %d
+    hover: x:%d~%d, z:%d~%d, click to teleport to chunk center
+    total: ' §r[§9%d§r] '
+    events: '§r[§cRedstone §b%d§r] §r[§aPhysics §b%d§r]'
+  profiler:
+    header_tileentity: §6====== §rTop §c%d§r Chunks by §bTileEntities§6 ======
+    entity: '    §6[§cLivingEntity§6] §b%s §6[§a%d§6]'
+    tileentity: '    §6[§9TileEntity§6] §b%s §6[§a%d§6]'
+    header_entity: §6====== §rTop §c%d§r Chunks by §bLivingEntities§6 ======
+    not_enabled: Not enabled
+  status:
+    line_0: §6====== §rYASUI STATUS §6======
+    line_1: §r[§6World§b %s§r] [§6Entity§c %d§r] [§6Disable AI§a %s§r] [§6Random Tick§a
+      %d§r] [§6EntityLimit§a %s§r]
   error:
     bad_world: Unknown world %s
-  chunk:
-    coord: "Chunk: x %d, z %d"
-    total: ", total: %d"
-    hover: "x:%d~%d, z:%d~%d, click to teleport to chunk center"
-    tp: "/minecraft:tp %d 255 %d"
-  profiler:
-    not_enabled: Not enabled
-    header_entity: Top %d Chunks by Count of Entities
-    header_tileentity: Top %d Chunks by Count of TileEntities
-    entity: "    Entity: %s, count: %d"
-    tileentity: "    TileEntity: %s, count: %d"
-  status:
-    line_0: "World | Entities | disable AI | random tick | entity limit"
-    line_1: "%s %d %s %d %s"
-manual:
-  no_description: "No description"
-  no_usage: "No usage"
-
-  help:
-    description: "Show help message"
-    usage: "/yasui [subCommands...] help"
-
-  reload:
-    description: "Reload config from config file. Unsaved changes will lost"
-    usage: "/yasui reload"
+internal:
+  info:
+    command_complete: Command Executed!
+    usage_prompt: 'Usage: %s'
+    using_language: 'Now using language: %s'

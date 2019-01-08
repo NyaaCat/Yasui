@@ -89,7 +89,11 @@ public class CommandHandler extends CommandReceiver {
                 return total;
             });
             stat.entrySet().stream().sorted(Comparator.comparing(e -> -e.getValue().getRedstone())).limit(plugin.config.profiler_event_chunk_count).forEach(
-                    e -> new Message("").append(e.getKey().getComponent()).append(I18n.format("user.chunk.total", e.getValue().getPhysics() + e.getValue().getRedstone())).append(", redstone: " + e.getValue().getRedstone() + ", physics: " + e.getValue().getPhysics()).send(sender)
+                    e -> new Message("")
+                        .append(e.getKey().getComponent())
+                        .append(I18n.format("user.chunk.total", e.getValue().getPhysics() + e.getValue().getRedstone()))
+                        .append(I18n.format("user.chunk.events", e.getValue().getRedstone(), e.getValue().getPhysics()))
+                        .send(sender)
             );
         });
     }
