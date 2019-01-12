@@ -35,6 +35,7 @@ public final class Yasui extends JavaPlugin {
         entityListener = new EntityListener(this);
         if (config.profiler_listen_event) {
             profilerStatsMonitor = new ProfilerStatsMonitor(this);
+            profilerStatsMonitor.run();
             profilerListener = new ProfilerListener(this);
         }
     }

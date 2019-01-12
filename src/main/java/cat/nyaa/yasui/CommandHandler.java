@@ -70,7 +70,7 @@ public class CommandHandler extends CommandReceiver {
         World world = getWorld(sender, args);
         if (plugin.profilerStatsMonitor == null) {
             msg(sender, "user.profiler.not_enabled");
-
+            return;
         }
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             Deque<Pair<Long, Map<ChunkCoordinate, ProfilerStatsMonitor.ChunkStat>>> redstoneStats = plugin.profilerStatsMonitor.getRedstoneStats(world);
