@@ -6,6 +6,7 @@ import org.bukkit.World;
 import org.bukkit.scheduler.BukkitRunnable;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentLinkedDeque;
 
 public class ProfilerStatsMonitor extends BukkitRunnable {
     private final Yasui plugin;
@@ -27,7 +28,7 @@ public class ProfilerStatsMonitor extends BukkitRunnable {
         currentTickMillis = startTickMillis + (System.nanoTime() - startTickNano) / 1000000;
         List<World> worlds = Bukkit.getWorlds();
         for (World world : worlds) {
-            Deque<Pair<Long, Map<ChunkCoordinate, ChunkStat>>> worldStats = stats.computeIfAbsent(world, ignored -> new ArrayDeque<>());
+            Deque<Pair<Long, Map<ChunkCoordinate, ChunkStat>>> worldStats = stats.computeIfAbsent(world, ignored -> new ConcurrentLinkedDeque<>());
             if (worldStats.size() == 600) {
                 worldStats.poll();
             }
