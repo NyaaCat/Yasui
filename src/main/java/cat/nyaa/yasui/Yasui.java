@@ -19,6 +19,7 @@ public final class Yasui extends JavaPlugin {
     public Set<String> entityLimitWorlds = new HashSet<>();
     public ProfilerStatsMonitor profilerStatsMonitor;
     public ProfilerListener profilerListener;
+    public RedstoneListener redstoneListener;
 
     @Override
     public void onEnable() {
@@ -37,6 +38,11 @@ public final class Yasui extends JavaPlugin {
             profilerStatsMonitor = new ProfilerStatsMonitor(this);
             profilerStatsMonitor.run();
             profilerListener = new ProfilerListener(this);
+        }
+        redstoneListener = new RedstoneListener(this);
+        if (config.redstone_limit_enable) {
+            getServer().getPluginManager().registerEvents(redstoneListener, this);
+            redstoneListener.runTaskTimer(this, 20, 20);
         }
     }
 

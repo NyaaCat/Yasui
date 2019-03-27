@@ -26,6 +26,12 @@ public class Rule implements ISerializable {
     public String entity_limit_enable;
     @Serializable(name = "entity_limit.disable")
     public String entity_limit_disable;
+    @Serializable(name = "redstone_limit.disable_radius")
+    public String redstone_limit_disable_radius;
+    @Serializable(name = "redstone_limit.disable_seconds")
+    public String redstone_limit_disable_seconds;
+    @Serializable(name = "redstone_limit.max_change")
+    public String redstone_limit_max_change;
     @Serializable
     public List<String> commands;
 }

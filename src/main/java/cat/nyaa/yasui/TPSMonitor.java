@@ -60,7 +60,7 @@ public class TPSMonitor extends BukkitRunnable {
                 String name = world.getName();
                 //if ((!old_entityLimitWorlds.contains(name) && plugin.entityLimitWorlds.contains(name)) ||
                 //        (old_disableAIWorlds.contains(name) != plugin.disableAIWorlds.contains(name))) {
-                    Utils.checkWorld(world);
+                Utils.checkWorld(world);
                 //}
             }
         }
@@ -87,6 +87,17 @@ public class TPSMonitor extends BukkitRunnable {
         if (limitDisable != null && limitDisable.intValue() > 0) {
             plugin.entityLimitWorlds.remove(world.getName());
         }
+        BigDecimal redstone_max_change = eval(rule.redstone_limit_max_change, world);
+        if (redstone_max_change != null) {
+            if (redstone_max_change.intValue() >= 0) {
+                plugin.redstoneListener.worlds.add(world.getName());
+                plugin.redstoneListener.redstoneLimitMaxChange = redstone_max_change.intValue();
+                plugin.redstoneListener.redstoneLimitDisableSeconds = eval(rule.redstone_limit_disable_seconds, world).intValue();
+                plugin.redstoneListener.redstoneLimitDisableRadius = eval(rule.redstone_limit_disable_radius, world).intValue();
+            } else {
+                plugin.redstoneListener.worlds.remove(world.getName());
+            }
+        }
         if (rule.messageType != null && rule.message != null) {
             String msg = rule.message.replaceAll("\\{tps_1m}", String.format("%.2f", tps_1m.doubleValue()))
                     .replaceAll("\\{tps_5m}", String.format("%.2f", tps_5m.doubleValue()))
@@ -94,6 +105,11 @@ public class TPSMonitor extends BukkitRunnable {
                     .replaceAll("\\{tps_1m}", String.format("%.2f", tps_1m.doubleValue()));
             if (tickSpeed != null) {
                 msg = msg.replaceAll("\\{world_random_tick_speed}", String.valueOf(tickSpeed.intValue()));
+            }
+            if (redstone_max_change != null) {
+                msg = msg.replaceAll("\\{redstone_max_change}", String.valueOf(redstone_max_change.intValue()))
+                        .replaceAll("\\{redstone_disable_radius}", String.valueOf(plugin.redstoneListener.redstoneLimitDisableRadius))
+                        .replaceAll("\\{redstone_disable_seconds}", String.valueOf(plugin.redstoneListener.redstoneLimitDisableSeconds));
             }
             new Message(ChatColor.translateAlternateColorCodes('&', msg)).broadcast(rule.messageType, p -> (p.getWorld().equals(world)));
         }
@@ -118,7 +134,10 @@ public class TPSMonitor extends BukkitRunnable {
             exp.with("world_random_tick_speed", new BigDecimal(world.getGameRuleValue(GameRule.RANDOM_TICK_SPEED)))
                     .with("loaded_chunks", new BigDecimal(world.getLoadedChunks().length))
                     .with("world_players", new BigDecimal(world.getPlayers().size()))
-                    .with("world_living_entities", new BigDecimal(world.getLivingEntities().size()));
+                    .with("world_living_entities", new BigDecimal(world.getLivingEntities().size()))
+                    .with("redstone_max_change", new BigDecimal(plugin.redstoneListener.redstoneLimitMaxChange))
+                    .with("redstone_disable_radius", new BigDecimal(plugin.redstoneListener.redstoneLimitDisableRadius))
+                    .with("redstone_disable_seconds", new BigDecimal(plugin.redstoneListener.redstoneLimitDisableSeconds));
             return exp.eval();
         }
         return null;

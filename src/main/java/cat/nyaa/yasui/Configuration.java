@@ -52,6 +52,14 @@ public class Configuration extends PluginConfigure {
     public int profiler_event_chunk_count = 20;
     @Serializable(name = "profiler.entity_chunk_count")
     public int profiler_entity_chunk_count = 10;
+    @Serializable(name = "redstone_limit.enable")
+    public boolean redstone_limit_enable = true;
+    @Serializable(name = "redstone_limit.time_range")
+    public int redstone_limit_time_range = 30;
+    @Serializable(name = "redstone_limit.check_interval_tick")
+    public int redstone_limit_check_interval_tick = 50;
+    @Serializable(name = "redstone_limit.log")
+    public boolean redstone_limit_log = true;
 
     public Configuration(Yasui plugin) {
         this.plugin = plugin;

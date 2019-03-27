@@ -14,6 +14,7 @@ import org.bukkit.entity.Tameable;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -105,4 +106,20 @@ public class Utils {
         }
     }
 
+    public static List<ChunkCoordinate> getChunks(Chunk chunk, int radius) {
+        List<ChunkCoordinate> list = new ArrayList<>();
+        World world = chunk.getWorld();
+        if (radius > 0) {
+            int maxX = chunk.getX() + radius;
+            int maxZ = chunk.getZ() + radius;
+            for (int minX = chunk.getX() - radius; minX <= maxX; minX++) {
+                for (int minZ = chunk.getZ() - radius; minZ <= maxZ; minZ++) {
+                    list.add(ChunkCoordinate.of(world.getChunkAt(minX, minZ)));
+                }
+            }
+        } else {
+            list.add(ChunkCoordinate.of(chunk));
+        }
+        return list;
+    }
 }

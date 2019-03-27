@@ -26,6 +26,11 @@ user:
       %d§r] [§6EntityLimit§a %s§r]
   error:
     bad_world: Unknown world %s
+  redstone:
+    disabled_here: "redstone has been disabled at this chunk (remaining time: %ds)"
+    msg: "redstone disabled at chunk X: %d Y: %d radius %d for %ds"
+log:
+  redstone: "redstone disabled at [%s, %d, %d] radius: %d "
 internal:
   info:
     command_complete: Command Executed!
