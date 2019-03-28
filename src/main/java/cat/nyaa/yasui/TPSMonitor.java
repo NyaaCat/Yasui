@@ -92,7 +92,6 @@ public class TPSMonitor extends BukkitRunnable {
             if (redstone_max_change.intValue() >= 0) {
                 plugin.redstoneListener.worlds.add(world.getName());
                 plugin.redstoneListener.redstoneLimitMaxChange = redstone_max_change.intValue();
-                plugin.redstoneListener.redstoneLimitDisableSeconds = eval(rule.redstone_limit_disable_seconds, world).intValue();
                 plugin.redstoneListener.redstoneLimitDisableRadius = eval(rule.redstone_limit_disable_radius, world).intValue();
             } else {
                 plugin.redstoneListener.worlds.remove(world.getName());
@@ -108,8 +107,7 @@ public class TPSMonitor extends BukkitRunnable {
             }
             if (redstone_max_change != null) {
                 msg = msg.replaceAll("\\{redstone_max_change}", String.valueOf(redstone_max_change.intValue()))
-                        .replaceAll("\\{redstone_disable_radius}", String.valueOf(plugin.redstoneListener.redstoneLimitDisableRadius))
-                        .replaceAll("\\{redstone_disable_seconds}", String.valueOf(plugin.redstoneListener.redstoneLimitDisableSeconds));
+                        .replaceAll("\\{redstone_disable_radius}", String.valueOf(plugin.redstoneListener.redstoneLimitDisableRadius));
             }
             new Message(ChatColor.translateAlternateColorCodes('&', msg)).broadcast(rule.messageType, p -> (p.getWorld().equals(world)));
         }
@@ -136,8 +134,7 @@ public class TPSMonitor extends BukkitRunnable {
                     .with("world_players", new BigDecimal(world.getPlayers().size()))
                     .with("world_living_entities", new BigDecimal(world.getLivingEntities().size()))
                     .with("redstone_max_change", new BigDecimal(plugin.redstoneListener.redstoneLimitMaxChange))
-                    .with("redstone_disable_radius", new BigDecimal(plugin.redstoneListener.redstoneLimitDisableRadius))
-                    .with("redstone_disable_seconds", new BigDecimal(plugin.redstoneListener.redstoneLimitDisableSeconds));
+                    .with("redstone_disable_radius", new BigDecimal(plugin.redstoneListener.redstoneLimitDisableRadius));
             return exp.eval();
         }
         return null;

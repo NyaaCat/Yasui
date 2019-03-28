@@ -90,10 +90,10 @@ public class CommandHandler extends CommandReceiver {
             });
             stat.entrySet().stream().sorted(Comparator.comparing(e -> -e.getValue().getRedstone())).limit(plugin.config.profiler_event_chunk_count).forEach(
                     e -> new Message("")
-                        .append(e.getKey().getComponent())
-                        .append(I18n.format("user.chunk.total", e.getValue().getPhysics() + e.getValue().getRedstone()))
-                        .append(I18n.format("user.chunk.events", e.getValue().getRedstone(), e.getValue().getPhysics()))
-                        .send(sender)
+                            .append(e.getKey().getComponent())
+                            .append(I18n.format("user.chunk.total", e.getValue().getPhysics() + e.getValue().getRedstone()))
+                            .append(I18n.format("user.chunk.events", e.getValue().getRedstone(), e.getValue().getPhysics()))
+                            .send(sender)
             );
         });
     }
@@ -127,6 +127,21 @@ public class CommandHandler extends CommandReceiver {
                 );
             });
         });
+    }
+
+    @SubCommand(value = "clearredstonehistory", permission = "yasui.admin")
+    public void clearHistory(CommandSender sender, Arguments args) {
+        int i = 0;
+        for (ChunkCoordinate id : Utils.getChunks(asPlayer(sender).getLocation().getChunk(), args.nextInt())) {
+            i++;
+            plugin.redstoneListener.history.remove(id);
+            plugin.redstoneListener.disabledChunks.remove(id);
+            if (plugin.redstoneListener.redstoneMonitorTasks.containsKey(id)) {
+                plugin.redstoneListener.redstoneMonitorTasks.get(id).cancel();
+                plugin.redstoneListener.redstoneMonitorTasks.remove(id);
+            }
+        }
+        msg(sender, "user.redstone.clearhistory", i);
     }
 
     private World getWorld(CommandSender sender, Arguments args) {
