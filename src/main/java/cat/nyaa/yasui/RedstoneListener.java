@@ -14,7 +14,10 @@ import org.bukkit.event.block.Action;
 import org.bukkit.event.block.BlockPistonExtendEvent;
 import org.bukkit.event.block.BlockPistonRetractEvent;
 import org.bukkit.event.block.BlockRedstoneEvent;
+import org.bukkit.event.inventory.InventoryMoveItemEvent;
+import org.bukkit.event.inventory.InventoryPickupItemEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.inventory.Inventory;
 import org.bukkit.scheduler.BukkitRunnable;
 
 import java.util.*;
@@ -67,6 +70,30 @@ public class RedstoneListener extends BukkitRunnable implements Listener {
     @EventHandler(priority = EventPriority.LOWEST)
     public void onBlockPistonRetract(BlockPistonRetractEvent event) {
         onPistonMove(event.getBlock(), event.getBlocks().size());
+    }
+
+    @EventHandler(priority = EventPriority.LOWEST)
+    public void onPickupItem(InventoryPickupItemEvent event) {
+        Inventory inv = event.getInventory();
+        if (inv != null && inv.getLocation() != null) {
+            if (plugin.config.redstone_limit_disable_hopper && disabledChunks.containsKey(ChunkCoordinate.of(inv.getLocation().getChunk()))) {
+                Utils.disableHopper(inv.getLocation());
+            }
+        }
+    }
+
+    @EventHandler(priority = EventPriority.LOWEST)
+    public void onMoveItem(InventoryMoveItemEvent event) {
+        Location from = event.getSource().getLocation();
+        Location to = event.getDestination().getLocation();
+        if (from != null && to != null && plugin.config.redstone_limit_disable_hopper) {
+            if (disabledChunks.containsKey(ChunkCoordinate.of(from.getChunk()))) {
+                Utils.disableHopper(from);
+            }
+            if (disabledChunks.containsKey(ChunkCoordinate.of(to.getChunk()))) {
+                Utils.disableHopper(to);
+            }
+        }
     }
 
     private void onPistonMove(Block block, int blocks) {

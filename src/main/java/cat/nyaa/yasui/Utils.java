@@ -3,18 +3,20 @@ package cat.nyaa.yasui;
 import cat.nyaa.nyaacore.utils.NmsUtils;
 import cat.nyaa.nyaacore.utils.ReflectionUtils;
 import cat.nyaa.nyaautils.NyaaUtils;
-import org.bukkit.Chunk;
-import org.bukkit.GameRule;
-import org.bukkit.World;
+import org.bukkit.*;
+import org.bukkit.block.Block;
+import org.bukkit.block.data.type.Hopper;
 import org.bukkit.entity.ArmorStand;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Tameable;
+import org.bukkit.entity.minecart.HopperMinecart;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -121,5 +123,21 @@ public class Utils {
             list.add(ChunkCoordinate.of(chunk));
         }
         return list;
+    }
+
+    public static void disableHopper(Location loc) {
+        if (loc.getBlock().getType() == Material.HOPPER) {
+            Block b = loc.getBlock();
+            Hopper hopperData = (Hopper) b.getBlockData();
+            hopperData.setEnabled(false);
+            b.setBlockData(hopperData, false);
+        } else {
+            Collection<Entity> entity = loc.getWorld().getNearbyEntities(loc, 0.1, 0.1, 0.1, e -> e instanceof HopperMinecart);
+            for (Entity e : entity) {
+                if (e instanceof HopperMinecart) {
+                    ((HopperMinecart) e).setEnabled(false);
+                }
+            }
+        }
     }
 }

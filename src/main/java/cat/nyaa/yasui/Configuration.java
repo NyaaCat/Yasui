@@ -60,6 +60,8 @@ public class Configuration extends PluginConfigure {
     public int redstone_limit_check_interval_tick = 50;
     @Serializable(name = "redstone_limit.log")
     public boolean redstone_limit_log = true;
+    @Serializable(name = "redstone_limit.disable_hopper")
+    public boolean redstone_limit_disable_hopper = false;
 
     public Configuration(Yasui plugin) {
         this.plugin = plugin;

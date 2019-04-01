@@ -28,7 +28,7 @@ user:
     bad_world: Unknown world %s
   redstone:
     disabled_here: "redstone has been disabled at this chunk (redstone activity of this chunk is %d, current allowed is %d)"
-    msg: "redstone disabled at chunk X: %d Y: %d radius %d (redstone activity: %d)"
+    msg: "redstone disabled at chunk X: %d Z: %d radius %d (redstone activity: %d)"
     clearhistory: "success cleared history of %d chunks"
 log:
   redstone: "redstone disabled at [%s, %d, %d] radius: %d "
