@@ -1,5 +1,5 @@
 name: yasui
-version: 1.0
+version: ${version}
 main: cat.nyaa.yasui.Yasui
 depend: [NyaaCore]
 softdepend: [NyaaUtils]
