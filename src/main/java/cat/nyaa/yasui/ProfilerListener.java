@@ -1,5 +1,6 @@
 package cat.nyaa.yasui;
 
+import cat.nyaa.yasui.other.ChunkCoordinate;
 import org.bukkit.Bukkit;
 import org.bukkit.Chunk;
 import org.bukkit.event.EventHandler;

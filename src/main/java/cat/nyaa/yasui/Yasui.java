@@ -1,5 +1,11 @@
 package cat.nyaa.yasui;
 
+import cat.nyaa.yasui.listener.EntityListener;
+import cat.nyaa.yasui.listener.RedstoneListener;
+import cat.nyaa.yasui.listener.WorldListener;
+import cat.nyaa.yasui.task.ChunkTask;
+import cat.nyaa.yasui.task.RegionTask;
+import cat.nyaa.yasui.task.TPSMonitor;
 import org.bukkit.event.HandlerList;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -20,6 +26,7 @@ public final class Yasui extends JavaPlugin {
     public ProfilerStatsMonitor profilerStatsMonitor;
     public ProfilerListener profilerListener;
     public RedstoneListener redstoneListener;
+    public WorldListener worldListener;
 
     @Override
     public void onEnable() {
@@ -34,16 +41,13 @@ public final class Yasui extends JavaPlugin {
         getCommand("yasui").setTabCompleter(commandHandler);
         tpsMonitor = new TPSMonitor(this);
         entityListener = new EntityListener(this);
+        worldListener = new WorldListener(this);
         if (config.profiler_listen_event) {
             profilerStatsMonitor = new ProfilerStatsMonitor(this);
             profilerStatsMonitor.run();
             profilerListener = new ProfilerListener(this);
         }
         redstoneListener = new RedstoneListener(this);
-        if (config.redstone_limit_enable) {
-            getServer().getPluginManager().registerEvents(redstoneListener, this);
-            redstoneListener.runTaskTimer(this, 20, 20);
-        }
     }
 
     @Override
@@ -56,6 +60,8 @@ public final class Yasui extends JavaPlugin {
         getCommand("yasui").setExecutor(null);
         getCommand("yasui").setTabCompleter(null);
         HandlerList.unregisterAll(this);
+        ChunkTask.taskMap.clear();
+        RegionTask.taskMap.clear();
         if (saveConfig) {
             config.save();
         }

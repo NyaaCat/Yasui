@@ -1,5 +1,6 @@
-package cat.nyaa.yasui;
+package cat.nyaa.yasui.other;
 
+import cat.nyaa.yasui.I18n;
 import net.md_5.bungee.api.chat.BaseComponent;
 import net.md_5.bungee.api.chat.ClickEvent;
 import net.md_5.bungee.api.chat.HoverEvent;
@@ -10,7 +11,7 @@ import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Entity;
 
-class ChunkCoordinate {
+public class ChunkCoordinate {
 
     private final int x;
 

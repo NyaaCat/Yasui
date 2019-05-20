@@ -1,6 +1,7 @@
 package cat.nyaa.yasui;
 
 import cat.nyaa.nyaacore.Pair;
+import cat.nyaa.yasui.other.ChunkCoordinate;
 import org.bukkit.Bukkit;
 import org.bukkit.World;
 import org.bukkit.scheduler.BukkitRunnable;

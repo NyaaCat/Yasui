@@ -6,6 +6,8 @@ import cat.nyaa.nyaacore.LanguageRepository;
 import cat.nyaa.nyaacore.Message;
 import cat.nyaa.nyaacore.Pair;
 import cat.nyaa.nyaacore.utils.NmsUtils;
+import cat.nyaa.yasui.other.ChunkCoordinate;
+import cat.nyaa.yasui.other.Utils;
 import com.google.common.collect.EnumMultiset;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Multimaps;
@@ -127,21 +129,6 @@ public class CommandHandler extends CommandReceiver {
                 );
             });
         });
-    }
-
-    @SubCommand(value = "clearredstonehistory", permission = "yasui.admin")
-    public void clearHistory(CommandSender sender, Arguments args) {
-        int i = 0;
-        for (ChunkCoordinate id : Utils.getChunks(asPlayer(sender).getLocation().getChunk(), args.nextInt())) {
-            i++;
-            plugin.redstoneListener.history.remove(id);
-            plugin.redstoneListener.disabledChunks.remove(id);
-            if (plugin.redstoneListener.redstoneMonitorTasks.containsKey(id)) {
-                plugin.redstoneListener.redstoneMonitorTasks.get(id).cancel();
-                plugin.redstoneListener.redstoneMonitorTasks.remove(id);
-            }
-        }
-        msg(sender, "user.redstone.clearhistory", i);
     }
 
     private World getWorld(CommandSender sender, Arguments args) {
