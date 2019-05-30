@@ -22,16 +22,15 @@ import java.util.List;
 import java.util.Map;
 
 public class TPSMonitor extends BukkitRunnable {
+    public static Map<String, Map<ModuleType, Operation>> worldLimits = new HashMap<>();
     private final Yasui plugin;
     private BigDecimal tps_1m = new BigDecimal(20);
     private BigDecimal tps_5m = new BigDecimal(20);
     private BigDecimal tps_15m = new BigDecimal(20);
 
-    public static Map<String, Map<ModuleType, Operation>> worldLimits = new HashMap<>();
-
     public TPSMonitor(Yasui pl) {
         plugin = pl;
-        this.runTaskTimer(plugin, plugin.config.task_delay_tick, plugin.config.scan_interval_tick);
+        this.runTaskTimer(plugin, plugin.config.scan_interval_tick, plugin.config.scan_interval_tick);
         for (World world : Bukkit.getWorlds()) {
             worldLimits.put(world.getName(), new HashMap<>());
         }
@@ -50,7 +49,6 @@ public class TPSMonitor extends BukkitRunnable {
                     for (String worldName : rule.worlds) {
                         World w = Bukkit.getWorld(worldName);
                         if (w != null) {
-                            plugin.getLogger().info("run " + key);
                             runRule(rule, w);
                         } else {
                             plugin.getLogger().warning(String.format("rule: %s, world %s not exist.", key, worldName));
@@ -115,7 +113,7 @@ public class TPSMonitor extends BukkitRunnable {
                 }
             }
         }
-        if (oldTickSpeed != newTickSpeed) {
+        if (oldTickSpeed != newTickSpeed && newTickSpeed >= 0) {
             Utils.setRandomTickSpeed(world, newTickSpeed);
         }
         String msg = null;

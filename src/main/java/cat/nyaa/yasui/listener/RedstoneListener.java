@@ -10,8 +10,6 @@ import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.Tag;
 import org.bukkit.block.Block;
-import org.bukkit.entity.Entity;
-import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
@@ -24,25 +22,30 @@ import org.bukkit.event.inventory.InventoryPickupItemEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.Inventory;
 
-import java.util.*;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 public class RedstoneListener implements Listener {
     private final Yasui plugin;
-    public Map<ChunkCoordinate, Integer> disabledChunks = new HashMap<>();
-    public Map<ChunkCoordinate, Integer> redstoneEvents = new HashMap<>();
-    public Map<ChunkCoordinate, Integer> pistonEvents = new HashMap<>();
     public Set<String> worlds = new HashSet<>();
 
     public RedstoneListener(Yasui pl) {
         plugin = pl;
+        pl.getServer().getPluginManager().registerEvents(this, pl);
     }
 
-    @EventHandler(priority = EventPriority.LOWEST)
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onClickButton(PlayerInteractEvent event) {
         if (event.hasBlock() && event.getAction() == Action.RIGHT_CLICK_BLOCK) {
             Block b = event.getClickedBlock();
-            if (b != null && disabledChunks.containsKey(ChunkCoordinate.of(b)) && (b.getType() == Material.LEVER || Tag.BUTTONS.isTagged(b.getType()))) {
-                //event.getPlayer().sendMessage(I18n.format("user.redstone.disabled_here", disabledChunks.get(ChunkCoordinate.of(b)), redstoneLimitMaxChange));
+            if (b != null && (b.getType() == Material.LEVER || Tag.BUTTONS.isTagged(b.getType()))) {
+                ChunkCoordinate id = ChunkCoordinate.of(b);
+                ChunkTask task = ChunkTask.getOrCreateTask(id);
+                if (!task.allowRedstone) {
+                    ChunkCoordinate source = task.sourceId;
+                    event.getPlayer().sendMessage(I18n.format("user.redstone.msg", source.getWorld(), source.getX(), source.getZ(), task.disabledRadius, task.maxRedstoneEvents, task.maxPistonEvents));
+                }
             }
         }
     }
@@ -50,8 +53,8 @@ public class RedstoneListener implements Listener {
     @EventHandler(priority = EventPriority.LOWEST)
     public void redstoneChange(BlockRedstoneEvent event) {
         if (event.getOldCurrent() < event.getNewCurrent() && worlds.contains(event.getBlock().getWorld().getName())) {
-            onPistonMove(event.getBlock(), 1);
-            if (disabledChunks.containsKey(ChunkCoordinate.of(event.getBlock()))) {
+            redstoneChange(event.getBlock(), false);
+            if (!ChunkTask.getOrCreateTask(event.getBlock().getChunk()).allowRedstone) {
                 event.setNewCurrent(event.getOldCurrent());
             }
         }
@@ -59,22 +62,22 @@ public class RedstoneListener implements Listener {
 
     @EventHandler(priority = EventPriority.LOWEST)
     public void onBlockPistonExtend(BlockPistonExtendEvent event) {
-        onPistonMove(event.getBlock(), event.getBlocks().size());
-        if (disabledChunks.containsKey(ChunkCoordinate.of(event.getBlock()))) {
+        redstoneChange(event.getBlock(), true);
+        if (!ChunkTask.getOrCreateTask(event.getBlock().getChunk()).allowRedstone) {
             event.setCancelled(true);
         }
     }
 
     @EventHandler(priority = EventPriority.LOWEST)
     public void onBlockPistonRetract(BlockPistonRetractEvent event) {
-        onPistonMove(event.getBlock(), event.getBlocks().size());
+        redstoneChange(event.getBlock(), true);
     }
 
     @EventHandler(priority = EventPriority.LOWEST)
     public void onPickupItem(InventoryPickupItemEvent event) {
         Inventory inv = event.getInventory();
         if (inv != null && inv.getLocation() != null) {
-            if (disabledChunks.containsKey(ChunkCoordinate.of(inv.getLocation().getChunk()))) {
+            if (!ChunkTask.getOrCreateTask(inv.getLocation().getChunk()).allowRedstone) {
                 Utils.disableHopper(inv.getLocation());
             }
         }
@@ -85,33 +88,38 @@ public class RedstoneListener implements Listener {
         Location from = event.getSource().getLocation();
         Location to = event.getDestination().getLocation();
         if (from != null && to != null) {
-            if (disabledChunks.containsKey(ChunkCoordinate.of(from.getChunk()))) {
+            if (!ChunkTask.getOrCreateTask(from.getChunk()).allowRedstone) {
                 Utils.disableHopper(from);
             }
-            if (disabledChunks.containsKey(ChunkCoordinate.of(to.getChunk()))) {
+            if (!ChunkTask.getOrCreateTask(to.getChunk()).allowRedstone) {
                 Utils.disableHopper(to);
             }
         }
     }
 
-    private void onPistonMove(Block block, int blocks) {
+    private void redstoneChange(Block block, boolean piston) {
         if (worlds.contains(block.getWorld().getName())) {
             ChunkCoordinate id = ChunkCoordinate.of(block);
             ChunkTask task = ChunkTask.getOrCreateTask(id);
-            task.pistonEvents += blocks;
+            if (!piston) {
+                task.redstoneEvents++;
+            } else {
+                task.pistonEvents++;
+            }
         }
     }
 
     public void disableRedstone(Chunk chunk, int radius, int redstone, int piston) {
+        ChunkCoordinate source = ChunkCoordinate.of(chunk);
         List<ChunkCoordinate> list = Utils.getChunks(chunk, radius);
         for (ChunkCoordinate id : list) {
-            disabledChunks.put(id, redstone);
+            ChunkTask task = ChunkTask.getOrCreateTask(id);
+            task.allowRedstone = false;
+            task.disabledRadius = radius;
+            task.sourceId = source;
+            task.maxRedstoneEvents = redstone;
+            task.maxPistonEvents = piston;
         }
-        Collection<Entity> players = chunk.getWorld().getNearbyEntities(chunk.getBlock(8, 128, 8).getLocation(), (radius + 4) * 16, 128, (radius + 4) * 16, entity -> entity instanceof Player);
-        for (Entity p : players) {
-            if (!p.isDead()) {
-                p.sendMessage(I18n.format("user.redstone.msg", chunk.getX(), chunk.getZ(), radius, redstone));
-            }
-        }
+        Utils.broadcast(plugin.config.broadcast, I18n.format("user.redstone.msg", chunk.getWorld().getName(), chunk.getX(), chunk.getZ(), radius, redstone, piston), null);
     }
 }

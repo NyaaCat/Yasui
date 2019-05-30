@@ -154,7 +154,7 @@ public class Utils {
         } else if (broadcastType == BroadcastType.SUBTITLE) {
             type = Message.MessageType.SUBTITLE;
         }
-        new Message(ChatColor.translateAlternateColorCodes('&', msg)).broadcast(type, p -> broadcastType == BroadcastType.ADMIN_CHAT ? p.isOp() : p.getWorld().equals(world));
+        new Message(ChatColor.translateAlternateColorCodes('&', msg)).broadcast(type, p -> broadcastType == BroadcastType.ADMIN_CHAT ? p.isOp() : world == null || p.getWorld().equals(world));
     }
 
     public static void setAI(LivingEntity entity, boolean ai, Operation operation) {

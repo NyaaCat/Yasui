@@ -6,19 +6,20 @@ import cat.nyaa.nyaacore.LanguageRepository;
 import cat.nyaa.nyaacore.Message;
 import cat.nyaa.nyaacore.Pair;
 import cat.nyaa.nyaacore.utils.NmsUtils;
+import cat.nyaa.yasui.config.Operation;
+import cat.nyaa.yasui.config.Rule;
 import cat.nyaa.yasui.other.ChunkCoordinate;
-import cat.nyaa.yasui.other.Utils;
+import cat.nyaa.yasui.other.ModuleType;
+import cat.nyaa.yasui.task.TPSMonitor;
 import com.google.common.collect.EnumMultiset;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Multimaps;
-import org.bukkit.Bukkit;
-import org.bukkit.GameRule;
-import org.bukkit.Material;
-import org.bukkit.World;
+import org.bukkit.*;
 import org.bukkit.block.Block;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
+import org.bukkit.entity.LivingEntity;
 
 import java.util.*;
 
@@ -34,31 +35,10 @@ public class CommandHandler extends CommandReceiver {
         return "";
     }
 
-    @SubCommand(value = "status", permission = "yasui.admin")
+    @SubCommand(value = "status", permission = "yasui.command.status")
     public void commandStatus(CommandSender sender, Arguments args) {
-        msg(sender, "user.status.line_0");
-        for (World world : plugin.getServer().getWorlds()) {
-            msg(sender, "user.status.line_1", world.getName(), world.getLivingEntities().size(),
-                    plugin.disableAIWorlds.contains(world.getName()) ? "YES" : "NO", world.getGameRuleValue(GameRule.RANDOM_TICK_SPEED),
-                    plugin.entityLimitWorlds.contains(world.getName()) ? "YES" : "NO");
-        }
-    }
-
-    @SubCommand(value = "debug", permission = "yasui.admin")
-    public void commandDebug(CommandSender sender, Arguments args) {
-        if (args.length() >= 4) {
-            World world = Bukkit.getWorld(args.nextString());
-            if (args.nextBoolean()) {
-                plugin.disableAIWorlds.add(world.getName());
-            } else {
-                plugin.disableAIWorlds.remove(world.getName());
-            }
-            if (args.nextBoolean()) {
-                plugin.entityLimitWorlds.add(world.getName());
-            } else {
-                plugin.entityLimitWorlds.remove(world.getName());
-            }
-            Utils.checkWorld(world);
+        for (World world : Bukkit.getWorlds()) {
+            printStatus(sender, world);
         }
     }
 
@@ -131,6 +111,33 @@ public class CommandHandler extends CommandReceiver {
         });
     }
 
+    @SubCommand(value = "operation", permission = "yasui.command.operation")
+    public void commandOperation(CommandSender sender, Arguments args) {
+        String s = args.nextString();
+        String name = args.nextString();
+        World world = "all".equalsIgnoreCase(args.top()) ? null : getWorld(sender, args);
+        Operation o = plugin.config.operations.get(name);
+        if (o == null) {
+            throw new BadCommandException("user.error.operation_not_exist", name);
+        }
+        Rule rule = new Rule();
+        rule.operations = new ArrayList<>(Collections.singleton(name));
+        if (s.equalsIgnoreCase("engage")) {
+            rule.engage_condition = "1";
+            rule.release_condition = "0";
+        } else if (s.equalsIgnoreCase("release")) {
+            rule.engage_condition = "0";
+            rule.release_condition = "1";
+        }
+        if (world != null) {
+            plugin.tpsMonitor.runRule(rule, world);
+        } else {
+            for (World w : Bukkit.getWorlds()) {
+                plugin.tpsMonitor.runRule(rule, w);
+            }
+        }
+    }
+
     private World getWorld(CommandSender sender, Arguments args) {
         World world;
         if (args.top() == null) {
@@ -143,5 +150,36 @@ public class CommandHandler extends CommandReceiver {
             }
         }
         return world;
+    }
+
+    private void printStatus(CommandSender sender, World world) {
+        msg(sender, "user.status.world_name", world.getName());
+        int livingEntities = 0;
+        int tileEntities = 0;
+        for (Chunk chunk : world.getLoadedChunks()) {
+            for (Entity entity : chunk.getEntities()) {
+                if (entity instanceof LivingEntity) {
+                    livingEntities++;
+                }
+            }
+            tileEntities += chunk.getTileEntities().length;
+        }
+        msg(sender, "user.status.world_info", world.getLoadedChunks().length, livingEntities, tileEntities);
+        Map<ModuleType, Operation> limits = TPSMonitor.worldLimits.get(world.getName());
+        if (limits != null && !limits.isEmpty()) {
+            for (ModuleType type : limits.keySet()) {
+                Operation operation = limits.get(type);
+                String langKey = "user.status." + type.name();
+                if (type == ModuleType.entity_ai_suppressor) {
+                    msg(sender, langKey, operation.entity_ai_suppresse_method.name());
+                } else if (type == ModuleType.entity_culler) {
+                    msg(sender, langKey, operation.entity_culler_per_chunk_limit, operation.entity_culler_per_region_limit);
+                } else if (type == ModuleType.redstone_suppressor) {
+                    msg(sender, langKey, operation.redstone_suppressor_per_chunk, operation.redstone_suppressor_piston_per_chunk);
+                } else if (type == ModuleType.random_tick_speed) {
+                    msg(sender, langKey, world.getGameRuleValue(GameRule.RANDOM_TICK_SPEED));
+                }
+            }
+        }
     }
 }

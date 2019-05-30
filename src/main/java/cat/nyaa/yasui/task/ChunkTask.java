@@ -14,39 +14,20 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class ChunkTask extends BukkitRunnable {
-    public ChunkCoordinate id;
     public static Map<ChunkCoordinate, ChunkTask> taskMap = new HashMap<>();
+    public static int delay = 1;
+    public ChunkCoordinate id;
     public int pistonEvents = 0;
     public int redstoneEvents = 0;
     public int LivingEntityCount = 0;
-    public static int delay = 1;
+    public int maxPistonEvents = 0;
+    public int maxRedstoneEvents = 0;
+    public int disabledRadius = 0;
+    public ChunkCoordinate sourceId = null;
+    public boolean allowRedstone = true;
 
     public ChunkTask(ChunkCoordinate id) {
         this.id = id;
-    }
-
-
-    @Override
-    public void run() {
-        World world = Bukkit.getWorld(id.getWorld());
-        Yasui plugin = Yasui.INSTANCE;
-        if (world != null) {
-            Map<ModuleType, Operation> map = TPSMonitor.worldLimits.get(world.getName());
-            if (map != null) {
-                Operation redstone = map.get(ModuleType.redstone_suppressor);
-                if (redstone != null
-                        && !plugin.redstoneListener.disabledChunks.containsKey(id)
-                        && (pistonEvents >= redstone.redstone_suppressor_piston_per_chunk || redstoneEvents >= redstone.redstone_suppressor_per_chunk)) {
-                    plugin.redstoneListener.disableRedstone(world.getChunkAt(id.getX(), id.getZ()), redstone.redstone_suppressor_supress_chunk_region, redstoneEvents, pistonEvents);
-                }
-            }
-            if (world.isChunkLoaded(id.getX(), id.getZ())) {
-                Chunk chunk = world.getChunkAt(id.getX(), id.getZ());
-                Utils.checkLivingEntity(chunk);
-            }
-        }
-        redstoneEvents = 0;
-        pistonEvents = 0;
     }
 
     public static ChunkTask getOrCreateTask(Chunk chunk) {
@@ -64,5 +45,32 @@ public class ChunkTask extends BukkitRunnable {
             taskMap.put(id, task);
         }
         return task;
+    }
+
+    @Override
+    public void run() {
+        World world = Bukkit.getWorld(id.getWorld());
+        Yasui plugin = Yasui.INSTANCE;
+        if (world != null) {
+            Map<ModuleType, Operation> map = TPSMonitor.worldLimits.get(world.getName());
+            if (map != null) {
+                Operation redstone = map.get(ModuleType.redstone_suppressor);
+                if (redstone != null && allowRedstone && (pistonEvents >= redstone.redstone_suppressor_piston_per_chunk || redstoneEvents >= redstone.redstone_suppressor_per_chunk)) {
+                    plugin.redstoneListener.disableRedstone(world.getChunkAt(id.getX(), id.getZ()), redstone.redstone_suppressor_supress_chunk_region, redstoneEvents, pistonEvents);
+                } else if (redstone == null ||
+                        (maxPistonEvents < redstone.redstone_suppressor_piston_per_chunk && maxRedstoneEvents < redstone.redstone_suppressor_per_chunk)) {
+                    allowRedstone = true;
+                    sourceId = null;
+                    maxRedstoneEvents = 0;
+                    maxPistonEvents = 0;
+                }
+            }
+            if (world.isChunkLoaded(id.getX(), id.getZ())) {
+                Chunk chunk = world.getChunkAt(id.getX(), id.getZ());
+                Utils.checkLivingEntity(chunk);
+            }
+        }
+        redstoneEvents = 0;
+        pistonEvents = 0;
     }
 }

@@ -10,7 +10,7 @@ public class Rule extends ReadOnlyConfig {
     @Serializable
     public boolean enabled;
     @Serializable
-    public List<String>  operations;
+    public List<String> operations;
     @Serializable
     public List<String> worlds;
 
@@ -31,5 +31,10 @@ public class Rule extends ReadOnlyConfig {
     public Rule(Yasui plugin, File dir, String filename) {
         super(plugin, dir, filename);
         load();
+    }
+
+    public Rule() {
+        super(Yasui.INSTANCE, Yasui.INSTANCE.getDataFolder(), "");
+        //load();
     }
 }

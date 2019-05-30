@@ -40,9 +40,9 @@ public class Operation extends ReadOnlyConfig {
 
     @Serializable(name = "redstone_suppressor.event_thresholds.count_per_chunk")
     public int redstone_suppressor_per_chunk = -1;
-    @Serializable(name = "redstone_suppressor.event_thresholds.tagged")
+    @Serializable(name = "redstone_suppressor.event_thresholds.count_piston_per_chunk")
     public int redstone_suppressor_piston_per_chunk = -1;
-    @Serializable(name = "redstone_suppressor.count_piston_per_chunk")
+    @Serializable(name = "redstone_suppressor.supress_chunk_region")
     public int redstone_suppressor_supress_chunk_region;
 
     @Serializable(name = "random_tick_speed.min")

@@ -9,9 +9,6 @@ import cat.nyaa.yasui.task.TPSMonitor;
 import org.bukkit.event.HandlerList;
 import org.bukkit.plugin.java.JavaPlugin;
 
-import java.util.HashSet;
-import java.util.Set;
-
 public final class Yasui extends JavaPlugin {
 
     public static Yasui INSTANCE;
@@ -19,10 +16,8 @@ public final class Yasui extends JavaPlugin {
     public Configuration config;
     public I18n i18n;
     public CommandHandler commandHandler;
-    public Set<String> disableAIWorlds = new HashSet<>();
     public TPSMonitor tpsMonitor;
     public EntityListener entityListener;
-    public Set<String> entityLimitWorlds = new HashSet<>();
     public ProfilerStatsMonitor profilerStatsMonitor;
     public ProfilerListener profilerListener;
     public RedstoneListener redstoneListener;

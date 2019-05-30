@@ -23,8 +23,6 @@ public class Configuration extends PluginConfigure {
     public boolean enable = true;
     @Serializable
     public int scan_interval_tick = 20 * 30;
-    @Serializable
-    public int task_delay_tick = 20 * 60;
     @Serializable(name = "profiler.listen_event")
     public boolean profiler_listen_event = true;
     @Serializable(name = "profiler.event_chunk_count")
@@ -33,13 +31,13 @@ public class Configuration extends PluginConfigure {
     public int profiler_entity_chunk_count = 10;
     @Serializable
     public int top_listing = 20;
-    @Serializable(name = "modules")
-    private List<String> _modules = new ArrayList<>();
     @Serializable
     public BroadcastType broadcast = BroadcastType.CHAT;
     public Map<String, Rule> rules = new HashMap<>();
     public Map<String, Operation> operations = new HashMap<>();
     public EnumSet<ModuleType> enabledModules;
+    @Serializable(name = "modules")
+    private List<String> _modules = new ArrayList<>();
 
     public Configuration(Yasui plugin) {
         this.plugin = plugin;

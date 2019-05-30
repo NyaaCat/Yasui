@@ -21,15 +21,17 @@ user:
     header_entity: §6====== §rTop §c%d§r Chunks by §bLivingEntities§6 ======
     not_enabled: Not enabled
   status:
-    line_0: §6====== §rYASUI STATUS §6======
-    line_1: §r[§6World§b %s§r] [§6Entity§c %d§r] [§6Disable AI§a %s§r] [§6Random Tick§a
-      %d§r] [§6EntityLimit§a %s§r]
+    world_name: "§6====== §r%s §6======"
+    world_info: "loaded chunks: %d living entities: %d tile entities: %d"
+    entity_ai_suppressor: "entity AI: %s"
+    entity_culler: "max entity per chunk: %d max entity per region: %d"
+    redstone_suppressor: "max redstone events per chunk: %d max piston events per chunk: %d"
+    random_tick_speed: "random tick: %d"
   error:
     bad_world: Unknown world %s
+    operation_not_exist: "operation not exist: %s"
   redstone:
-    disabled_here: "redstone has been disabled at this chunk (redstone activity of this chunk is %d, current allowed is %d)"
-    msg: "redstone disabled at chunk X: %d Z: %d radius %d (redstone activity: %d)"
-    clearhistory: "success cleared history of %d chunks"
+    msg: "[%s] redstone disabled at chunk X: %d Z: %d radius %d (redstone events: %d piston events: %d)"
 log:
   redstone: "redstone disabled at [%s, %d, %d] radius: %d "
 internal:
