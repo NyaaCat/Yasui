@@ -34,16 +34,16 @@ public class Operation extends ReadOnlyConfig {
     @Serializable(name = "entity_culler.excluded.tamed")
     public boolean entity_culler_excluded_tamed;
     @Serializable(name = "entity_culler.per_chunk_limit")
-    public int entity_culler_per_chunk_limit;
+    public int entity_culler_per_chunk_limit = -1;
     @Serializable(name = "entity_culler.per_region_limit")
-    public int entity_culler_per_region_limit;
+    public int entity_culler_per_region_limit = -1;
 
     @Serializable(name = "redstone_suppressor.event_thresholds.count_per_chunk")
     public int redstone_suppressor_per_chunk = -1;
     @Serializable(name = "redstone_suppressor.event_thresholds.count_piston_per_chunk")
     public int redstone_suppressor_piston_per_chunk = -1;
     @Serializable(name = "redstone_suppressor.supress_chunk_region")
-    public int redstone_suppressor_supress_chunk_region;
+    public int redstone_suppressor_supress_chunk_region = 1;
 
     @Serializable(name = "random_tick_speed.min")
     public int random_tick_speed_min;

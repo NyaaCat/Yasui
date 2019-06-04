@@ -21,7 +21,7 @@ public class WorldListener implements Listener {
         this.plugin = pl;
     }
 
-    @EventHandler(ignoreCancelled = true)
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onChunkLoad(ChunkLoadEvent event) {
         Chunk chunk = event.getChunk();
         if (chunk == null || event.isNewChunk()) {

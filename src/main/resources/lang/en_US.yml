@@ -16,9 +16,11 @@ user:
     events: '§r[§cRedstone §b%d§r] §r[§aPhysics §b%d§r]'
   profiler:
     header_tileentity: §6====== §rTop §c%d§r Chunks by §bTileEntities§6 ======
-    entity: '    §6[§cLivingEntity§6] §b%s §6[§a%d§6]'
+    entity: '    §6[§cEntity§6] §b%s §6[§a%d§6]'
     tileentity: '    §6[§9TileEntity§6] §b%s §6[§a%d§6]'
-    header_entity: §6====== §rTop §c%d§r Chunks by §bLivingEntities§6 ======
+    livingentity: '    §6[§2LivingEntity§6] §b%s §6[§a%d§6]'
+    header_entity: §6====== §rTop §c%d§r Chunks by §bEntities§6 ======
+    header_livingentity: §6====== §rTop §c%d§r Chunks by §bLivingEntities§6 ======
     not_enabled: Not enabled
   status:
     world_name: "§6====== §r%s §6======"

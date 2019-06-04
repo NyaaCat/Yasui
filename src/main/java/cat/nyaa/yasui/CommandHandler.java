@@ -14,6 +14,7 @@ import cat.nyaa.yasui.task.TPSMonitor;
 import com.google.common.collect.EnumMultiset;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Multimaps;
+import com.google.common.collect.Multiset;
 import org.bukkit.*;
 import org.bukkit.block.Block;
 import org.bukkit.command.CommandSender;
@@ -83,32 +84,44 @@ public class CommandHandler extends CommandReceiver {
     @SubCommand(value = "chunkentities", permission = "yasui.profiler")
     public void commandChunkEntities(CommandSender sender, Arguments args) {
         World world = getWorld(sender, args);
+        //Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
         List<Entity> entities = world.getEntities();
-        Multimap<ChunkCoordinate, EntityType> entitiesMap = entities.stream().collect(Multimaps.toMultimap(ChunkCoordinate::of, Entity::getType, () -> Multimaps.newMultimap(new HashMap<>(), () -> EnumMultiset.create(EntityType.class))));
-
+        Multimap<ChunkCoordinate, EntityType> entitiesMap = entities.stream().filter(entity -> !(entity instanceof LivingEntity)).collect(Multimaps.toMultimap(ChunkCoordinate::of, Entity::getType, () -> Multimaps.newMultimap(new HashMap<>(), () -> EnumMultiset.create(EntityType.class))));
+        Multimap<ChunkCoordinate, EntityType> livingEntitiesMap = entities.stream().filter(entity -> entity instanceof LivingEntity).collect(Multimaps.toMultimap(ChunkCoordinate::of, Entity::getType, () -> Multimaps.newMultimap(new HashMap<>(), () -> EnumMultiset.create(EntityType.class))));
         List<Block> blocks = NmsUtils.getTileEntities(world);
         Multimap<ChunkCoordinate, Material> tileEntitiesMap = blocks.stream().collect(Multimaps.toMultimap(ChunkCoordinate::of, Block::getType, () -> Multimaps.newMultimap(new HashMap<>(), () -> EnumMultiset.create(Material.class))));
-
-        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
-            msg(sender, "user.profiler.header_entity", plugin.config.profiler_entity_chunk_count);
-            entitiesMap.asMap().entrySet().stream().sorted(Comparator.comparing(e -> -e.getValue().size())).limit(plugin.config.profiler_entity_chunk_count).forEach(e -> {
-                new Message("").append(e.getKey().getComponent()).append(I18n.format("user.chunk.total", e.getValue().size())).send(sender);
-                EnumMultiset<EntityType> values = EnumMultiset.create(EntityType.class);
-                values.addAll(e.getValue());
-                values.entrySet().stream().sorted(Comparator.comparingInt(v -> -v.getCount())).forEach(
-                        v -> msg(sender, "user.profiler.entity", v.getElement().name(), v.getCount())
-                );
-            });
-            msg(sender, "user.profiler.header_tileentity", plugin.config.profiler_entity_chunk_count);
-            tileEntitiesMap.asMap().entrySet().stream().sorted(Comparator.comparing(e -> -e.getValue().size())).limit(plugin.config.profiler_entity_chunk_count).forEach(e -> {
-                new Message("").append(e.getKey().getComponent()).append(I18n.format("user.chunk.total", e.getValue().size())).send(sender);
-                EnumMultiset<Material> values = EnumMultiset.create(Material.class);
-                values.addAll(e.getValue());
-                values.entrySet().stream().sorted(Comparator.comparingInt(v -> -v.getCount())).forEach(
-                        v -> msg(sender, "user.profiler.tileentity", v.getElement().name(), v.getCount())
-                );
-            });
+        msg(sender, "user.profiler.header_entity", plugin.config.profiler_entity_chunk_count);
+        entitiesMap.asMap().entrySet().stream().sorted(Comparator.comparing(e -> -e.getValue().size())).limit(plugin.config.profiler_entity_chunk_count).forEach(e -> {
+            new Message("").append(e.getKey().getComponent()).append(I18n.format("user.chunk.total", e.getValue().size())).send(sender);
+            EnumMultiset<EntityType> values = EnumMultiset.create(EntityType.class);
+            values.addAll(e.getValue());
+            List<Multiset.Entry<EntityType>> toSort = new ArrayList<>(values.entrySet());
+            toSort.sort(Comparator.comparingInt(v -> -v.getCount()));
+            for (Multiset.Entry<EntityType> v : toSort) {
+                msg(sender, "user.profiler.entity", v.getElement().name(), v.getCount());
+            }
         });
+        msg(sender, "user.profiler.header_livingentity", plugin.config.profiler_entity_chunk_count);
+        livingEntitiesMap.asMap().entrySet().stream().sorted(Comparator.comparing(e -> -e.getValue().size())).limit(plugin.config.profiler_entity_chunk_count).forEach(e -> {
+            new Message("").append(e.getKey().getComponent()).append(I18n.format("user.chunk.total", e.getValue().size())).send(sender);
+            EnumMultiset<EntityType> values = EnumMultiset.create(EntityType.class);
+            values.addAll(e.getValue());
+            List<Multiset.Entry<EntityType>> toSort = new ArrayList<>(values.entrySet());
+            toSort.sort(Comparator.comparingInt(v -> -v.getCount()));
+            for (Multiset.Entry<EntityType> v : toSort) {
+                msg(sender, "user.profiler.livingentity", v.getElement().name(), v.getCount());
+            }
+        });
+        msg(sender, "user.profiler.header_tileentity", plugin.config.profiler_entity_chunk_count);
+        tileEntitiesMap.asMap().entrySet().stream().sorted(Comparator.comparing(e -> -e.getValue().size())).limit(plugin.config.profiler_entity_chunk_count).forEach(e -> {
+            new Message("").append(e.getKey().getComponent()).append(I18n.format("user.chunk.total", e.getValue().size())).send(sender);
+            EnumMultiset<Material> values = EnumMultiset.create(Material.class);
+            values.addAll(e.getValue());
+            values.entrySet().stream().sorted(Comparator.comparingInt(v -> -v.getCount())).forEach(
+                    v -> msg(sender, "user.profiler.tileentity", v.getElement().name(), v.getCount())
+            );
+        });
+        //});
     }
 
     @SubCommand(value = "operation", permission = "yasui.command.operation")

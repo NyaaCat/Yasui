@@ -12,6 +12,7 @@ import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.File;
 import java.util.*;
+import java.util.stream.Collectors;
 
 public class Configuration extends PluginConfigure {
 
@@ -37,7 +38,7 @@ public class Configuration extends PluginConfigure {
     public Map<String, Operation> operations = new HashMap<>();
     public EnumSet<ModuleType> enabledModules;
     @Serializable(name = "modules")
-    private List<String> _modules = new ArrayList<>();
+    private List<String> _modules;
 
     public Configuration(Yasui plugin) {
         this.plugin = plugin;
@@ -51,6 +52,9 @@ public class Configuration extends PluginConfigure {
     @Override
     public void deserialize(ConfigurationSection config) {
         ISerializable.deserialize(config, this);
+        if (_modules == null) {
+            _modules = Arrays.stream(ModuleType.values()).map(Enum::name).collect(Collectors.toList());
+        }
         enabledModules = Utils.toEnumSet(ModuleType.class, _modules);
         File rulesDir = new File(plugin.getDataFolder(), "rules");
         if (!rulesDir.exists()) {

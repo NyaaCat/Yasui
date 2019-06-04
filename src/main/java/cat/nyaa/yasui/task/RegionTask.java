@@ -9,18 +9,33 @@ import org.bukkit.Bukkit;
 import org.bukkit.Chunk;
 import org.bukkit.World;
 import org.bukkit.entity.Entity;
+import org.bukkit.entity.LivingEntity;
 import org.bukkit.scheduler.BukkitRunnable;
 
 import java.util.*;
 import java.util.stream.Collectors;
 
 public class RegionTask extends BukkitRunnable {
-    public Set<ChunkCoordinate> loadedChunks = new HashSet<>();
     public static Map<ChunkCoordinate, RegionTask> taskMap = new HashMap<>();
+    public Set<ChunkCoordinate> loadedChunks = new HashSet<>();
     public ChunkCoordinate id;
 
     public RegionTask(ChunkCoordinate id) {
         this.id = ChunkCoordinate.of(Bukkit.getWorld(id.getWorld()), id.getX() >> 4, id.getZ() >> 4);
+    }
+
+    public static RegionTask getOrCreateTask(Chunk chunk) {
+        return getOrCreateTask(ChunkCoordinate.of(chunk));
+    }
+
+    private static RegionTask getOrCreateTask(ChunkCoordinate id) {
+        RegionTask task = taskMap.get(id);
+        if (task == null) {
+            task = new RegionTask(id);
+            task.runTaskTimer(Yasui.INSTANCE, 1, Yasui.INSTANCE.config.scan_interval_tick);
+            taskMap.put(id, task);
+        }
+        return task;
     }
 
     @Override
@@ -50,7 +65,7 @@ public class RegionTask extends BukkitRunnable {
                 int max = entity_culler.entity_culler_per_region_limit;
                 if (max >= 0 && regionEntitiesCount > max) {
                     for (ChunkCoordinate c : loadedChunks) {
-                        entities.addAll(Arrays.stream(world.getChunkAt(c.getX(), c.getZ()).getEntities()).filter(entity -> Utils.canRemove(entity, entity_culler)).collect(Collectors.toList()));
+                        entities.addAll(Arrays.stream(world.getChunkAt(c.getX(), c.getZ()).getEntities()).filter(entity -> entity instanceof LivingEntity).collect(Collectors.toList()));
                     }
                     Collections.shuffle(entities);
                     int removed = 0;
@@ -89,19 +104,5 @@ public class RegionTask extends BukkitRunnable {
             }
         }
         return list;
-    }
-
-    public static RegionTask getOrCreateTask(Chunk chunk) {
-        return getOrCreateTask(ChunkCoordinate.of(chunk));
-    }
-
-    private static RegionTask getOrCreateTask(ChunkCoordinate id) {
-        RegionTask task = taskMap.get(id);
-        if (task == null) {
-            task = new RegionTask(id);
-            task.runTaskTimer(Yasui.INSTANCE, 1, Yasui.INSTANCE.config.scan_interval_tick);
-            taskMap.put(id, task);
-        }
-        return task;
     }
 }
