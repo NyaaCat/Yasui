@@ -34,6 +34,8 @@ user:
     operation_not_exist: "operation not exist: %s"
   redstone:
     msg: "[%s] redstone disabled at chunk X: %d Z: %d radius %d (redstone events: %d piston events: %d)"
+  timings:
+    data: "&3%s&r count: &6%d&r time: &9%d"
 log:
   redstone: "redstone disabled at [%s, %d, %d] radius: %d "
 internal:

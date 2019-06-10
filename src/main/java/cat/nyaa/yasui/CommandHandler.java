@@ -10,6 +10,7 @@ import cat.nyaa.yasui.config.Operation;
 import cat.nyaa.yasui.config.Rule;
 import cat.nyaa.yasui.other.ChunkCoordinate;
 import cat.nyaa.yasui.other.ModuleType;
+import cat.nyaa.yasui.other.TimingsUtils;
 import cat.nyaa.yasui.task.TPSMonitor;
 import com.google.common.collect.EnumMultiset;
 import com.google.common.collect.Multimap;
@@ -148,6 +149,19 @@ public class CommandHandler extends CommandReceiver {
             for (World w : Bukkit.getWorlds()) {
                 plugin.tpsMonitor.runRule(rule, w);
             }
+        }
+    }
+
+    @SubCommand(value = "counter", permission = "yasui.command.counter")
+    public void commandCounter(CommandSender sender, Arguments args) {
+        String s = args.nextString();
+        World world = Bukkit.getWorld(s);
+        if (world != null) {
+            TimingsUtils.printWorldTimings(world, sender);
+        } else if (s.equalsIgnoreCase("entity")) {
+            TimingsUtils.printEntityTimings(sender);
+        } else if (s.equalsIgnoreCase("tileentity")) {
+            TimingsUtils.printTileEntityTimings(sender);
         }
     }
 
