@@ -75,10 +75,9 @@ public class Configuration extends PluginConfigure {
                     if (operations.containsKey(name)) {
                         continue;
                     }
-                    File dir = new File(operationsDir, name + "-operations");
-                    File file = new File(dir, name + ".yml");
+                    File file = new File(operationsDir, name + ".yml");
                     if (file.isFile()) {
-                        operations.put(name, new Operation(plugin, dir, name + ".yml"));
+                        operations.put(name, new Operation(plugin, operationsDir, name + ".yml"));
                     } else {
                         plugin.getLogger().warning("operation file not exist: " + file.toURI());
                     }

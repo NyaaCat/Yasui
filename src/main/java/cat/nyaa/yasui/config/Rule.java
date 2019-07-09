@@ -4,7 +4,9 @@ import cat.nyaa.yasui.Yasui;
 import cat.nyaa.yasui.other.BroadcastType;
 
 import java.io.File;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class Rule extends ReadOnlyConfig {
     @Serializable
@@ -27,6 +29,7 @@ public class Rule extends ReadOnlyConfig {
     public String release_message;
     @Serializable(name = "release.broadcast")
     public BroadcastType release_broadcast;
+    public Map<String, String> lastMessages = new HashMap<>();
 
     public Rule(Yasui plugin, File dir, String filename) {
         super(plugin, dir, filename);

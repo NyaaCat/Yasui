@@ -64,6 +64,7 @@ public class Operation extends ReadOnlyConfig {
     public void deserialize(ConfigurationSection config) {
         ISerializable.deserialize(config, this);
         entity_ai_suppressor_exclude_type = Utils.toEnumSet(EntityType.class, _entity_ai_suppressor_exclude_type);
+        entity_ai_suppressor_exclude_type.add(EntityType.PLAYER);
         entity_culler_excluded_type = Utils.toEnumSet(EntityType.class, _entity_culler_excluded_type);
         for (ModuleType module : Yasui.INSTANCE.config.enabledModules) {
             if (config.isConfigurationSection(module.name())) {

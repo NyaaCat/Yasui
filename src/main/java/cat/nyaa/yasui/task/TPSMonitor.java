@@ -126,12 +126,15 @@ public class TPSMonitor extends BukkitRunnable {
             type = rule.release_broadcast == null ? plugin.config.broadcast : rule.release_broadcast;
         }
         if (!Strings.isNullOrEmpty(msg) && type != BroadcastType.NONE) {
-            msg = msg.replaceAll("\\{tps_1m}", String.format("%.2f", tps_1m.doubleValue()))
-                    .replaceAll("\\{tps_5m}", String.format("%.2f", tps_5m.doubleValue()))
-                    .replaceAll("\\{tps_15m}", String.format("%.2f", tps_15m.doubleValue()))
-                    .replaceAll("\\{world_random_tick_speed}", String.valueOf(newTickSpeed >= 0 ? newTickSpeed : oldTickSpeed))
-                    .replaceAll("\\{world_name}", world.getName());
-            Utils.broadcast(type, msg, world);
+            if (!msg.equals(rule.lastMessages.get(world.getName()))) {
+                msg = msg.replaceAll("\\{tps_1m}", String.format("%.2f", tps_1m.doubleValue()))
+                        .replaceAll("\\{tps_5m}", String.format("%.2f", tps_5m.doubleValue()))
+                        .replaceAll("\\{tps_15m}", String.format("%.2f", tps_15m.doubleValue()))
+                        .replaceAll("\\{world_random_tick_speed}", String.valueOf(newTickSpeed >= 0 ? newTickSpeed : oldTickSpeed))
+                        .replaceAll("\\{world_name}", world.getName());
+                Utils.broadcast(type, msg, world);
+                rule.lastMessages.put(world.getName(), msg);
+            }
         }
     }
 
