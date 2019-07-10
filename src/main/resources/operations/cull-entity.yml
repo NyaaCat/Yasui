@@ -1,0 +1,10 @@
+# Cull mobs and disable new mob spawns on engage, enable new mob spawns on release.
+entity_culler:
+  excluded:
+    type:
+    - DOLPHIN
+    - SNOWMAN
+    tagged: true
+    tamed: true
+  per_chunk_limit: 12
+  per_region_limit: 30

@@ -1,0 +1,13 @@
+enabled: true
+operations: 
+- 'adjust-random-tick-speed'
+worlds:
+- world
+- world_nether
+- world_the_end
+engage:
+  condition: tps_5m < 17.0
+  message: '&b[YASUI] &c[ENGAGED] &6Random Tick Speed: &d{world_random_tick_speed}'
+release:
+  condition: tps_5m > 19.0
+  message: '&b[YASUI] &c[RELEASED] &6Random Tick Speed: &d{world_random_tick_speed}'

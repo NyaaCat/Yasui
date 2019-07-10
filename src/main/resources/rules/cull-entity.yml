@@ -1,0 +1,13 @@
+enabled: true
+operations: 
+- 'cull-entity'
+worlds:
+- world
+- world_nether
+- world_the_end
+engage:
+  condition: tps_5m < 17.0 && world_entity > 2000
+  message: '&b[YASUI] &c[ENGAGED] &6EntityLimite Engaged'
+release:
+  condition: tps_5m > 19.0
+  message: '&b[YASUI] &c[RELEASED] &6EntityLimit Released'

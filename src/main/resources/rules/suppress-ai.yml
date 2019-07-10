@@ -1,0 +1,13 @@
+enabled: true
+operations: 
+- 'suppress-entity-ai'
+worlds:
+- world
+- world_nether
+- world_the_end
+engage:
+  condition: tps_1m < 18.0 && world_living_entities > 2000
+  message: '&b[YASUI] &c[ENGAGED] &6Entity AI Suppressed'
+release:
+  condition: tps_1m > 19.5
+  message: '&b[YASUI] &a[RELEASED] &6Entity AI Recovered'

@@ -11,8 +11,13 @@ import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.File;
+import java.io.IOException;
+import java.net.URL;
+import java.security.CodeSource;
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 
 public class Configuration extends PluginConfigure {
 
@@ -54,6 +59,7 @@ public class Configuration extends PluginConfigure {
         ISerializable.deserialize(config, this);
         if (_modules == null) {
             _modules = Arrays.stream(ModuleType.values()).map(Enum::name).collect(Collectors.toList());
+            saveExample();
         }
         enabledModules = Utils.toEnumSet(ModuleType.class, _modules);
         File rulesDir = new File(plugin.getDataFolder(), "rules");
@@ -89,5 +95,22 @@ public class Configuration extends PluginConfigure {
     @Override
     public void serialize(ConfigurationSection config) {
         ISerializable.serialize(config, this);
+    }
+
+    public void saveExample() {
+        try {
+            CodeSource codeSource = Yasui.class.getProtectionDomain().getCodeSource();
+            URL url = codeSource.getLocation();
+            ZipInputStream zip = new ZipInputStream(url.openStream());
+            ZipEntry zipEntry;
+            while ((zipEntry = zip.getNextEntry()) != null) {
+                String entryName = zipEntry.getName();
+                if ((entryName.startsWith("rules/") || entryName.startsWith("operations")) && entryName.endsWith(".yml")) {
+                    plugin.saveResource(entryName, false);
+                }
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 }
