@@ -4,6 +4,7 @@ entity_culler:
     type:
     - DOLPHIN
     - SNOWMAN
+    - ARMOR_STAND
     tagged: true
     tamed: true
   per_chunk_limit: 12

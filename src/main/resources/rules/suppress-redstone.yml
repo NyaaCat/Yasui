@@ -10,4 +10,4 @@ engage:
   message: '&b[YASUI] &f[{world_name}] &c[ENGAGED] &6Redstone Suppressed'
 release:
   condition: tps_5m > 19.0
-  message: '&b[YASUI] &f[{world_name}] &c[RELEASED] &6Redstone Recovered'
+  message: '&b[YASUI] &f[{world_name}] &a[RELEASED] &6Redstone Recovered'

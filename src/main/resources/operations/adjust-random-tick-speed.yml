@@ -1,4 +1,4 @@
 # Decrease random tick speed by 1 on engage, increase by 1 on release.
 random_tick_speed:
-  min: 1
+  min: 0
   max: 3

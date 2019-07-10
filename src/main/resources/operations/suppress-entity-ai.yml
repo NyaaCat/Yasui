@@ -1,9 +1,10 @@
 # Suppress entity AI on engage, or restore them on release.
 entity_ai_suppressor:
-  method: NO_TARGETING # NO_TARGETING | NO_AI | NERFING
+  method: NERFING # NO_TARGETING | NO_AI | NERFING
   exclude: # entities won't be suppressed, typically used with mob farms that take adv of entity anger
     type:
     - PIG_ZOMBIE
     - ENDERMAN
+    - DOLPHIN
     tagged: false  # has custom name or tag
     tamed: false  # has owner

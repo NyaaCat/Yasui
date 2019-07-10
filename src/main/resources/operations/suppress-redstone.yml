@@ -2,6 +2,6 @@
 # Note: Yasui should always set NewCurrent = OldCurrent to keep consistency of redstone mechanics.
 redstone_suppressor:
   event_thresholds:
-    count_per_chunk: 12000 # 12000 events in 'scan_interval_tick'
-    count_piston_per_chunk: 120 #  120 piston events in 'scan_interval_tick'
+    count_per_chunk: 10000 # 10000 events in 'scan_interval_tick'
+    count_piston_per_chunk: 1200 #  1200 piston events in 'scan_interval_tick'
   supress_chunk_region: 1 # redstone in nearby 3x3 chunks will be supressed
