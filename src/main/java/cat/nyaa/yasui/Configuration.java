@@ -27,11 +27,11 @@ public class Configuration extends PluginConfigure {
     @Serializable(name = "profiler.listen_event")
     public boolean profiler_listen_event = true;
     @Serializable(name = "profiler.event_chunk_count")
-    public int profiler_event_chunk_count = 20;
+    public int profiler_event_chunk_count = 10;
     @Serializable(name = "profiler.entity_chunk_count")
-    public int profiler_entity_chunk_count = 10;
+    public int profiler_entity_chunk_count = 5;
     @Serializable
-    public int top_listing = 20;
+    public int top_listing = 10;
     @Serializable
     public BroadcastType broadcast = BroadcastType.CHAT;
     public Map<String, Rule> rules = new HashMap<>();
