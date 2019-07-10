@@ -11,7 +11,7 @@ import java.io.IOException;
 
 public class ReadOnlyConfig extends FileConfigure {
     private final Yasui plugin;
-    private final String filename;
+    public final String filename;
     private final File dir;
 
     public ReadOnlyConfig(Yasui plugin, File dir, String filename) {

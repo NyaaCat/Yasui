@@ -1,4 +1,4 @@
-enabled: true
+enabled: false
 operations: 
 - 'suppress-redstone'
 worlds:
@@ -7,7 +7,7 @@ worlds:
 - world_the_end
 engage:
   condition: tps_5m < 15.0
-  message: '&b[YASUI] &c[ENGAGED] &6Redstone Suppressed'
+  message: '&b[YASUI] &f[{world_name}] &c[ENGAGED] &6Redstone Suppressed'
 release:
   condition: tps_5m > 19.0
-  message: '&b[YASUI] &c[RELEASED] &6Redstone Recovered'
+  message: '&b[YASUI] &f[{world_name}] &c[RELEASED] &6Redstone Recovered'

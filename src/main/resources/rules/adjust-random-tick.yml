@@ -1,4 +1,4 @@
-enabled: true
+enabled: false
 operations: 
 - 'adjust-random-tick-speed'
 worlds:
@@ -7,7 +7,7 @@ worlds:
 - world_the_end
 engage:
   condition: tps_5m < 17.0
-  message: '&b[YASUI] &c[ENGAGED] &6Random Tick Speed: &d{world_random_tick_speed}'
+  message: '&b[YASUI] &f[{world_name}] &c[ENGAGED] &6Random Tick Speed: &d{world_random_tick_speed}'
 release:
   condition: tps_5m > 19.0
-  message: '&b[YASUI] &c[RELEASED] &6Random Tick Speed: &d{world_random_tick_speed}'
+  message: '&b[YASUI] &f[{world_name}] &c[RELEASED] &6Random Tick Speed: &d{world_random_tick_speed}'

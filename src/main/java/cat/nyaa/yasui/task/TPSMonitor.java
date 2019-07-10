@@ -77,7 +77,7 @@ public class TPSMonitor extends BukkitRunnable {
     public void runRule(Rule rule, World world) {
         int oldTickSpeed = world.getGameRuleValue(GameRule.RANDOM_TICK_SPEED).intValue();
         int newTickSpeed = -1;
-        BigDecimal engage = eval(rule.engage_condition, world);
+        BigDecimal engage = eval(rule.engage_condition, world, rule.filename);
         if (engage != null && engage.intValue() > 0) {
             for (String name : rule.operations) {
                 Operation o = plugin.config.operations.get(name);
@@ -95,7 +95,7 @@ public class TPSMonitor extends BukkitRunnable {
                 }
             }
         }
-        BigDecimal release = eval(rule.release_condition, world);
+        BigDecimal release = eval(rule.release_condition, world, rule.filename);
         if (release != null && release.intValue() > 0) {
             for (String name : rule.operations) {
                 Operation o = plugin.config.operations.get(name);
@@ -126,38 +126,45 @@ public class TPSMonitor extends BukkitRunnable {
             type = rule.release_broadcast == null ? plugin.config.broadcast : rule.release_broadcast;
         }
         if (!Strings.isNullOrEmpty(msg) && type != BroadcastType.NONE) {
+            msg = msg.replaceAll("\\{tps_1m}", String.format("%.2f", tps_1m.doubleValue()))
+                    .replaceAll("\\{tps_5m}", String.format("%.2f", tps_5m.doubleValue()))
+                    .replaceAll("\\{tps_15m}", String.format("%.2f", tps_15m.doubleValue()))
+                    .replaceAll("\\{world_random_tick_speed}", String.valueOf(newTickSpeed >= 0 ? newTickSpeed : oldTickSpeed))
+                    .replaceAll("\\{world_name}", world.getName());
             if (!msg.equals(rule.lastMessages.get(world.getName()))) {
-                msg = msg.replaceAll("\\{tps_1m}", String.format("%.2f", tps_1m.doubleValue()))
-                        .replaceAll("\\{tps_5m}", String.format("%.2f", tps_5m.doubleValue()))
-                        .replaceAll("\\{tps_15m}", String.format("%.2f", tps_15m.doubleValue()))
-                        .replaceAll("\\{world_random_tick_speed}", String.valueOf(newTickSpeed >= 0 ? newTickSpeed : oldTickSpeed))
-                        .replaceAll("\\{world_name}", world.getName());
                 Utils.broadcast(type, msg, world);
                 rule.lastMessages.put(world.getName(), msg);
             }
         }
     }
 
-    public BigDecimal eval(String condition, World world) {
+    public BigDecimal eval(String condition, World world, String ruleName) {
         if (condition != null && condition.length() > 0) {
-            Expression exp = new Expression(condition)
-                    .with("tps_1m", tps_1m)
-                    .with("tps_5m", tps_5m)
-                    .with("tps_15m", tps_15m)
-                    .with("online_players", new BigDecimal(Bukkit.getOnlinePlayers().size()))
-                    .with("world_random_tick_speed", new BigDecimal(world.getGameRuleValue(GameRule.RANDOM_TICK_SPEED)))
-                    .with("world_loaded_chunks", new BigDecimal(world.getLoadedChunks().length))
-                    .with("world_players", new BigDecimal(world.getPlayers().size()))
-                    .with("world_living_entities", new BigDecimal(world.getLivingEntities().size()));
-            if (Yasui.hasNU) {
-                exp.addFunction(new AbstractFunction("getTPSFromNU", 1) {
-                    @Override
-                    public BigDecimal eval(List<BigDecimal> parameters) {
-                        return Utils.getTPSFromNU(parameters.get(0).intValue());
-                    }
-                });
+            try {
+                Expression exp = new Expression(condition)
+                        .with("tps_1m", tps_1m)
+                        .with("tps_5m", tps_5m)
+                        .with("tps_15m", tps_15m)
+                        .with("online_players", new BigDecimal(Bukkit.getOnlinePlayers().size()))
+                        .with("world_random_tick_speed", new BigDecimal(world.getGameRuleValue(GameRule.RANDOM_TICK_SPEED)))
+                        .with("world_loaded_chunks", new BigDecimal(world.getLoadedChunks().length))
+                        .with("world_players", new BigDecimal(world.getPlayers().size()))
+                        .with("world_living_entities", new BigDecimal(world.getLivingEntities().size()));
+                if (Yasui.hasNU) {
+                    exp.addFunction(new AbstractFunction("getTPSFromNU", 1) {
+                        @Override
+                        public BigDecimal eval(List<BigDecimal> parameters) {
+                            return Utils.getTPSFromNU(parameters.get(0).intValue());
+                        }
+                    });
+                }
+                return exp.eval();
+            } catch (Exception e) {
+                plugin.getLogger().warning("=====================");
+                plugin.getLogger().warning("rule: " + ruleName);
+                e.printStackTrace();
+                plugin.getLogger().warning("=====================");
             }
-            return exp.eval();
         }
         return null;
     }
