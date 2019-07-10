@@ -6,6 +6,21 @@ manual:
   reload:
     usage: /yasui reload
     description: Reload config from config file. Unsaved changes will lost
+  chunkentities:
+    usage: /yasui chunkentities
+    description: List Top-N chunks loaded with Entities. Mouse hover coordinates to teleport.
+  chunkevents:
+    usage: /yasui chunkevents
+    description: List Top-N chunks ticking events. Mouse hover coordinates to teleport.
+  counter:
+    usage: /yasui counter <entity|tileentity> [world]
+    description: List Top-N entity or tileentity that consuming CPU time.
+  operation:
+    usage: /yasui operation <engage|release> <operation name>
+    description: Manually engage/release a specific operation.
+  status:
+    usage: /yasui status
+    description: Print overall status information.
   no_usage: No usage
 user:
   chunk:
@@ -23,21 +38,21 @@ user:
     header_livingentity: §6====== §rTop §c%d§r Chunks by §bLivingEntities§6 ======
     not_enabled: Not enabled
   status:
-    world_name: "§6====== §r%s §6======"
-    world_info: "loaded chunks: %d living entities: %d tile entities: %d"
-    entity_ai_suppressor: "entity AI: %s"
-    entity_culler: "max entity per chunk: %d max entity per region: %d"
-    redstone_suppressor: "max redstone events per chunk: %d max piston events per chunk: %d"
-    random_tick_speed: "random tick: %d"
+    random_tick_speed: '§3    §6[§9Random Tick Speed§6] §c%d'
+    world_info: '    §6[§9INFO§6] §b%d §6Chunk loaded §r| §b%d §6LivingEntities §r| §b%d §6TileEntities'
+    redstone_suppressor: '    §6[§9Redstone Suppressor§6] §c%d §aREvents/chunk §r| §c%d §aPiston/chunk'
+    entity_culler: '    §6[§9Entity Culler§6] §c%d §aEntities/chunk §r| §c%d §aEntities/region'
+    entity_ai_suppressor: '    §6[§9Entity AI§6] §c%s'
+    world_name: §d>> §fWorld §6[§a%s§6]
   error:
     bad_world: Unknown world %s
     operation_not_exist: "operation not exist: %s"
   redstone:
-    msg: "[%s] redstone disabled at chunk X: %d Z: %d radius %d (redstone events: %d piston events: %d)"
+    msg: "§6[§9%s§6] §6[§cRedstone Suppressed§6] §fchunk §6[§b%d %d§6] §fradius §b%d §6[§9REvents §c%d §f| §9Piston §c%d§6]"
   timings:
-    data: "&3%s&r count: &6%d&r time: &9%d"
+    data: "&6[§3%s§6] §rcount &6%d&r time &9%d"
 log:
-  redstone: "redstone disabled at [%s, %d, %d] radius: %d "
+  redstone: "[YASUI] Redstone disabled at [%s, %d, %d] radius: %d "
 internal:
   info:
     command_complete: Command Executed!
