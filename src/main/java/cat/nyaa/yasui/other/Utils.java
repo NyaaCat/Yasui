@@ -73,7 +73,7 @@ public class Utils {
         if (limit != null) {
             Operation ai_suppressor = limit.get(ModuleType.entity_ai_suppressor);
             Operation entity_culler = limit.get(ModuleType.entity_culler);
-            if (ai_suppressor != null || entity_culler != null) {
+            if (ai_suppressor != null || entity_culler != null || ChunkTask.getOrCreateTask(chunk).noAI) {
                 int count = getLivingEntityCount(chunk);
                 int per_chunk_max = entity_culler != null ? entity_culler.entity_culler_per_chunk_limit : -1;
                 int removed = 0;
@@ -86,6 +86,7 @@ public class Utils {
                         setAI((LivingEntity) entity, ai_suppressor == null, ai_suppressor);
                     }
                 }
+                ChunkTask.getOrCreateTask(chunk).noAI = ai_suppressor != null;
                 ChunkTask.getOrCreateTask(chunk).LivingEntityCount = count - removed;
             }
         }

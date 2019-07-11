@@ -25,6 +25,7 @@ public class ChunkTask extends BukkitRunnable {
     public int disabledRadius = 0;
     public ChunkCoordinate sourceId = null;
     public boolean allowRedstone = true;
+    public boolean noAI = false;
 
     public ChunkTask(ChunkCoordinate id) {
         this.id = id;
