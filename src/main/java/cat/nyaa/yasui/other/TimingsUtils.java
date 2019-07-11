@@ -10,6 +10,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 public class TimingsUtils {
@@ -177,7 +178,7 @@ public class TimingsUtils {
         if (isPaper) {
             id = id.replaceAll("net.minecraft.server." + ReflectionUtils.getVersion(), "nms.");
         }
-        sender.sendMessage(I18n.format("user.timings.data", id, count, time));
+        sender.sendMessage(I18n.format("user.timings.data", id, count, TimeUnit.MILLISECONDS.convert(time, TimeUnit.NANOSECONDS)));
     }
 
     private static Object getWorldTimings(World bukkitWorld) {

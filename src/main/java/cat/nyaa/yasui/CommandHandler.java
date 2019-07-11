@@ -129,10 +129,25 @@ public class CommandHandler extends CommandReceiver {
     public void commandOperation(CommandSender sender, Arguments args) {
         String s = args.nextString();
         String name = args.nextString();
-        World world = "all".equalsIgnoreCase(args.top()) ? null : getWorld(sender, args);
+        Set<World> worlds = new HashSet<>();
+        while (true) {
+            if ("all".equalsIgnoreCase(args.top())) {
+                args.nextString();
+                worlds.addAll(Bukkit.getWorlds());
+                break;
+            } else if (!worlds.isEmpty() && args.top() == null) {
+                break;
+            } else {
+                worlds.add(getWorld(sender, args));
+            }
+        }
         Operation o = plugin.config.operations.get(name);
         if (o == null) {
             throw new BadCommandException("user.error.operation_not_exist", name);
+        }
+        if (o.modules.isEmpty()) {
+            msg(sender, "user.error.empty_operation", name);
+            return;
         }
         Rule rule = new Rule();
         rule.operations = new ArrayList<>(Collections.singleton(name));
@@ -142,13 +157,13 @@ public class CommandHandler extends CommandReceiver {
         } else if (s.equalsIgnoreCase("release")) {
             rule.engage_condition = "0";
             rule.release_condition = "1";
-        }
-        if (world != null) {
-            plugin.tpsMonitor.runRule(rule, world);
         } else {
-            for (World w : Bukkit.getWorlds()) {
-                plugin.tpsMonitor.runRule(rule, w);
-            }
+            msg(sender, "manual.operation.usage");
+            return;
+        }
+        for (World w : worlds) {
+            plugin.tpsMonitor.runRule(rule, w);
+            msg(sender, "user.operation." + s.toLowerCase(), w.getName(), name);
         }
     }
 

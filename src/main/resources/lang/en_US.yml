@@ -47,10 +47,14 @@ user:
   error:
     bad_world: Unknown world %s
     operation_not_exist: "operation not exist: %s"
+    empty_operation: "%s: empty file or modules are not enabled"
   redstone:
     msg: "§6[§9%s§6] §6[§cRedstone Suppressed§6] §fchunk §6[§b%d %d§6] §fradius §b%d §6[§9REvents §c%d §f| §9Piston §c%d§6]"
   timings:
-    data: "&6[§3%s§6] §rcount &6%d&r time &9%d"
+    data: "&6[§3%s§6] §rcount &6%d&r time &9%d&fms"
+  operation:
+    engage: "[%s] engage: %s"
+    release: "[%s] release: %s"
 log:
   redstone: "[YASUI] Redstone disabled at [%s, %d, %d] radius: %d "
 internal:

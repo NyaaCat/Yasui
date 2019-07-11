@@ -1,5 +1,6 @@
 package cat.nyaa.yasui.task;
 
+import cat.nyaa.yasui.I18n;
 import cat.nyaa.yasui.Yasui;
 import cat.nyaa.yasui.config.Operation;
 import cat.nyaa.yasui.config.Rule;
@@ -80,7 +81,7 @@ public class TPSMonitor extends BukkitRunnable {
         BigDecimal engage = eval(rule.engage_condition, world, rule.filename);
         if (engage != null && engage.intValue() > 0) {
             for (String name : rule.operations) {
-                Operation o = plugin.config.operations.get(name);
+                Operation o = getOperation(name);
                 if (o != null) {
                     for (ModuleType module : o.modules) {
                         worldLimits.get(world.getName()).put(module, o);
@@ -90,15 +91,13 @@ public class TPSMonitor extends BukkitRunnable {
                             runCommands(world, o.command_executor_engage);
                         }
                     }
-                } else {
-                    plugin.getLogger().warning("operation not exist: " + name);
                 }
             }
         }
         BigDecimal release = eval(rule.release_condition, world, rule.filename);
         if (release != null && release.intValue() > 0) {
             for (String name : rule.operations) {
-                Operation o = plugin.config.operations.get(name);
+                Operation o = getOperation(name);
                 if (o != null) {
                     for (ModuleType module : o.modules) {
                         worldLimits.get(world.getName()).remove(module);
@@ -108,8 +107,6 @@ public class TPSMonitor extends BukkitRunnable {
                             runCommands(world, o.command_executor_release);
                         }
                     }
-                } else {
-                    plugin.getLogger().warning("operation not exist: " + name);
                 }
             }
         }
@@ -179,5 +176,14 @@ public class TPSMonitor extends BukkitRunnable {
     public void runCommands(World world, String cmd) {
         String s = cmd.replaceAll("\\{world_name}", world.getName());
         Bukkit.dispatchCommand(Bukkit.getConsoleSender(), s);
+    }
+
+    private Operation getOperation(String name) {
+        Operation operation = plugin.config.operations.get(name);
+        if (operation == null || operation.modules.isEmpty()) {
+            plugin.getLogger().warning(I18n.format(operation == null ? "user.error.operation_not_exist" : "user.error.empty_operation", name));
+            return null;
+        }
+        return operation;
     }
 }
