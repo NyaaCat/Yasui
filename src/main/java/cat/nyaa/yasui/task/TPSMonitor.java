@@ -79,12 +79,16 @@ public class TPSMonitor extends BukkitRunnable {
         int oldTickSpeed = world.getGameRuleValue(GameRule.RANDOM_TICK_SPEED).intValue();
         int newTickSpeed = -1;
         BigDecimal engage = eval(rule.engage_condition, world, rule.filename);
+        boolean broadcast = false;
         if (engage != null && engage.intValue() > 0) {
             for (String name : rule.operations) {
                 Operation o = getOperation(name);
                 if (o != null) {
                     for (ModuleType module : o.modules) {
-                        worldLimits.get(world.getName()).put(module, o);
+                        Operation oldVar = worldLimits.get(world.getName()).put(module, o);
+                        if (o != oldVar) {
+                            broadcast = true;
+                        }
                         if (module == ModuleType.random_tick_speed) {
                             newTickSpeed = Math.max(Math.max(o.random_tick_speed_min, oldTickSpeed - 1), o.random_tick_speed_min);
                         } else if (!Strings.isNullOrEmpty(o.command_executor_engage)) {
@@ -100,7 +104,10 @@ public class TPSMonitor extends BukkitRunnable {
                 Operation o = getOperation(name);
                 if (o != null) {
                     for (ModuleType module : o.modules) {
-                        worldLimits.get(world.getName()).remove(module);
+                        Operation oldVar = worldLimits.get(world.getName()).remove(module);
+                        if (oldVar != null) {
+                            broadcast = true;
+                        }
                         if (module == ModuleType.random_tick_speed) {
                             newTickSpeed = Math.min(Math.min(o.random_tick_speed_max, oldTickSpeed + 1), o.random_tick_speed_max);
                         } else if (!Strings.isNullOrEmpty(o.command_executor_engage)) {
@@ -128,7 +135,7 @@ public class TPSMonitor extends BukkitRunnable {
                     .replaceAll("\\{tps_15m}", String.format("%.2f", tps_15m.doubleValue()))
                     .replaceAll("\\{world_random_tick_speed}", String.valueOf(newTickSpeed >= 0 ? newTickSpeed : oldTickSpeed))
                     .replaceAll("\\{world_name}", world.getName());
-            if (!msg.equals(rule.lastMessages.get(world.getName()))) {
+            if (!msg.equals(rule.lastMessages.get(world.getName())) || broadcast) {
                 Utils.broadcast(type, msg, world);
                 rule.lastMessages.put(world.getName(), msg);
             }
