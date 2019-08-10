@@ -5,8 +5,13 @@ import cat.nyaa.nyaacore.configuration.PluginConfigure;
 import cat.nyaa.yasui.config.Operation;
 import cat.nyaa.yasui.config.Rule;
 import cat.nyaa.yasui.other.BroadcastType;
+import cat.nyaa.yasui.other.ChunkCoordinate;
 import cat.nyaa.yasui.other.ModuleType;
 import cat.nyaa.yasui.other.Utils;
+import cat.nyaa.yasui.region.Region;
+import cat.nyaa.yasui.region.RegionConfig;
+import org.bukkit.Bukkit;
+import org.bukkit.World;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -39,6 +44,8 @@ public class Configuration extends PluginConfigure {
     public int top_listing = 10;
     @Serializable
     public BroadcastType broadcast = BroadcastType.CHAT;
+    @StandaloneConfig
+    public RegionConfig regionConfig;
     public Map<String, Rule> rules = new HashMap<>();
     public Map<String, Operation> operations = new HashMap<>();
     public EnumSet<ModuleType> enabledModules;
@@ -47,6 +54,7 @@ public class Configuration extends PluginConfigure {
 
     public Configuration(Yasui plugin) {
         this.plugin = plugin;
+        regionConfig = new RegionConfig(plugin);
     }
 
     @Override
@@ -112,5 +120,32 @@ public class Configuration extends PluginConfigure {
         } catch (IOException e) {
             e.printStackTrace();
         }
+    }
+
+    public Region getRegion(ChunkCoordinate id) {
+        Region region = null;
+        for (Region v : regionConfig.regions.values()) {
+            if (v.enabled && v.contains(id)) {
+                if (region == null || !v.defaultRegion) {
+                    region = v;
+                    if (!region.defaultRegion) {
+                        break;
+                    }
+                }
+            }
+        }
+        if (region == null) {
+            region = getDefaultRegion(Bukkit.getWorld(id.getWorld()));
+        }
+        return region;
+    }
+
+    public Region getDefaultRegion(World world) {
+        Region region = regionConfig.regions.get(world.getName());
+        if (region == null || !region.defaultRegion) {
+            region = new Region(world);
+            regionConfig.regions.put(world.getName(), region);
+        }
+        return region;
     }
 }

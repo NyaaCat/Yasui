@@ -2,7 +2,7 @@ name: yasui
 version: ${version}
 main: cat.nyaa.yasui.Yasui
 depend: [NyaaCore]
-softdepend: [NyaaUtils]
+softdepend: [NyaaUtils,WorldEdit]
 authors: [cylin]
 api-version: 1.13
 commands:

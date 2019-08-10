@@ -11,6 +11,8 @@ import java.util.Map;
 public class Rule extends ReadOnlyConfig {
     @Serializable
     public boolean enabled;
+    //@Serializable
+    public String name;
     @Serializable
     public List<String> operations;
     @Serializable
@@ -34,6 +36,7 @@ public class Rule extends ReadOnlyConfig {
     public Rule(Yasui plugin, File dir, String filename) {
         super(plugin, dir, filename);
         load();
+        name = filename.substring(0, filename.length() - 4);
     }
 
     public Rule() {

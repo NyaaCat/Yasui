@@ -7,6 +7,7 @@ import cat.nyaa.yasui.config.Rule;
 import cat.nyaa.yasui.other.BroadcastType;
 import cat.nyaa.yasui.other.ModuleType;
 import cat.nyaa.yasui.other.Utils;
+import cat.nyaa.yasui.region.Region;
 import com.google.common.base.Strings;
 import com.udojava.evalex.AbstractFunction;
 import com.udojava.evalex.Expression;
@@ -18,12 +19,9 @@ import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitRunnable;
 
 import java.math.BigDecimal;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 public class TPSMonitor extends BukkitRunnable {
-    public static Map<String, Map<ModuleType, Operation>> worldLimits = new HashMap<>();
     private final Yasui plugin;
     private BigDecimal tps_1m = new BigDecimal(20);
     private BigDecimal tps_5m = new BigDecimal(20);
@@ -32,9 +30,6 @@ public class TPSMonitor extends BukkitRunnable {
     public TPSMonitor(Yasui pl) {
         plugin = pl;
         this.runTaskTimer(plugin, plugin.config.scan_interval_tick, plugin.config.scan_interval_tick);
-        for (World world : Bukkit.getWorlds()) {
-            worldLimits.put(world.getName(), new HashMap<>());
-        }
     }
 
     @Override
@@ -50,7 +45,7 @@ public class TPSMonitor extends BukkitRunnable {
                     for (String worldName : rule.worlds) {
                         World w = Bukkit.getWorld(worldName);
                         if (w != null) {
-                            runRule(rule, w);
+                            runRule(rule, w, plugin.config.getDefaultRegion(w));
                         } else {
                             plugin.getLogger().warning(String.format("rule: %s, world %s not exist.", key, worldName));
                         }
@@ -58,16 +53,23 @@ public class TPSMonitor extends BukkitRunnable {
                 }
             }
         }
-        plugin.redstoneListener.worlds.clear();
-        for (String name : worldLimits.keySet()) {
-            Map<ModuleType, Operation> operationMap = worldLimits.get(name);
-            if (operationMap.containsKey(ModuleType.redstone_suppressor)) {
-                plugin.redstoneListener.worlds.add(name);
+        for (String name : plugin.config.regionConfig.regions.keySet()) {
+            Region region = plugin.config.regionConfig.regions.get(name);
+            if (!region.defaultRegion && region.enabled) {
+                World w = Bukkit.getWorld(region.world);
+                if (w != null) {
+                    for (String ruleName : region.enforce) {
+                        Rule rule = plugin.config.rules.get(ruleName);
+                        if (rule != null) {
+                            runRule(rule, w, region);
+                        }
+                    }
+                }
             }
         }
         for (Player p : Bukkit.getOnlinePlayers()) {
             Chunk center = p.getLocation().getChunk();
-            int viewDistance = 16 > Bukkit.getViewDistance() ? Bukkit.getViewDistance() : 16;
+            int viewDistance = Math.min(16, Bukkit.getViewDistance());
             RegionTask.getOrCreateTask(p.getWorld().getChunkAt(center.getX() - viewDistance, center.getX() - viewDistance));
             RegionTask.getOrCreateTask(p.getWorld().getChunkAt(center.getX() + viewDistance, center.getX() - viewDistance));
             RegionTask.getOrCreateTask(p.getWorld().getChunkAt(center.getX() + viewDistance, center.getX() + viewDistance));
@@ -75,17 +77,24 @@ public class TPSMonitor extends BukkitRunnable {
         }
     }
 
-    public void runRule(Rule rule, World world) {
+    public void runRule(Rule rule, World world, Region region) {
+        if (region.bypass.contains(rule.name)) {
+            return;
+        }
         int oldTickSpeed = world.getGameRuleValue(GameRule.RANDOM_TICK_SPEED).intValue();
         int newTickSpeed = -1;
         BigDecimal engage = eval(rule.engage_condition, world, rule.filename);
         boolean broadcast = false;
-        if (engage != null && engage.intValue() > 0) {
+        if ((engage != null && engage.intValue() > 0) || (region.enforce.contains(rule.name))) {
+            engage = new BigDecimal(1);
             for (String name : rule.operations) {
                 Operation o = getOperation(name);
                 if (o != null) {
                     for (ModuleType module : o.modules) {
-                        Operation oldVar = worldLimits.get(world.getName()).put(module, o);
+                        if (!region.defaultRegion && module == ModuleType.random_tick_speed) {
+                            continue;
+                        }
+                        Operation oldVar = region.add(module, rule.name, o);
                         if (o != oldVar) {
                             broadcast = true;
                         }
@@ -99,12 +108,12 @@ public class TPSMonitor extends BukkitRunnable {
             }
         }
         BigDecimal release = eval(rule.release_condition, world, rule.filename);
-        if (release != null && release.intValue() > 0) {
+        if (release != null && release.intValue() > 0 && !region.enforce.contains(rule.name)) {
             for (String name : rule.operations) {
                 Operation o = getOperation(name);
                 if (o != null) {
                     for (ModuleType module : o.modules) {
-                        Operation oldVar = worldLimits.get(world.getName()).remove(module);
+                        Operation oldVar = region.remove(module);
                         if (oldVar != null) {
                             broadcast = true;
                         }
@@ -134,10 +143,10 @@ public class TPSMonitor extends BukkitRunnable {
                     .replaceAll("\\{tps_5m}", String.format("%.2f", tps_5m.doubleValue()))
                     .replaceAll("\\{tps_15m}", String.format("%.2f", tps_15m.doubleValue()))
                     .replaceAll("\\{world_random_tick_speed}", String.valueOf(newTickSpeed >= 0 ? newTickSpeed : oldTickSpeed))
-                    .replaceAll("\\{world_name}", world.getName());
-            if (!msg.equals(rule.lastMessages.get(world.getName())) || broadcast) {
+                    .replaceAll("\\{world_name}", region.name);
+            if (!msg.equals(rule.lastMessages.get(region.name)) || broadcast) {
                 Utils.broadcast(type, msg, world);
-                rule.lastMessages.put(world.getName(), msg);
+                rule.lastMessages.put(region.name, msg);
             }
         }
     }

@@ -5,6 +5,7 @@ import cat.nyaa.yasui.config.Operation;
 import cat.nyaa.yasui.other.ChunkCoordinate;
 import cat.nyaa.yasui.other.ModuleType;
 import cat.nyaa.yasui.other.Utils;
+import cat.nyaa.yasui.region.Region;
 import org.bukkit.Bukkit;
 import org.bukkit.Chunk;
 import org.bukkit.World;
@@ -26,6 +27,7 @@ public class ChunkTask extends BukkitRunnable {
     public ChunkCoordinate sourceId = null;
     public boolean allowRedstone = true;
     public boolean noAI = false;
+    public Region region = null;
 
     public ChunkTask(ChunkCoordinate id) {
         this.id = id;
@@ -39,6 +41,7 @@ public class ChunkTask extends BukkitRunnable {
         ChunkTask task = taskMap.get(id);
         if (task == null) {
             task = new ChunkTask(id);
+            task.region = Yasui.INSTANCE.config.getRegion(id);
             task.runTaskTimer(Yasui.INSTANCE, delay++, Yasui.INSTANCE.config.scan_interval_tick);
             if (delay >= Yasui.INSTANCE.config.scan_interval_tick) {
                 delay = 1;
@@ -53,18 +56,15 @@ public class ChunkTask extends BukkitRunnable {
         World world = Bukkit.getWorld(id.getWorld());
         Yasui plugin = Yasui.INSTANCE;
         if (world != null) {
-            Map<ModuleType, Operation> map = TPSMonitor.worldLimits.get(world.getName());
-            if (map != null) {
-                Operation redstone = map.get(ModuleType.redstone_suppressor);
-                if (redstone != null && allowRedstone && (pistonEvents >= redstone.redstone_suppressor_piston_per_chunk || redstoneEvents >= redstone.redstone_suppressor_per_chunk)) {
-                    plugin.redstoneListener.disableRedstone(world.getChunkAt(id.getX(), id.getZ()), redstone.redstone_suppressor_supress_chunk_region, redstoneEvents, pistonEvents);
-                } else if (redstone == null ||
-                        (maxPistonEvents < redstone.redstone_suppressor_piston_per_chunk && maxRedstoneEvents < redstone.redstone_suppressor_per_chunk)) {
-                    allowRedstone = true;
-                    sourceId = null;
-                    maxRedstoneEvents = 0;
-                    maxPistonEvents = 0;
-                }
+            Operation redstone = region.get(ModuleType.redstone_suppressor);
+            if (redstone != null && allowRedstone && (pistonEvents >= redstone.redstone_suppressor_piston_per_chunk || redstoneEvents >= redstone.redstone_suppressor_per_chunk)) {
+                plugin.redstoneListener.disableRedstone(world.getChunkAt(id.getX(), id.getZ()), redstone.redstone_suppressor_supress_chunk_region, redstoneEvents, pistonEvents);
+            } else if (redstone == null ||
+                    (maxPistonEvents < redstone.redstone_suppressor_piston_per_chunk && maxRedstoneEvents < redstone.redstone_suppressor_per_chunk)) {
+                allowRedstone = true;
+                sourceId = null;
+                maxRedstoneEvents = 0;
+                maxPistonEvents = 0;
             }
             if (world.isChunkLoaded(id.getX(), id.getZ())) {
                 Chunk chunk = world.getChunkAt(id.getX(), id.getZ());

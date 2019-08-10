@@ -14,7 +14,7 @@ import cat.nyaa.yasui.config.Rule;
 import cat.nyaa.yasui.other.ChunkCoordinate;
 import cat.nyaa.yasui.other.ModuleType;
 import cat.nyaa.yasui.other.TimingsUtils;
-import cat.nyaa.yasui.task.TPSMonitor;
+import cat.nyaa.yasui.region.RegionCommands;
 import com.google.common.collect.EnumMultiset;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Multimaps;
@@ -30,10 +30,25 @@ import java.util.*;
 
 public class CommandHandler extends CommandReceiver {
     private final Yasui plugin;
+    @SubCommand("region")
+    public RegionCommands regionCommands;
 
     public CommandHandler(Yasui plugin, LanguageRepository i18n) {
         super(plugin, i18n);
         this.plugin = plugin;
+    }
+
+    public static List<String> tabCompleteStringSet(CommandSender sender, Arguments args, Set<String> stringSet) {
+        List<String> list = new ArrayList<>();
+        if (args.remains() >= 1) {
+            String name = args.nextString();
+            for (String k : stringSet) {
+                if (k.startsWith(name)) {
+                    list.add(k);
+                }
+            }
+        }
+        return list;
     }
 
     public String getHelpPrefix() {
@@ -52,7 +67,7 @@ public class CommandHandler extends CommandReceiver {
         plugin.reload();
     }
 
-    @SubCommand(value = "chunkevents", permission = "yasui.profiler")
+    @SubCommand(value = "chunkevents", permission = "yasui.profiler", tabCompleter = "tabCompleteWorld")
     public void commandChunkEvents(CommandSender sender, Arguments args) {
         World world = getWorld(sender, args);
         if (plugin.profilerStatsMonitor == null) {
@@ -85,7 +100,7 @@ public class CommandHandler extends CommandReceiver {
         });
     }
 
-    @SubCommand(value = "chunkentities", permission = "yasui.profiler")
+    @SubCommand(value = "chunkentities", permission = "yasui.profiler", tabCompleter = "tabCompleteWorld")
     public void commandChunkEntities(CommandSender sender, Arguments args) {
         World world = getWorld(sender, args);
         //Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
@@ -128,7 +143,7 @@ public class CommandHandler extends CommandReceiver {
         //});
     }
 
-    @SubCommand(value = "operation", permission = "yasui.command.operation")
+    @SubCommand(value = "operation", permission = "yasui.command.operation", tabCompleter = "tabCompleteOperation")
     public void commandOperation(CommandSender sender, Arguments args) {
         String s = args.nextString();
         String name = args.nextString();
@@ -165,12 +180,12 @@ public class CommandHandler extends CommandReceiver {
             return;
         }
         for (World w : worlds) {
-            plugin.tpsMonitor.runRule(rule, w);
+            plugin.tpsMonitor.runRule(rule, w, plugin.config.getDefaultRegion(w));
             msg(sender, "user.operation." + s.toLowerCase(), w.getName(), name);
         }
     }
 
-    @SubCommand(value = "counter", permission = "yasui.command.counter")
+    @SubCommand(value = "counter", permission = "yasui.command.counter", tabCompleter = "tabCompleteCounter")
     public void commandCounter(CommandSender sender, Arguments args) {
         String s = args.nextString();
         World world = Bukkit.getWorld(s);
@@ -210,7 +225,7 @@ public class CommandHandler extends CommandReceiver {
             tileEntities += chunk.getTileEntities().length;
         }
         msg(sender, "user.status.world_info", world.getLoadedChunks().length, livingEntities, tileEntities);
-        Map<ModuleType, Operation> limits = TPSMonitor.worldLimits.get(world.getName());
+        Map<ModuleType, Operation> limits = plugin.config.regionConfig.regions.get(world.getName()).getLimits();
         if (limits != null && !limits.isEmpty()) {
             for (ModuleType type : limits.keySet()) {
                 Operation operation = limits.get(type);
@@ -226,5 +241,60 @@ public class CommandHandler extends CommandReceiver {
                 }
             }
         }
+    }
+
+    public List<String> tabCompleteOperation(CommandSender sender, Arguments args) {
+        List<String> list = new ArrayList<>();
+        if (args.length() == 2) {
+            String s = args.nextString();
+            if ("engage".startsWith(s)) {
+                list.add("engage");
+            }
+            if ("release".startsWith(s)) {
+                list.add("release");
+            }
+        } else if (args.length() == 3) {
+            args.next();
+            list.addAll(tabCompleteStringSet(sender, args, plugin.config.operations.keySet()));
+        } else if (args.length() >= 4) {
+            args.next();
+            args.next();
+            while (args.remains() > 1) {
+                args.next();
+            }
+            if ("all".startsWith(args.top())) {
+                list.add("all");
+            }
+            list.addAll(tabCompleteWorld(sender, args));
+        }
+        return list;
+    }
+
+    public List<String> tabCompleteCounter(CommandSender sender, Arguments args) {
+        List<String> list = new ArrayList<>();
+        if (args.length() == 2) {
+            String s = args.top();
+            if ("tileentity".startsWith(s)) {
+                list.add("tileentity");
+            }
+            if ("entity".startsWith(s)) {
+                list.add("entity");
+            }
+            list.addAll(tabCompleteWorld(sender, args));
+        }
+        return list;
+    }
+
+    public List<String> tabCompleteWorld(CommandSender sender, Arguments args) {
+        List<String> list = new ArrayList<>();
+        if (args.remains() == 1) {
+            String worldName = args.nextString();
+            for (World world : Bukkit.getWorlds()) {
+                if (world.getName().startsWith(worldName)) {
+                    list.add(world.getName());
+                }
+            }
+        }
+        return list;
     }
 }

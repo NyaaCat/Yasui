@@ -22,6 +22,19 @@ manual:
     usage: /yasui status
     description: Print overall status information.
   no_usage: No usage
+  region:
+    create:
+      usage: /yasui region create <region name> [chunk|block] [x1] [z1] [x2] [z2]
+      description: create a region
+    enable:
+      usage: /yasui region create <region name>
+      description: enable a region
+    disable:
+      usage: /yasui region disable <region name>
+      description: disable a region
+    rule:
+      usage: /yasui region rule <region name> <bypass|enforce|remove> <rule name>
+      description: add rule to a region
 user:
   chunk:
     coord: §c>>§r Chunk §6[§b%d§r, §b%d§6]
@@ -47,6 +60,8 @@ user:
   error:
     bad_world: Unknown world %s
     operation_not_exist: "operation not exist: %s"
+    rule_not_exist: "rule not exist: %s"
+    region_not_exist: "region not exist: %s"
     empty_operation: "%s: empty file or modules are not enabled"
   redstone:
     msg: "§6[§9%s§6] §6[§cRedstone Suppressed§6] §fchunk §6[§b%d %d§6] §fradius §b%d §6[§9REvents §c%d §f| §9Piston §c%d§6]"
@@ -55,6 +70,13 @@ user:
   operation:
     engage: "§6[§a%s§6] §cEngage §r%s"
     release: "§6[§a%s§6] §aRelease §r%s"
+  region:
+    exist: "already exist: %s"
+    info:
+      name: "name: %s , enabled: %s"
+      location: "world: %s [%d, %d] [%d, %d]"
+      bypass: "bypass: %s"
+      enforce: "enforce: %s"
 log:
   redstone: "[YASUI] Redstone disabled at [%s, %d, %d] radius: %d "
 internal:

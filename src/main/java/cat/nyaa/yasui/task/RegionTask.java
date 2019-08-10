@@ -40,15 +40,21 @@ public class RegionTask extends BukkitRunnable {
 
     @Override
     public void run() {
+        boolean defaultRegion = true;
         World world = Bukkit.getWorld(id.getWorld());
         if (world != null) {
-            Map<ModuleType, Operation> modules = TPSMonitor.worldLimits.get(world.getName());
+            Map<ModuleType, Operation> modules = Yasui.INSTANCE.config.regionConfig.regions.get(world.getName()).getLimits();
             List<Entity> entities = new ArrayList<>();
             int regionEntitiesCount = 0;
             for (ChunkCoordinate c : getChunkCoordinate()) {
                 if (world.isChunkLoaded(c.getX(), c.getZ())) {
-                    loadedChunks.add(c);
-                    regionEntitiesCount += ChunkTask.getOrCreateTask(c).LivingEntityCount;
+                    ChunkTask task = ChunkTask.getOrCreateTask(c);
+                    if (task.region.defaultRegion) {
+                        loadedChunks.add(c);
+                        regionEntitiesCount += task.LivingEntityCount;
+                    } else {
+                        defaultRegion = false;
+                    }
                 } else {
                     loadedChunks.remove(c);
                     ChunkTask task = ChunkTask.taskMap.get(c);
@@ -81,7 +87,7 @@ public class RegionTask extends BukkitRunnable {
                     }
                 }
             }
-            if (loadedChunks.isEmpty()) {
+            if (loadedChunks.isEmpty() && defaultRegion) {
                 cancel();
                 taskMap.remove(id);
             }

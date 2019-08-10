@@ -3,6 +3,7 @@ package cat.nyaa.yasui.listener;
 import cat.nyaa.yasui.I18n;
 import cat.nyaa.yasui.Yasui;
 import cat.nyaa.yasui.other.ChunkCoordinate;
+import cat.nyaa.yasui.other.ModuleType;
 import cat.nyaa.yasui.other.Utils;
 import cat.nyaa.yasui.task.ChunkTask;
 import org.bukkit.Chunk;
@@ -22,13 +23,10 @@ import org.bukkit.event.inventory.InventoryPickupItemEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.Inventory;
 
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 public class RedstoneListener implements Listener {
     private final Yasui plugin;
-    public Set<String> worlds = new HashSet<>();
 
     public RedstoneListener(Yasui pl) {
         plugin = pl;
@@ -52,9 +50,10 @@ public class RedstoneListener implements Listener {
 
     @EventHandler(priority = EventPriority.LOWEST)
     public void redstoneChange(BlockRedstoneEvent event) {
-        if (event.getOldCurrent() < event.getNewCurrent() && worlds.contains(event.getBlock().getWorld().getName())) {
+        ChunkTask task = ChunkTask.getOrCreateTask(event.getBlock().getChunk());
+        if (event.getOldCurrent() < event.getNewCurrent() && task.region.get(ModuleType.redstone_suppressor) != null) {
             redstoneChange(event.getBlock(), false);
-            if (!ChunkTask.getOrCreateTask(event.getBlock().getChunk()).allowRedstone) {
+            if (!task.allowRedstone) {
                 event.setNewCurrent(event.getOldCurrent());
             }
         }
@@ -98,9 +97,9 @@ public class RedstoneListener implements Listener {
     }
 
     private void redstoneChange(Block block, boolean piston) {
-        if (worlds.contains(block.getWorld().getName())) {
-            ChunkCoordinate id = ChunkCoordinate.of(block);
-            ChunkTask task = ChunkTask.getOrCreateTask(id);
+        ChunkCoordinate id = ChunkCoordinate.of(block);
+        ChunkTask task = ChunkTask.getOrCreateTask(id);
+        if (task.region.get(ModuleType.redstone_suppressor) != null) {
             if (!piston) {
                 task.redstoneEvents++;
             } else {

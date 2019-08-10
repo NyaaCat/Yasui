@@ -6,7 +6,6 @@ import cat.nyaa.nyaacore.utils.ReflectionUtils;
 import cat.nyaa.nyaautils.NyaaUtils;
 import cat.nyaa.yasui.config.Operation;
 import cat.nyaa.yasui.task.ChunkTask;
-import cat.nyaa.yasui.task.TPSMonitor;
 import org.bukkit.*;
 import org.bukkit.block.Block;
 import org.bukkit.block.data.type.Hopper;
@@ -19,7 +18,10 @@ import org.bukkit.entity.minecart.HopperMinecart;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.math.BigDecimal;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.EnumSet;
+import java.util.List;
 import java.util.stream.Collectors;
 
 public class Utils {
@@ -69,26 +71,24 @@ public class Utils {
     }
 
     public static void checkLivingEntity(Chunk chunk) {
-        Map<ModuleType, Operation> limit = TPSMonitor.worldLimits.get(chunk.getWorld().getName());
-        if (limit != null) {
-            Operation ai_suppressor = limit.get(ModuleType.entity_ai_suppressor);
-            Operation entity_culler = limit.get(ModuleType.entity_culler);
-            if (ai_suppressor != null || entity_culler != null || ChunkTask.getOrCreateTask(chunk).noAI) {
-                int count = getLivingEntityCount(chunk);
-                int per_chunk_max = entity_culler != null ? entity_culler.entity_culler_per_chunk_limit : -1;
-                int removed = 0;
-                for (Entity entity : chunk.getEntities()) {
-                    if (entity instanceof LivingEntity) {
-                        if (per_chunk_max >= 0 && count - removed > per_chunk_max && canRemove(entity, entity_culler)) {
-                            entity.remove();
-                            removed++;
-                        }
-                        setAI((LivingEntity) entity, ai_suppressor == null, ai_suppressor);
+        ChunkTask task = ChunkTask.getOrCreateTask(chunk);
+        Operation ai_suppressor = task.region.get(ModuleType.entity_ai_suppressor);
+        Operation entity_culler = task.region.get(ModuleType.entity_culler);
+        if (ai_suppressor != null || entity_culler != null || task.noAI) {
+            int count = getLivingEntityCount(chunk);
+            int per_chunk_max = entity_culler != null ? entity_culler.entity_culler_per_chunk_limit : -1;
+            int removed = 0;
+            for (Entity entity : chunk.getEntities()) {
+                if (entity instanceof LivingEntity) {
+                    if (per_chunk_max >= 0 && count - removed > per_chunk_max && canRemove(entity, entity_culler)) {
+                        entity.remove();
+                        removed++;
                     }
+                    setAI((LivingEntity) entity, ai_suppressor == null, ai_suppressor);
                 }
-                ChunkTask.getOrCreateTask(chunk).noAI = ai_suppressor != null;
-                ChunkTask.getOrCreateTask(chunk).LivingEntityCount = count - removed;
             }
+            task.noAI = ai_suppressor != null;
+            task.LivingEntityCount = count - removed;
         }
     }
 
