@@ -1,11 +1,7 @@
 package cat.nyaa.yasui.region;
 
+import cat.nyaa.nyaacore.CommandReceiver;
 import cat.nyaa.nyaacore.LanguageRepository;
-import cat.nyaa.nyaacore.cmdreceiver.Arguments;
-import cat.nyaa.nyaacore.cmdreceiver.BadCommandException;
-import cat.nyaa.nyaacore.cmdreceiver.CommandReceiver;
-import cat.nyaa.nyaacore.cmdreceiver.SubCommand;
-import cat.nyaa.yasui.CommandHandler;
 import cat.nyaa.yasui.Yasui;
 import cat.nyaa.yasui.config.Rule;
 import cat.nyaa.yasui.other.ChunkCoordinate;
@@ -49,7 +45,7 @@ public class RegionCommands extends CommandReceiver {
         Plugin we = Bukkit.getServer().getPluginManager().getPlugin("WorldEdit");
         Chunk chunk1 = null;
         Chunk chunk2 = null;
-        if (args.remains() == 5) {
+        if (args.top() != null) {
             String block = args.nextString();
             if (block.equalsIgnoreCase("block")) {
                 chunk1 = world.getBlockAt(args.nextInt(), 64, args.nextInt()).getChunk();
@@ -81,7 +77,7 @@ public class RegionCommands extends CommandReceiver {
         printRegionInfo(sender, r);
     }
 
-    @SubCommand(value = "enable", permission = "yasui.admin", tabCompleter = "tabCompleteRegionName")
+    @SubCommand(value = "enable", permission = "yasui.admin")
     public void commandEnable(CommandSender sender, Arguments args) {
         Region region = getRegion(args.nextString());
         region.enabled = true;
@@ -89,7 +85,7 @@ public class RegionCommands extends CommandReceiver {
         printRegionInfo(sender, region);
     }
 
-    @SubCommand(value = "disable", permission = "yasui.admin", tabCompleter = "tabCompleteRegionName")
+    @SubCommand(value = "disable", permission = "yasui.admin")
     public void commandDisable(CommandSender sender, Arguments args) {
         Region region = getRegion(args.nextString());
         region.enabled = false;
@@ -97,7 +93,7 @@ public class RegionCommands extends CommandReceiver {
         printRegionInfo(sender, region);
     }
 
-    @SubCommand(value = "rule", permission = "yasui.admin", tabCompleter = "tabCompleteRule")
+    @SubCommand(value = "rule", permission = "yasui.admin")
     public void commandRule(CommandSender sender, Arguments args) {
         Region region = getRegion(args.nextString());
         String type = args.nextString();
@@ -118,9 +114,9 @@ public class RegionCommands extends CommandReceiver {
         printRegionInfo(sender, region);
     }
 
-    @SubCommand(value = "info", permission = "yasui.admin", tabCompleter = "tabCompleteRegionName")
+    @SubCommand(value = "info", permission = "yasui.admin")
     public void commandInfo(CommandSender sender, Arguments args) {
-        printRegionInfo(sender, args.remains() > 0 ? getRegion(args.nextString()) : plugin.config.getRegion(ChunkCoordinate.of(asPlayer(sender))));
+        printRegionInfo(sender, args.top()!=null ? getRegion(args.nextString()) : plugin.config.getRegion(ChunkCoordinate.of(asPlayer(sender))));
     }
 
     @SubCommand(value = "list", permission = "yasui.admin")
@@ -154,7 +150,7 @@ public class RegionCommands extends CommandReceiver {
         }
         throw new BadCommandException("user.error.region_not_exist", name);
     }
-
+/*
     public List<String> tabCompleteRuleName(CommandSender sender, Arguments args) {
         List<String> list = new ArrayList<>();
         if (args.remains() >= 1) {
@@ -207,7 +203,7 @@ public class RegionCommands extends CommandReceiver {
         }
         return list;
     }
-
+*/
     public void printRegionInfo(CommandSender sender, Region region) {
         msg(sender, "user.region.info.name", region.name, region.enabled);
         msg(sender, "user.region.info.location", region.world, region.minChunkX, region.minChunkZ, region.maxChunkX, region.maxChunkZ);

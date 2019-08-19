@@ -1,13 +1,10 @@
 package cat.nyaa.yasui;
 
 
+import cat.nyaa.nyaacore.CommandReceiver;
 import cat.nyaa.nyaacore.LanguageRepository;
 import cat.nyaa.nyaacore.Message;
 import cat.nyaa.nyaacore.Pair;
-import cat.nyaa.nyaacore.cmdreceiver.Arguments;
-import cat.nyaa.nyaacore.cmdreceiver.BadCommandException;
-import cat.nyaa.nyaacore.cmdreceiver.CommandReceiver;
-import cat.nyaa.nyaacore.cmdreceiver.SubCommand;
 import cat.nyaa.nyaacore.utils.NmsUtils;
 import cat.nyaa.yasui.config.Operation;
 import cat.nyaa.yasui.config.Rule;
@@ -37,7 +34,7 @@ public class CommandHandler extends CommandReceiver {
         super(plugin, i18n);
         this.plugin = plugin;
     }
-
+/*
     public static List<String> tabCompleteStringSet(CommandSender sender, Arguments args, Set<String> stringSet) {
         List<String> list = new ArrayList<>();
         if (args.remains() >= 1) {
@@ -50,7 +47,7 @@ public class CommandHandler extends CommandReceiver {
         }
         return list;
     }
-
+*/
     public String getHelpPrefix() {
         return "";
     }
@@ -67,7 +64,7 @@ public class CommandHandler extends CommandReceiver {
         plugin.reload();
     }
 
-    @SubCommand(value = "chunkevents", permission = "yasui.profiler", tabCompleter = "tabCompleteWorld")
+    @SubCommand(value = "chunkevents", permission = "yasui.profiler")
     public void commandChunkEvents(CommandSender sender, Arguments args) {
         World world = getWorld(sender, args);
         if (plugin.profilerStatsMonitor == null) {
@@ -100,7 +97,7 @@ public class CommandHandler extends CommandReceiver {
         });
     }
 
-    @SubCommand(value = "chunkentities", permission = "yasui.profiler", tabCompleter = "tabCompleteWorld")
+    @SubCommand(value = "chunkentities", permission = "yasui.profiler")
     public void commandChunkEntities(CommandSender sender, Arguments args) {
         World world = getWorld(sender, args);
         //Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
@@ -143,7 +140,7 @@ public class CommandHandler extends CommandReceiver {
         //});
     }
 
-    @SubCommand(value = "operation", permission = "yasui.command.operation", tabCompleter = "tabCompleteOperation")
+    @SubCommand(value = "operation", permission = "yasui.command.operation")
     public void commandOperation(CommandSender sender, Arguments args) {
         String s = args.nextString();
         String name = args.nextString();
@@ -185,7 +182,7 @@ public class CommandHandler extends CommandReceiver {
         }
     }
 
-    @SubCommand(value = "counter", permission = "yasui.command.counter", tabCompleter = "tabCompleteCounter")
+    @SubCommand(value = "counter", permission = "yasui.command.counter")
     public void commandCounter(CommandSender sender, Arguments args) {
         String s = args.nextString();
         World world = Bukkit.getWorld(s);
@@ -242,7 +239,7 @@ public class CommandHandler extends CommandReceiver {
             }
         }
     }
-
+/*
     public List<String> tabCompleteOperation(CommandSender sender, Arguments args) {
         List<String> list = new ArrayList<>();
         if (args.length() == 2) {
@@ -296,5 +293,5 @@ public class CommandHandler extends CommandReceiver {
             }
         }
         return list;
-    }
+    }*/
 }
