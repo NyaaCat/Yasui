@@ -43,7 +43,7 @@ public class RegionTask extends BukkitRunnable {
         boolean defaultRegion = true;
         World world = Bukkit.getWorld(id.getWorld());
         if (world != null) {
-            Map<ModuleType, Operation> modules = Yasui.INSTANCE.config.regionConfig.regions.get(world.getName()).getLimits();
+            Map<ModuleType, Operation> modules = Yasui.INSTANCE.config.getDefaultRegion(world).getLimits();
             List<Entity> entities = new ArrayList<>();
             int regionEntitiesCount = 0;
             for (ChunkCoordinate c : getChunkCoordinate()) {

@@ -225,7 +225,7 @@ public class CommandHandler extends CommandReceiver {
             tileEntities += chunk.getTileEntities().length;
         }
         msg(sender, "user.status.world_info", world.getLoadedChunks().length, livingEntities, tileEntities);
-        Map<ModuleType, Operation> limits = plugin.config.regionConfig.regions.get(world.getName()).getLimits();
+        Map<ModuleType, Operation> limits = plugin.config.getDefaultRegion(world).getLimits();
         if (limits != null && !limits.isEmpty()) {
             for (ModuleType type : limits.keySet()) {
                 Operation operation = limits.get(type);
