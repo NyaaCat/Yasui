@@ -19,21 +19,30 @@ public class RegionTask extends BukkitRunnable {
     public static Map<ChunkCoordinate, RegionTask> taskMap = new HashMap<>();
     public Set<ChunkCoordinate> loadedChunks = new HashSet<>();
     public ChunkCoordinate id;
+    private Set<ChunkCoordinate> chunkCoordinates;
 
     public RegionTask(ChunkCoordinate id) {
-        this.id = ChunkCoordinate.of(Bukkit.getWorld(id.getWorld()), id.getX() >> 4, id.getZ() >> 4);
+        this.id = regionID(id);
+    }
+
+    public static ChunkCoordinate regionID(ChunkCoordinate id){
+        return ChunkCoordinate.of(Bukkit.getWorld(id.getWorld()), id.getX() >> 5, id.getZ() >> 5);
     }
 
     public static RegionTask getOrCreateTask(Chunk chunk) {
         return getOrCreateTask(ChunkCoordinate.of(chunk));
     }
 
+    public static RegionTask getOrCreateTask(World world, int chunkX, int chunkZ) {
+        return getOrCreateTask(ChunkCoordinate.of(world, chunkX, chunkZ));
+    }
+
     private static RegionTask getOrCreateTask(ChunkCoordinate id) {
-        RegionTask task = taskMap.get(id);
+        RegionTask task = taskMap.get(regionID(id));
         if (task == null) {
             task = new RegionTask(id);
             task.runTaskTimer(Yasui.INSTANCE, 1, Yasui.INSTANCE.config.scan_interval_tick);
-            taskMap.put(id, task);
+            taskMap.put(task.id, task);
         }
         return task;
     }
@@ -43,10 +52,13 @@ public class RegionTask extends BukkitRunnable {
         boolean defaultRegion = true;
         World world = Bukkit.getWorld(id.getWorld());
         if (world != null) {
+            if (chunkCoordinates == null) {
+                chunkCoordinates = getChunkCoordinate();
+            }
             Map<ModuleType, Operation> modules = Yasui.INSTANCE.config.getDefaultRegion(world).getLimits();
             List<Entity> entities = new ArrayList<>();
             int regionEntitiesCount = 0;
-            for (ChunkCoordinate c : getChunkCoordinate()) {
+            for (ChunkCoordinate c : chunkCoordinates) {
                 if (world.isChunkLoaded(c.getX(), c.getZ())) {
                     ChunkTask task = ChunkTask.getOrCreateTask(c);
                     if (task.region.defaultRegion) {
@@ -81,7 +93,7 @@ public class RegionTask extends BukkitRunnable {
                             entity.remove();
                             removed++;
                         }
-                        if (max - removed <= regionEntitiesCount) {
+                        if (max - removed >= regionEntitiesCount) {
                             break;
                         }
                     }
@@ -101,11 +113,11 @@ public class RegionTask extends BukkitRunnable {
         Set<ChunkCoordinate> list = new HashSet<>();
         World world = Bukkit.getWorld(id.getWorld());
         if (world != null) {
-            int maxX = id.getX() + 15;
-            int maxZ = id.getZ() + 15;
-            for (int minX = id.getX(); minX <= maxX; minX++) {
-                for (int minZ = id.getZ(); minZ <= maxZ; minZ++) {
-                    list.add(ChunkCoordinate.of(world, minX, minZ));
+            int minX = id.getX() * 32;
+            int minZ = id.getZ() * 32;
+            for (int x = 0; x < 32; x++) {
+                for (int z = 0; z < 32; z++) {
+                    list.add(ChunkCoordinate.of(world, minX + x, minZ + z));
                 }
             }
         }
