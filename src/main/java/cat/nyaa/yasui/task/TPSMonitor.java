@@ -70,10 +70,10 @@ public class TPSMonitor extends BukkitRunnable {
         for (Player p : Bukkit.getOnlinePlayers()) {
             Chunk center = p.getLocation().getChunk();
             int viewDistance = Math.min(16, Bukkit.getViewDistance());
-            RegionTask.getOrCreateTask(p.getWorld().getChunkAt(center.getX() - viewDistance, center.getX() - viewDistance));
-            RegionTask.getOrCreateTask(p.getWorld().getChunkAt(center.getX() + viewDistance, center.getX() - viewDistance));
-            RegionTask.getOrCreateTask(p.getWorld().getChunkAt(center.getX() + viewDistance, center.getX() + viewDistance));
-            RegionTask.getOrCreateTask(p.getWorld().getChunkAt(center.getX() - viewDistance, center.getX() + viewDistance));
+            RegionTask.getOrCreateTask(p.getWorld(), center.getX() - viewDistance, center.getX() - viewDistance);
+            RegionTask.getOrCreateTask(p.getWorld(), center.getX() + viewDistance, center.getX() - viewDistance);
+            RegionTask.getOrCreateTask(p.getWorld(), center.getX() + viewDistance, center.getX() + viewDistance);
+            RegionTask.getOrCreateTask(p.getWorld(), center.getX() - viewDistance, center.getX() + viewDistance);
         }
     }
 

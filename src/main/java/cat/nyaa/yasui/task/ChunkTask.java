@@ -47,6 +47,7 @@ public class ChunkTask extends BukkitRunnable {
                 delay = 1;
             }
             taskMap.put(id, task);
+            RegionTask.getOrCreateTask(Bukkit.getWorld(id.getWorld()), id.getX(), id.getZ());
         }
         return task;
     }
