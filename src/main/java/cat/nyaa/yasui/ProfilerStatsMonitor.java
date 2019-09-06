@@ -48,7 +48,7 @@ public class ProfilerStatsMonitor extends BukkitRunnable {
     }
 
     public Deque<Pair<Long, Map<ChunkCoordinate, ChunkStat>>> getRedstoneStats(World world) {
-        return stats.get(world);
+        return stats.computeIfAbsent(world, ignored -> new ConcurrentLinkedDeque<>());
     }
 
     public long getCurrentTickMillis() {
