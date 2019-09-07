@@ -159,13 +159,12 @@ public class Utils {
     }
 
     public static void setAI(LivingEntity entity, boolean ai, Operation operation) {
-        if (ai || operation == null) {
+        if (ai || operation == null || operation.entity_ai_suppressor_exclude_type.contains(entity.getType()) ||
+                (operation.entity_ai_suppressor_exclude_tagged && entity.getCustomName() != null) ||
+                (operation.entity_ai_suppressor_exclude_tamed && entity instanceof Tameable && ((Tameable) entity).getOwner() != null)) {
             NmsUtils.setFromMobSpawner(entity, false);
             entity.setAI(true);
-        } else if (operation.entity_ai_suppresse_method != NoAIType.NO_TARGETING
-                && !operation.entity_ai_suppressor_exclude_type.contains(entity.getType())
-                && !(operation.entity_ai_suppressor_excluded_tagged && entity.getCustomName() != null)
-                && !(operation.entity_ai_suppressor_excluded_tamed && entity instanceof Tameable && ((Tameable) entity).getOwner() != null)) {
+        } else if (operation.entity_ai_suppresse_method != NoAIType.NO_TARGETING) {
             if (operation.entity_ai_suppresse_method == NoAIType.NERFING) {
                 NmsUtils.setFromMobSpawner(entity, true);
             } else if (operation.entity_ai_suppresse_method == NoAIType.NO_AI) {

@@ -46,8 +46,8 @@ public class EntityListener implements Listener {
             Entity entity = event.getEntity();
             if (o != null && o.entity_ai_suppresse_method == NoAIType.NO_TARGETING
                     && !o.entity_ai_suppressor_exclude_type.contains(entity.getType())
-                    && !(o.entity_ai_suppressor_excluded_tagged && entity.getCustomName() != null)
-                    && !(o.entity_ai_suppressor_excluded_tamed && entity instanceof Tameable && ((Tameable) entity).getOwner() != null)) {
+                    && !(o.entity_ai_suppressor_exclude_tagged && entity.getCustomName() != null)
+                    && !(o.entity_ai_suppressor_exclude_tamed && entity instanceof Tameable && ((Tameable) entity).getOwner() != null)) {
                 event.setCancelled(true);
             }
         }

@@ -18,13 +18,13 @@ public class Operation extends ReadOnlyConfig {
 
     @Serializable(name = "entity_ai_suppressor.method")
     public NoAIType entity_ai_suppresse_method;
-    @Serializable(name = "entity_ai_suppressor.excluded.type")
+    @Serializable(name = "entity_ai_suppressor.exclude.type")
     private List<String> _entity_ai_suppressor_exclude_type;
     public EnumSet<EntityType> entity_ai_suppressor_exclude_type;
-    @Serializable(name = "entity_ai_suppressor.excluded.tagged")
-    public boolean entity_ai_suppressor_excluded_tagged;
-    @Serializable(name = "entity_ai_suppressor.excluded.tamed")
-    public boolean entity_ai_suppressor_excluded_tamed;
+    @Serializable(name = "entity_ai_suppressor.exclude.tagged")
+    public boolean entity_ai_suppressor_exclude_tagged;
+    @Serializable(name = "entity_ai_suppressor.exclude.tamed")
+    public boolean entity_ai_suppressor_exclude_tamed;
 
     @Serializable(name = "entity_culler.excluded.type")
     private List<String> _entity_culler_excluded_type;
