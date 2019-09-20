@@ -25,6 +25,7 @@ public class WorldTask extends BukkitRunnable {
     public WorldTask(World world) {
         this.id = world.getName();
         worldViewDistance = world.getViewDistance();
+        update(world);
         for (Chunk chunk : world.getLoadedChunks()) {
             ChunkTask.getOrCreateTask(chunk);
         }
@@ -53,6 +54,15 @@ public class WorldTask extends BukkitRunnable {
     public void run() {
         World world = Bukkit.getWorld(id);
         if (world != null) {
+            update(world);
+        } else {
+            taskMap.remove(id);
+            cancel();
+        }
+    }
+
+    public void update(World world) {
+        if (world != null) {
             livingEntityCount = 0;
             loadedChunkCount = 0;
             tileEntityCount = 0;
@@ -75,9 +85,6 @@ public class WorldTask extends BukkitRunnable {
             } else {
                 livingEntityCount = world.getLivingEntities().size();
             }
-        } else {
-            taskMap.remove(id);
-            cancel();
         }
     }
 }
