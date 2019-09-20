@@ -15,11 +15,15 @@ import cat.nyaa.yasui.other.ChunkCoordinate;
 import cat.nyaa.yasui.other.ModuleType;
 import cat.nyaa.yasui.other.TimingsUtils;
 import cat.nyaa.yasui.region.RegionCommands;
+import cat.nyaa.yasui.task.WorldTask;
 import com.google.common.collect.EnumMultiset;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Multimaps;
 import com.google.common.collect.Multiset;
-import org.bukkit.*;
+import org.bukkit.Bukkit;
+import org.bukkit.GameRule;
+import org.bukkit.Material;
+import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Entity;
@@ -214,17 +218,10 @@ public class CommandHandler extends CommandReceiver {
 
     private void printStatus(CommandSender sender, World world) {
         msg(sender, "user.status.world_name", world.getName());
-        int livingEntities = 0;
-        int tileEntities = 0;
-        for (Chunk chunk : world.getLoadedChunks()) {
-            for (Entity entity : chunk.getEntities()) {
-                if (entity instanceof LivingEntity) {
-                    livingEntities++;
-                }
-            }
-            tileEntities += chunk.getTileEntities().length;
-        }
-        msg(sender, "user.status.world_info", world.getLoadedChunks().length, livingEntities, tileEntities);
+        WorldTask worldTask = WorldTask.getOrCreateTask(world);
+        int livingEntities = worldTask.livingEntityCount;
+        int tileEntities = worldTask.tileEntityCount;
+        msg(sender, "user.status.world_info", worldTask.loadedChunkCount, livingEntities, tileEntities);
         Map<ModuleType, Operation> limits = plugin.config.getDefaultRegion(world).getLimits();
         if (limits != null && !limits.isEmpty()) {
             for (ModuleType type : limits.keySet()) {
@@ -238,6 +235,8 @@ public class CommandHandler extends CommandReceiver {
                     msg(sender, langKey, operation.redstone_suppressor_per_chunk, operation.redstone_suppressor_piston_per_chunk);
                 } else if (type == ModuleType.random_tick_speed) {
                     msg(sender, langKey, world.getGameRuleValue(GameRule.RANDOM_TICK_SPEED));
+                } else if (type == ModuleType.mobcap) {
+                    msg(sender, langKey, operation.mobcap_global_soft, operation.mobcap_global_hard);
                 }
             }
         }

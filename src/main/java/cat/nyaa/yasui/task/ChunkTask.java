@@ -9,6 +9,7 @@ import cat.nyaa.yasui.region.Region;
 import org.bukkit.Bukkit;
 import org.bukkit.Chunk;
 import org.bukkit.World;
+import org.bukkit.entity.EntityType;
 import org.bukkit.scheduler.BukkitRunnable;
 
 import java.util.HashMap;
@@ -28,6 +29,7 @@ public class ChunkTask extends BukkitRunnable {
     public boolean allowRedstone = true;
     public boolean noAI = false;
     public Region region = null;
+    public Map<EntityType, Integer> mobcapEntityTypeCount = new HashMap<>();
 
     public ChunkTask(ChunkCoordinate id) {
         this.id = id;

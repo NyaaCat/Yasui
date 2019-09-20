@@ -56,6 +56,7 @@ user:
     redstone_suppressor: '    §6[§9Redstone Suppressor§6] §c%d §aREvents/chunk §r| §c%d §aPiston/chunk'
     entity_culler: '    §6[§9Entity Culler§6] §c%d §aEntities/chunk §r| §c%d §aEntities/region'
     entity_ai_suppressor: '    §6[§9Entity AI§6] §c%s'
+    mobcap: '    §6[§9Mob Spawn Limit§6] §aSoft Limit: §c%d  §r| §aHard Limit: §c%d'
     world_name: §d>> §fWorld §6[§a%s§6]
   error:
     bad_world: Unknown world %s

@@ -12,10 +12,8 @@ import com.google.common.base.Strings;
 import com.udojava.evalex.AbstractFunction;
 import com.udojava.evalex.Expression;
 import org.bukkit.Bukkit;
-import org.bukkit.Chunk;
 import org.bukkit.GameRule;
 import org.bukkit.World;
-import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitRunnable;
 
 import java.math.BigDecimal;
@@ -66,14 +64,6 @@ public class TPSMonitor extends BukkitRunnable {
                     }
                 }
             }
-        }
-        for (Player p : Bukkit.getOnlinePlayers()) {
-            Chunk center = p.getLocation().getChunk();
-            int viewDistance = Math.min(16, Bukkit.getViewDistance());
-            RegionTask.getOrCreateTask(p.getWorld(), center.getX() - viewDistance, center.getX() - viewDistance);
-            RegionTask.getOrCreateTask(p.getWorld(), center.getX() + viewDistance, center.getX() - viewDistance);
-            RegionTask.getOrCreateTask(p.getWorld(), center.getX() + viewDistance, center.getX() + viewDistance);
-            RegionTask.getOrCreateTask(p.getWorld(), center.getX() - viewDistance, center.getX() + viewDistance);
         }
     }
 
@@ -130,13 +120,11 @@ public class TPSMonitor extends BukkitRunnable {
             Utils.setRandomTickSpeed(world, newTickSpeed);
         }
         String msg = null;
-        BroadcastType type = null;
+        BroadcastType type = plugin.config.broadcast.type;
         if (engage != null && engage.intValue() > 0) {
             msg = rule.engage_message;
-            type = rule.engage_broadcast == null ? plugin.config.broadcast : rule.engage_broadcast;
         } else if (release != null && release.intValue() > 0) {
             msg = rule.release_message;
-            type = rule.release_broadcast == null ? plugin.config.broadcast : rule.release_broadcast;
         }
         if (!Strings.isNullOrEmpty(msg) && type != BroadcastType.NONE) {
             msg = msg.replaceAll("\\{tps_1m}", String.format("%.2f", tps_1m.doubleValue()))
@@ -145,7 +133,7 @@ public class TPSMonitor extends BukkitRunnable {
                     .replaceAll("\\{world_random_tick_speed}", String.valueOf(newTickSpeed >= 0 ? newTickSpeed : oldTickSpeed))
                     .replaceAll("\\{world_name}", region.name);
             if (!msg.equals(rule.lastMessages.get(region.name)) || broadcast) {
-                Utils.broadcast(type, msg, world);
+                Utils.broadcast(plugin.config.broadcast, msg, world);
                 rule.lastMessages.put(region.name, msg);
             }
         }
@@ -160,9 +148,9 @@ public class TPSMonitor extends BukkitRunnable {
                         .with("tps_15m", tps_15m)
                         .with("online_players", new BigDecimal(Bukkit.getOnlinePlayers().size()))
                         .with("world_random_tick_speed", new BigDecimal(world.getGameRuleValue(GameRule.RANDOM_TICK_SPEED)))
-                        .with("world_loaded_chunks", new BigDecimal(world.getLoadedChunks().length))
+                        .with("world_loaded_chunks", new BigDecimal(WorldTask.getOrCreateTask(world).loadedChunkCount))
                         .with("world_players", new BigDecimal(world.getPlayers().size()))
-                        .with("world_living_entities", new BigDecimal(world.getLivingEntities().size()));
+                        .with("world_living_entities", new BigDecimal(WorldTask.getOrCreateTask(world).livingEntityCount));
                 if (Yasui.hasNU) {
                     exp.addFunction(new AbstractFunction("getTPSFromNU", 1) {
                         @Override

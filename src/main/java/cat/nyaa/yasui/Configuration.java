@@ -2,9 +2,9 @@ package cat.nyaa.yasui;
 
 import cat.nyaa.nyaacore.configuration.ISerializable;
 import cat.nyaa.nyaacore.configuration.PluginConfigure;
+import cat.nyaa.yasui.config.BroadcastConfig;
 import cat.nyaa.yasui.config.Operation;
 import cat.nyaa.yasui.config.Rule;
-import cat.nyaa.yasui.other.BroadcastType;
 import cat.nyaa.yasui.other.ChunkCoordinate;
 import cat.nyaa.yasui.other.ModuleType;
 import cat.nyaa.yasui.other.Utils;
@@ -42,8 +42,8 @@ public class Configuration extends PluginConfigure {
     public int profiler_entity_chunk_count = 5;
     @Serializable
     public int top_listing = 10;
-    @Serializable
-    public BroadcastType broadcast = BroadcastType.CHAT;
+    @Serializable(name = "broadcast", manualSerialization = true)
+    public BroadcastConfig broadcast = new BroadcastConfig();
     @StandaloneConfig
     public RegionConfig regionConfig;
     public Map<String, Rule> rules = new HashMap<>();
@@ -65,6 +65,12 @@ public class Configuration extends PluginConfigure {
     @Override
     public void deserialize(ConfigurationSection config) {
         ISerializable.deserialize(config, this);
+        if (config.isString("broadcast")) {
+            String type = config.getString("broadcast");
+            config.set("broadcast", null);
+            config.set("broadcast.type", type);
+        }
+        broadcast.deserialize(config.getConfigurationSection("broadcast"));
         if (_modules == null) {
             _modules = Arrays.stream(ModuleType.values()).map(Enum::name).collect(Collectors.toList());
             saveExample();
@@ -103,6 +109,8 @@ public class Configuration extends PluginConfigure {
     @Override
     public void serialize(ConfigurationSection config) {
         ISerializable.serialize(config, this);
+        config.set("broadcast", null);
+        broadcast.serialize(config.createSection("broadcast"));
     }
 
     public void saveExample() {

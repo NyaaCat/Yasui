@@ -6,6 +6,8 @@ import cat.nyaa.yasui.listener.WorldListener;
 import cat.nyaa.yasui.task.ChunkTask;
 import cat.nyaa.yasui.task.RegionTask;
 import cat.nyaa.yasui.task.TPSMonitor;
+import cat.nyaa.yasui.task.WorldTask;
+import org.bukkit.Bukkit;
 import org.bukkit.event.HandlerList;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -13,6 +15,7 @@ public final class Yasui extends JavaPlugin {
 
     public static Yasui INSTANCE;
     public static boolean hasNU;
+    public static boolean isPaper;
     public Configuration config;
     public I18n i18n;
     public CommandHandler commandHandler;
@@ -27,6 +30,12 @@ public final class Yasui extends JavaPlugin {
     public void onEnable() {
         INSTANCE = this;
         hasNU = getServer().getPluginManager().isPluginEnabled("NyaaUtils");
+        try {
+            Bukkit.getItemFactory();
+            isPaper = true;
+        } catch (Exception e) {
+            isPaper = false;
+        }
         config = new Configuration(this);
         config.load();
         i18n = new I18n(this, this.config.language);
@@ -57,6 +66,7 @@ public final class Yasui extends JavaPlugin {
         HandlerList.unregisterAll(this);
         ChunkTask.taskMap.clear();
         RegionTask.taskMap.clear();
+        WorldTask.taskMap.clear();
         if (saveConfig) {
             config.save();
         }

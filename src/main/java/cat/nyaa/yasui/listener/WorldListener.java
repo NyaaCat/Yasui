@@ -2,11 +2,13 @@ package cat.nyaa.yasui.listener;
 
 import cat.nyaa.yasui.Yasui;
 import cat.nyaa.yasui.other.Utils;
+import cat.nyaa.yasui.task.WorldTask;
 import org.bukkit.Chunk;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.world.ChunkLoadEvent;
+import org.bukkit.event.world.WorldLoadEvent;
 
 public class WorldListener implements Listener {
     private Yasui plugin;
@@ -23,5 +25,10 @@ public class WorldListener implements Listener {
             return;
         }
         Utils.checkLivingEntity(chunk);
+    }
+
+    @EventHandler(ignoreCancelled = true)
+    public void onWorldLoad(WorldLoadEvent event) {
+        WorldTask.getOrCreateTask(event.getWorld());
     }
 }

@@ -4,24 +4,22 @@ import cat.nyaa.nyaacore.Message;
 import cat.nyaa.nyaacore.utils.NmsUtils;
 import cat.nyaa.nyaacore.utils.ReflectionUtils;
 import cat.nyaa.nyaautils.NyaaUtils;
+import cat.nyaa.yasui.Yasui;
+import cat.nyaa.yasui.config.BroadcastConfig;
 import cat.nyaa.yasui.config.Operation;
 import cat.nyaa.yasui.task.ChunkTask;
+import com.google.common.base.Strings;
 import org.bukkit.*;
 import org.bukkit.block.Block;
 import org.bukkit.block.data.type.Hopper;
-import org.bukkit.entity.Entity;
-import org.bukkit.entity.LivingEntity;
-import org.bukkit.entity.Player;
-import org.bukkit.entity.Tameable;
+import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.entity.*;
 import org.bukkit.entity.minecart.HopperMinecart;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.math.BigDecimal;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.EnumSet;
-import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
 
 public class Utils {
@@ -50,11 +48,15 @@ public class Utils {
         return null;
     }
 
-    public static int getLivingEntityCount(Chunk chunk) {
+    public static int getLivingEntityCount(Chunk chunk, Operation mobcap) {
         int entityCount = 0;
+        ChunkTask task = mobcap == null ? null : ChunkTask.getOrCreateTask(chunk);
         for (Entity entity : chunk.getEntities()) {
             if (entity instanceof LivingEntity) {
                 entityCount++;
+                if (task != null) {
+                    task.mobcapEntityTypeCount.put(entity.getType(), task.mobcapEntityTypeCount.getOrDefault(entity.getType(), 0) + 1);
+                }
             }
         }
         return entityCount;
@@ -74,8 +76,10 @@ public class Utils {
         ChunkTask task = ChunkTask.getOrCreateTask(chunk);
         Operation ai_suppressor = task.region.get(ModuleType.entity_ai_suppressor);
         Operation entity_culler = task.region.get(ModuleType.entity_culler);
-        if (ai_suppressor != null || entity_culler != null || task.noAI) {
-            int count = getLivingEntityCount(chunk);
+        Operation mobcap = task.region.get(ModuleType.mobcap);
+        if (ai_suppressor != null || entity_culler != null || mobcap != null || task.noAI) {
+            task.mobcapEntityTypeCount.clear();
+            int count = getLivingEntityCount(chunk, mobcap);
             int per_chunk_max = entity_culler != null ? entity_culler.entity_culler_per_chunk_limit : -1;
             int removed = 0;
             for (Entity entity : chunk.getEntities()) {
@@ -83,8 +87,9 @@ public class Utils {
                     if (per_chunk_max >= 0 && count - removed > per_chunk_max && canRemove(entity, entity_culler)) {
                         entity.remove();
                         removed++;
+                    } else {
+                        setAI((LivingEntity) entity, ai_suppressor == null, ai_suppressor);
                     }
-                    setAI((LivingEntity) entity, ai_suppressor == null, ai_suppressor);
                 }
             }
             task.noAI = ai_suppressor != null;
@@ -148,14 +153,22 @@ public class Utils {
         }
     }
 
-    public static void broadcast(BroadcastType broadcastType, String msg, World world) {
+    public static void broadcast(BroadcastConfig config, String msg, World world) {
         Message.MessageType type = Message.MessageType.CHAT;
-        if (broadcastType == BroadcastType.ACTIONBAR) {
+        if (config.type == BroadcastType.ACTIONBAR) {
             type = Message.MessageType.ACTION_BAR;
-        } else if (broadcastType == BroadcastType.SUBTITLE) {
+        } else if (config.type == BroadcastType.SUBTITLE) {
             type = Message.MessageType.SUBTITLE;
         }
-        new Message(ChatColor.translateAlternateColorCodes('&', msg)).broadcast(type, p -> broadcastType == BroadcastType.ADMIN_CHAT ? p.isOp() : world == null || p.getWorld().equals(world));
+        Message message = new Message(ChatColor.translateAlternateColorCodes('&', msg));//.broadcast(type, p -> broadcastType == BroadcastType.ADMIN_CHAT ? p.isOp() : world == null || p.getWorld().equals(world));
+        if (config.log_console) {
+            Yasui.INSTANCE.getLogger().info(message.inner.toLegacyText());
+        }
+        for (Player p : world == null ? Bukkit.getOnlinePlayers() : world.getPlayers()) {
+            if ((Strings.isNullOrEmpty(config.permission) || p.hasPermission(config.permission))) {
+                message.send(p, type);
+            }
+        }
     }
 
     public static void setAI(LivingEntity entity, boolean ai, Operation operation) {
@@ -181,5 +194,13 @@ public class Utils {
             }
         }
         return set;
+    }
+
+    public static Map<EntityType, Integer> loadEntityTypeLimit(ConfigurationSection config) {
+        Map<EntityType, Integer> map = new HashMap<>();
+        for (String name : config.getKeys(false)) {
+            map.put(EntityType.valueOf(name), config.getInt(name));
+        }
+        return map;
     }
 }

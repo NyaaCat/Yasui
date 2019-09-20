@@ -10,7 +10,9 @@ import org.bukkit.entity.EntityType;
 
 import java.io.File;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class Operation extends ReadOnlyConfig {
 
@@ -55,6 +57,15 @@ public class Operation extends ReadOnlyConfig {
     @Serializable(name = "command_executor.release")
     public String command_executor_release;
 
+    @Serializable(name = "mobcap.global.soft")
+    public int mobcap_global_soft = -1;
+    @Serializable(name = "mobcap.global.hard")
+    public int mobcap_global_hard = -1;
+    public Map<EntityType, Integer> mobcap_global_types = new HashMap<>();
+    @Serializable(name = "mobcap.chunk.default")
+    public int mobcap_chunk_default = -1;
+    public Map<EntityType, Integer> mobcap_chunk_types;
+
     public Operation(Yasui plugin, File dir, String filename) {
         super(plugin, dir, filename);
         load();
@@ -66,6 +77,12 @@ public class Operation extends ReadOnlyConfig {
         entity_ai_suppressor_exclude_type = Utils.toEnumSet(EntityType.class, _entity_ai_suppressor_exclude_type);
         entity_ai_suppressor_exclude_type.add(EntityType.PLAYER);
         entity_culler_excluded_type = Utils.toEnumSet(EntityType.class, _entity_culler_excluded_type);
+        if (config.isConfigurationSection("mobcap.global.types")) {
+            mobcap_global_types = Utils.loadEntityTypeLimit(config.getConfigurationSection("mobcap.global.types"));
+        }
+        if (config.isConfigurationSection("mobcap.chunk.types")) {
+            mobcap_chunk_types = Utils.loadEntityTypeLimit(config.getConfigurationSection("mobcap.chunk.types"));
+        }
         for (ModuleType module : Yasui.INSTANCE.config.enabledModules) {
             if (config.isConfigurationSection(module.name())) {
                 modules.add(module);

@@ -5,5 +5,6 @@ public enum ModuleType {
     entity_culler,
     redstone_suppressor,
     random_tick_speed,
-    command_executor
+    command_executor,
+    mobcap
 }
