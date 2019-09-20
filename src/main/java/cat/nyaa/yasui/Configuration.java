@@ -70,7 +70,9 @@ public class Configuration extends PluginConfigure {
             config.set("broadcast", null);
             config.set("broadcast.type", type);
         }
-        broadcast.deserialize(config.getConfigurationSection("broadcast"));
+        if(config.isConfigurationSection("broadcast")) {
+            broadcast.deserialize(config.getConfigurationSection("broadcast"));
+        }
         if (_modules == null) {
             _modules = Arrays.stream(ModuleType.values()).map(Enum::name).collect(Collectors.toList());
             saveExample();
