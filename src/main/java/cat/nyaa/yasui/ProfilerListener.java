@@ -38,6 +38,9 @@ public class ProfilerListener implements Listener {
         Chunk chunk = event.getBlock().getChunk();
         if (chunk == null) return null;
         Map<ChunkCoordinate, ProfilerStatsMonitor.ChunkStat> currentRedstoneStats = plugin.profilerStatsMonitor.currentRedstoneStats(chunk.getWorld());
+        if (currentRedstoneStats == null) {
+            return null;
+        }
         return currentRedstoneStats.computeIfAbsent(ChunkCoordinate.of(chunk.getWorld(), chunk.getX(), chunk.getZ()), (k) -> new ProfilerStatsMonitor.ChunkStat());
     }
 }

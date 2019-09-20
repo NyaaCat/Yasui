@@ -44,7 +44,8 @@ public class ProfilerStatsMonitor extends BukkitRunnable {
     }
 
     public Map<ChunkCoordinate, ChunkStat> currentRedstoneStats(World world) {
-        return getRedstoneStats(world).getLast().getValue();
+        Deque<Pair<Long, Map<ChunkCoordinate, ChunkStat>>> stats = getRedstoneStats(world);
+        return stats.isEmpty() ? null : stats.getLast().getValue();
     }
 
     public Deque<Pair<Long, Map<ChunkCoordinate, ChunkStat>>> getRedstoneStats(World world) {
