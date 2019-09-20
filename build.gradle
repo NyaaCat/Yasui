@@ -22,12 +22,13 @@ repositories {
     maven { name 'Sonatype';    url 'https://oss.sonatype.org/content/groups/public' }
     maven { name 'NyaaCat';     url 'https://ci.nyaacat.com/maven/' }
     maven { name 'sk89q';       url 'https://maven.sk89q.com/repo/' }
+    maven { name 'papermc';       url 'https://papermc.io/repo/repository/maven-public/' }
 }
 
 
 dependencies {
     // spigot
-    compileOnly "org.spigotmc:spigot-api:$minecraftVersion-R0.1-SNAPSHOT"
+    compileOnly "com.destroystokyo.paper:paper-api:$minecraftVersion-R0.1-SNAPSHOT"
     compileOnly ('com.sk89q.worldedit:worldedit-bukkit:7.0.1-SNAPSHOT') {
         exclude group: 'io.papermc', module: 'paperlib'
         exclude group: 'org.bstats.bStats-Metrics', module: 'bstats-bukkit'
@@ -49,7 +50,6 @@ dependencies {
     //compileOnly 'com.udojava:EvalEx:2.1' // NyaaCore shadows this
 
     // annotation processor
-    annotationProcessor "org.spigotmc:spigot-api:$minecraftVersion-R0.1-SNAPSHOT"
 }
 
 // publications
