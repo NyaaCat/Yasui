@@ -1,0 +1,14 @@
+mobcap:
+  global:
+    soft: 1600
+    hard: 2400
+    types:
+      VILLAGER: 100
+      PILLAGER: 100
+      PIG_ZOMBIE: 200
+  chunk:
+    default: 32
+    types:
+      VILLAGER: 4
+      PILLAGER: 4
+      CHICKEN: 8
