@@ -64,7 +64,12 @@ public class Operation extends ReadOnlyConfig {
     public Map<EntityType, Integer> mobcap_global_types = new HashMap<>();
     @Serializable(name = "mobcap.chunk.default")
     public int mobcap_chunk_default = -1;
-    public Map<EntityType, Integer> mobcap_chunk_types = new HashMap<>();;
+    public Map<EntityType, Integer> mobcap_chunk_types = new HashMap<>();
+
+    @Serializable(name = "adjust_view_distance.min")
+    public int adjust_view_distance_min = -1;
+    @Serializable(name = "adjust_view_distance.max")
+    public int adjust_view_distance_max = -1;
 
     public Operation(Yasui plugin, File dir, String filename) {
         super(plugin, dir, filename);

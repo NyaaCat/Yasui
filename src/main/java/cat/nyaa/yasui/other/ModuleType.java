@@ -6,5 +6,6 @@ public enum ModuleType {
     redstone_suppressor,
     random_tick_speed,
     command_executor,
-    mobcap
+    mobcap,
+    adjust_view_distance
 }

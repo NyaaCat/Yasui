@@ -73,6 +73,9 @@ public class TPSMonitor extends BukkitRunnable {
         }
         int oldTickSpeed = world.getGameRuleValue(GameRule.RANDOM_TICK_SPEED).intValue();
         int newTickSpeed = -1;
+        WorldTask wt = WorldTask.getOrCreateTask(world);
+        int oldVD = wt.worldViewDistance;
+        int newVD = -1;
         BigDecimal engage = eval(rule.engage_condition, world, rule.filename);
         boolean broadcast = false;
         if ((engage != null && engage.intValue() > 0) || (region.enforce.contains(rule.name))) {
@@ -92,6 +95,8 @@ public class TPSMonitor extends BukkitRunnable {
                             newTickSpeed = Math.max(Math.max(o.random_tick_speed_min, oldTickSpeed - 1), o.random_tick_speed_min);
                         } else if (!Strings.isNullOrEmpty(o.command_executor_engage)) {
                             runCommands(world, o.command_executor_engage);
+                        } else if (module == ModuleType.adjust_view_distance) {
+                            newVD = Math.max(Math.max(o.adjust_view_distance_min, oldVD - 1), o.adjust_view_distance_min);
                         }
                     }
                 }
@@ -111,6 +116,8 @@ public class TPSMonitor extends BukkitRunnable {
                             newTickSpeed = Math.min(Math.min(o.random_tick_speed_max, oldTickSpeed + 1), o.random_tick_speed_max);
                         } else if (!Strings.isNullOrEmpty(o.command_executor_engage)) {
                             runCommands(world, o.command_executor_release);
+                        } else if (module == ModuleType.adjust_view_distance) {
+                            newVD = Math.min(Math.min(o.adjust_view_distance_max, oldVD + 1), o.adjust_view_distance_max);
                         }
                     }
                 }
@@ -118,6 +125,9 @@ public class TPSMonitor extends BukkitRunnable {
         }
         if (oldTickSpeed != newTickSpeed && newTickSpeed >= 0) {
             Utils.setRandomTickSpeed(world, newTickSpeed);
+        }
+        if (oldVD != newVD && newVD > 0) {
+            wt.worldViewDistance = newVD;
         }
         String msg = null;
         BroadcastType type = plugin.config.broadcast.type;
@@ -131,7 +141,8 @@ public class TPSMonitor extends BukkitRunnable {
                     .replaceAll("\\{tps_5m}", String.format("%.2f", tps_5m.doubleValue()))
                     .replaceAll("\\{tps_15m}", String.format("%.2f", tps_15m.doubleValue()))
                     .replaceAll("\\{world_random_tick_speed}", String.valueOf(newTickSpeed >= 0 ? newTickSpeed : oldTickSpeed))
-                    .replaceAll("\\{world_name}", region.name);
+                    .replaceAll("\\{world_name}", region.name)
+                    .replaceAll("\\{world_view_distance}", String.valueOf(newVD > 0 ? newVD : oldVD));
             if (!msg.equals(rule.lastMessages.get(region.name)) || broadcast) {
                 Utils.broadcast(plugin.config.broadcast, msg, world);
                 rule.lastMessages.put(region.name, msg);

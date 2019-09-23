@@ -57,6 +57,7 @@ user:
     entity_culler: '    §6[§9Entity Culler§6] §c%d §aEntities/chunk §r| §c%d §aEntities/region'
     entity_ai_suppressor: '    §6[§9Entity AI§6] §c%s'
     mobcap: '    §6[§9Mob Spawn Limit§6] §aSoft Limit: §c%d  §r| §aHard Limit: §c%d'
+    adjust_view_distance: '    §6[§9View Distance§6] §c%d'
     world_name: §d>> §fWorld §6[§a%s§6]
   error:
     bad_world: Unknown world %s

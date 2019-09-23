@@ -8,6 +8,7 @@ import cat.nyaa.yasui.Yasui;
 import cat.nyaa.yasui.config.BroadcastConfig;
 import cat.nyaa.yasui.config.Operation;
 import cat.nyaa.yasui.task.ChunkTask;
+import cat.nyaa.yasui.task.WorldTask;
 import com.google.common.base.Strings;
 import org.bukkit.*;
 import org.bukkit.block.Block;
@@ -202,5 +203,14 @@ public class Utils {
             map.put(EntityType.valueOf(name), config.getInt(name));
         }
         return map;
+    }
+
+    public static void updatePlayerViewDistance(Player player) {
+        World world = player.getWorld();
+        WorldTask worldTask = WorldTask.getOrCreateTask(world);
+        Operation vd = Yasui.INSTANCE.config.getDefaultRegion(world).get(ModuleType.adjust_view_distance);
+        if (vd != null && player.getViewDistance() != worldTask.worldViewDistance) {
+            player.setViewDistance(worldTask.worldViewDistance);
+        }
     }
 }

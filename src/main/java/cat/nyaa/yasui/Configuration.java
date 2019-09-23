@@ -78,6 +78,10 @@ public class Configuration extends PluginConfigure {
             saveExample();
         }
         enabledModules = Utils.toEnumSet(ModuleType.class, _modules);
+        if (!Yasui.isPaper) {
+            _modules.remove(ModuleType.adjust_view_distance.name());
+            enabledModules.remove(ModuleType.adjust_view_distance);
+        }
         File rulesDir = new File(plugin.getDataFolder(), "rules");
         if (!rulesDir.exists()) {
             rulesDir.mkdirs();

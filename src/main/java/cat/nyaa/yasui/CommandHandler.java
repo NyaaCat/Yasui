@@ -15,6 +15,7 @@ import cat.nyaa.yasui.other.ChunkCoordinate;
 import cat.nyaa.yasui.other.ModuleType;
 import cat.nyaa.yasui.other.TimingsUtils;
 import cat.nyaa.yasui.region.RegionCommands;
+import cat.nyaa.yasui.task.PlayerTask;
 import cat.nyaa.yasui.task.WorldTask;
 import com.google.common.collect.EnumMultiset;
 import com.google.common.collect.Multimap;
@@ -29,6 +30,7 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
 import org.bukkit.entity.LivingEntity;
+import org.bukkit.entity.Player;
 
 import java.util.*;
 
@@ -69,6 +71,9 @@ public class CommandHandler extends CommandReceiver {
     @SubCommand(value = "reload", permission = "yasui.admin")
     public void commandReload(CommandSender sender, Arguments args) {
         plugin.reload();
+        for (Player p : Bukkit.getOnlinePlayers()) {
+            PlayerTask.getOrCreateTask(p.getUniqueId());
+        }
     }
 
     @SubCommand(value = "chunkevents", permission = "yasui.profiler", tabCompleter = "tabCompleteWorld")
@@ -237,6 +242,8 @@ public class CommandHandler extends CommandReceiver {
                     msg(sender, langKey, world.getGameRuleValue(GameRule.RANDOM_TICK_SPEED));
                 } else if (type == ModuleType.mobcap) {
                     msg(sender, langKey, operation.mobcap_global_soft, operation.mobcap_global_hard);
+                } else if (type == ModuleType.adjust_view_distance) {
+                    msg(sender, langKey, worldTask.worldViewDistance);
                 }
             }
         }

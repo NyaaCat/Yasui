@@ -7,9 +7,11 @@ import cat.nyaa.yasui.other.ModuleType;
 import cat.nyaa.yasui.other.NoAIType;
 import cat.nyaa.yasui.other.Utils;
 import cat.nyaa.yasui.task.ChunkTask;
+import cat.nyaa.yasui.task.PlayerTask;
 import cat.nyaa.yasui.task.WorldTask;
 import com.destroystokyo.paper.event.entity.PlayerNaturallySpawnCreaturesEvent;
 import com.destroystokyo.paper.event.entity.PreCreatureSpawnEvent;
+import com.destroystokyo.paper.event.player.PlayerPostRespawnEvent;
 import org.bukkit.Chunk;
 import org.bukkit.entity.*;
 import org.bukkit.event.Event;
@@ -19,6 +21,10 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.entity.CreatureSpawnEvent;
 import org.bukkit.event.entity.EntityDeathEvent;
 import org.bukkit.event.entity.EntityTargetLivingEntityEvent;
+import org.bukkit.event.player.PlayerChangedWorldEvent;
+import org.bukkit.event.player.PlayerJoinEvent;
+
+import java.util.UUID;
 
 public class EntityListener implements Listener {
     private Yasui plugin;
@@ -82,6 +88,17 @@ public class EntityListener implements Listener {
             task.mobcapEntityTypeCount.put(e.getType(), task.mobcapEntityTypeCount.getOrDefault(e.getType(), 1) - 1);
             worldTask.mobcapEntityTypeCount.put(e.getType(), worldTask.mobcapEntityTypeCount.getOrDefault(e.getType(), 1) - 1);
         }
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onPlayerChangedWorld(PlayerChangedWorldEvent event) {
+        Utils.updatePlayerViewDistance(event.getPlayer());
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onPlayerJoin(PlayerJoinEvent event) {
+        UUID uuid = event.getPlayer().getUniqueId();
+        PlayerTask.getOrCreateTask(uuid);
     }
 
     public void onPreCreatureSpawn(EntityType type, Chunk chunk, Event event, ChunkTask chunkTask, Operation mobcap) {
@@ -153,5 +170,10 @@ class EntityListenerPaper implements Listener {
             return;
         }
         plugin.entityListener.onPreCreatureSpawn(event.getType(), chunk, event, task, task.region.get(ModuleType.mobcap));
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
+    public void onPlayerPostRespawn(PlayerPostRespawnEvent event) {
+        Utils.updatePlayerViewDistance(event.getPlayer());
     }
 }

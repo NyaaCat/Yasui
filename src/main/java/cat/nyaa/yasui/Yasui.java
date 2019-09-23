@@ -3,11 +3,7 @@ package cat.nyaa.yasui;
 import cat.nyaa.yasui.listener.EntityListener;
 import cat.nyaa.yasui.listener.RedstoneListener;
 import cat.nyaa.yasui.listener.WorldListener;
-import cat.nyaa.yasui.task.ChunkTask;
-import cat.nyaa.yasui.task.RegionTask;
-import cat.nyaa.yasui.task.TPSMonitor;
-import cat.nyaa.yasui.task.WorldTask;
-import org.bukkit.Bukkit;
+import cat.nyaa.yasui.task.*;
 import org.bukkit.event.HandlerList;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -31,7 +27,7 @@ public final class Yasui extends JavaPlugin {
         INSTANCE = this;
         hasNU = getServer().getPluginManager().isPluginEnabled("NyaaUtils");
         try {
-            Bukkit.getItemFactory();
+            Class.forName("com.destroystokyo.paper.PaperConfig");
             isPaper = true;
         } catch (Exception e) {
             isPaper = false;
@@ -67,6 +63,7 @@ public final class Yasui extends JavaPlugin {
         ChunkTask.taskMap.clear();
         RegionTask.taskMap.clear();
         WorldTask.taskMap.clear();
+        PlayerTask.taskMap.clear();
         if (saveConfig) {
             config.save();
         }
