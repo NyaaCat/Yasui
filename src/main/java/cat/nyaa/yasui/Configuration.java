@@ -75,6 +75,7 @@ public class Configuration extends PluginConfigure {
         }
         if (_modules == null) {
             _modules = Arrays.stream(ModuleType.values()).map(Enum::name).collect(Collectors.toList());
+            _modules.remove(ModuleType.adjust_view_distance.name());
             saveExample();
         }
         enabledModules = Utils.toEnumSet(ModuleType.class, _modules);
