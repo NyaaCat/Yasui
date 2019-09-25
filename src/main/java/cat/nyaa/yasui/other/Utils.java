@@ -155,19 +155,24 @@ public class Utils {
     }
 
     public static void broadcast(BroadcastConfig config, String msg, World world) {
+        String permission = config.type == BroadcastType.ADMIN_CHAT ? "yasui.admin" : config.permission;
         Message.MessageType type = Message.MessageType.CHAT;
         if (config.type == BroadcastType.ACTIONBAR) {
             type = Message.MessageType.ACTION_BAR;
         } else if (config.type == BroadcastType.SUBTITLE) {
             type = Message.MessageType.SUBTITLE;
+        } else if (config.type == BroadcastType.TITLE) {
+            type = Message.MessageType.TITLE;
         }
-        Message message = new Message(ChatColor.translateAlternateColorCodes('&', msg));//.broadcast(type, p -> broadcastType == BroadcastType.ADMIN_CHAT ? p.isOp() : world == null || p.getWorld().equals(world));
+        Message message = new Message(ChatColor.translateAlternateColorCodes('&', msg));
         if (config.log_console) {
             Yasui.INSTANCE.getLogger().info(message.inner.toLegacyText());
         }
-        for (Player p : world == null ? Bukkit.getOnlinePlayers() : world.getPlayers()) {
-            if ((Strings.isNullOrEmpty(config.permission) || p.hasPermission(config.permission))) {
-                message.send(p, type);
+        if (config.type != BroadcastType.NONE) {
+            for (Player p : world == null ? Bukkit.getOnlinePlayers() : world.getPlayers()) {
+                if ((Strings.isNullOrEmpty(permission) || p.hasPermission(permission))) {
+                    message.send(p, type);
+                }
             }
         }
     }
@@ -209,7 +214,7 @@ public class Utils {
         World world = player.getWorld();
         WorldTask worldTask = WorldTask.getOrCreateTask(world);
         Operation vd = Yasui.INSTANCE.config.getDefaultRegion(world).get(ModuleType.adjust_view_distance);
-        if (vd != null && player.getViewDistance() != worldTask.worldViewDistance) {
+        if ((vd != null || Yasui.INSTANCE.config.enabledModules.contains(ModuleType.adjust_view_distance)) && player.getViewDistance() != worldTask.worldViewDistance) {
             player.setViewDistance(worldTask.worldViewDistance);
         }
     }

@@ -108,16 +108,25 @@ public class TPSMonitor extends BukkitRunnable {
                 Operation o = getOperation(name);
                 if (o != null) {
                     for (ModuleType module : o.modules) {
-                        Operation oldVar = region.remove(module);
-                        if (oldVar != null) {
-                            broadcast = true;
-                        }
+                        boolean remove = true;
                         if (module == ModuleType.random_tick_speed) {
                             newTickSpeed = Math.min(Math.min(o.random_tick_speed_max, oldTickSpeed + 1), o.random_tick_speed_max);
+                            if (o.random_tick_speed_max > newTickSpeed) {
+                                remove = false;
+                            }
                         } else if (!Strings.isNullOrEmpty(o.command_executor_engage)) {
                             runCommands(world, o.command_executor_release);
                         } else if (module == ModuleType.adjust_view_distance) {
                             newVD = Math.min(Math.min(o.adjust_view_distance_max, oldVD + 1), o.adjust_view_distance_max);
+                            if (o.adjust_view_distance_max > newVD) {
+                                remove = false;
+                            }
+                        }
+                        if (remove) {
+                            Operation oldVar = region.remove(module);
+                            if (oldVar != null) {
+                                broadcast = true;
+                            }
                         }
                     }
                 }
@@ -125,9 +134,11 @@ public class TPSMonitor extends BukkitRunnable {
         }
         if (oldTickSpeed != newTickSpeed && newTickSpeed >= 0) {
             Utils.setRandomTickSpeed(world, newTickSpeed);
+            broadcast = true;
         }
         if (oldVD != newVD && newVD > 0) {
             wt.worldViewDistance = newVD;
+            broadcast = true;
         }
         String msg = null;
         BroadcastType type = plugin.config.broadcast.type;
@@ -136,7 +147,7 @@ public class TPSMonitor extends BukkitRunnable {
         } else if (release != null && release.intValue() > 0) {
             msg = rule.release_message;
         }
-        if (!Strings.isNullOrEmpty(msg) && type != BroadcastType.NONE) {
+        if (!Strings.isNullOrEmpty(msg)) {
             msg = msg.replaceAll("\\{tps_1m}", String.format("%.2f", tps_1m.doubleValue()))
                     .replaceAll("\\{tps_5m}", String.format("%.2f", tps_5m.doubleValue()))
                     .replaceAll("\\{tps_15m}", String.format("%.2f", tps_15m.doubleValue()))
