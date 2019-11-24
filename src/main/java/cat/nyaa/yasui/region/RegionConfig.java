@@ -3,14 +3,38 @@ package cat.nyaa.yasui.region;
 import cat.nyaa.nyaacore.configuration.FileConfigure;
 import cat.nyaa.nyaacore.configuration.ISerializable;
 import cat.nyaa.yasui.Yasui;
+import cat.nyaa.yasui.other.ChunkCoordinate;
+import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.CacheLoader;
+import com.google.common.cache.LoadingCache;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.HashMap;
+import java.util.concurrent.TimeUnit;
 
 public class RegionConfig extends FileConfigure {
     private final Yasui plugin;
     public HashMap<String, Region> regions = new HashMap<>();
+    public LoadingCache<ChunkCoordinate, Region> cache = CacheBuilder.newBuilder()
+            .maximumSize(10240)
+            .expireAfterAccess(900, TimeUnit.SECONDS)
+            .build(new CacheLoader<ChunkCoordinate, Region>() {
+                public Region load(ChunkCoordinate id) {
+                    Region region = null;
+                    for (Region v : plugin.config.regionConfig.regions.values()) {
+                        if (v.enabled && v.contains(id)) {
+                            if (region == null || !v.defaultRegion) {
+                                region = v;
+                                if (!region.defaultRegion) {
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    return region;
+                }
+            });
 
     public RegionConfig(Yasui pl) {
         this.plugin = pl;

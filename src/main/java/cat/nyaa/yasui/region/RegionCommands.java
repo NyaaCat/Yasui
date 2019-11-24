@@ -133,6 +133,7 @@ public class RegionCommands extends CommandReceiver {
     }
 
     public void update(Region region) {
+        plugin.config.regionConfig.cache.invalidateAll();
         for (ModuleType type : ModuleType.values()) {
             String ruleName = region.getSource(type);
             if (ruleName != null && region.bypass.contains(ruleName)) {
