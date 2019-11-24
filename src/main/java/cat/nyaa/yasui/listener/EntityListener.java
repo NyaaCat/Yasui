@@ -32,7 +32,8 @@ public class EntityListener implements Listener {
     public EntityListener(Yasui pl) {
         pl.getServer().getPluginManager().registerEvents(this, pl);
         if (Yasui.isPaper) {
-            pl.getServer().getPluginManager().registerEvents(new EntityListenerPaper(pl), pl);
+            //this is possibly redundant.
+//            pl.getServer().getPluginManager().registerEvents(new EntityListenerPaper(pl), pl);
         }
         this.plugin = pl;
     }
