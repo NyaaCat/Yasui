@@ -138,7 +138,7 @@ public class Configuration extends PluginConfigure {
     }
 
     public Region getRegion(ChunkCoordinate id) {
-        Region region = regionConfig.cache.getUnchecked(id);
+        Region region = regionConfig.cache.getIfPresent(id);
         if (region == null) {
             region = getDefaultRegion(Bukkit.getWorld(id.getWorld()));
             regionConfig.cache.put(id, region);
