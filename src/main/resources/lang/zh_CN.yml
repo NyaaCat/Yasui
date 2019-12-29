@@ -1,0 +1,88 @@
+manual:
+  no_description: 无描述
+  help:
+    description: 显示帮助信息
+    usage: /yasui [subCommands...] help
+  reload:
+    usage: /yasui reload
+    description: 从配置文件中载入配置. 未保存的变更将丢失.
+  chunkentities:
+    usage: /yasui chunkentities
+    description: 列出 Top-N 加载实体的区块. 鼠标悬浮在坐标上可以传送.
+  chunkevents:
+    usage: /yasui chunkevents
+    description: 列出 Top-N 区块ticking事件. 鼠标悬浮在坐标上可以传送.
+  counter:
+    usage: /yasui counter <entity|tileentity> [world]
+    description: 列出 Top-N 消耗CPU时间的 entity 或 tileentity .
+  operation:
+    usage: /yasui operation <engage|release> <operation name>
+    description: 手动 engage/release 指定操作.
+  status:
+    usage: /yasui status
+    description: 打印全部状态信息.
+  no_usage: 无用法
+  region:
+    create:
+      usage: /yasui region create <region name> [chunk|block] [x1] [z1] [x2] [z2]
+      description: 创建一个区域
+    enable:
+      usage: /yasui region create <region name>
+      description: 启用一个区域
+    disable:
+      usage: /yasui region disable <region name>
+      description: 停用一个区域
+    rule:
+      usage: /yasui region rule <region name> <bypass|enforce|remove> <rule name>
+      description: 添加一个规则到区域内
+user:
+  chunk:
+    coord: §c>>§r 区块 §6[§b%d§r, §b%d§6]
+    tp: /minecraft:tp %d 255 %d
+    hover: x:%d~%d, z:%d~%d, 点击以传送到区块中心
+    total: ' §r[§9%d§r] '
+    events: '§r[§c红石 §b%d§r] §r[§a物理 §b%d§r]'
+  profiler:
+    header_tileentity: §6====== §rTop §c%d§r Chunks by §bTileEntities§6 ======
+    entity: '    §6[§cEntity§6] §b%s §6[§a%d§6]'
+    tileentity: '    §6[§9TileEntity§6] §b%s §6[§a%d§6]'
+    livingentity: '    §6[§2LivingEntity§6] §b%s §6[§a%d§6]'
+    header_entity: §6====== §rTop §c%d§r Chunks by §bEntities§6 ======
+    header_livingentity: §6====== §rTop §c%d§r Chunks by §bLivingEntities§6 ======
+    not_enabled: Not enabled
+  status:
+    random_tick_speed: '§3    §6[§9随机刻速度§6] §c%d'
+    world_info: '    §6[§9INFO§6] §b%d §6已加载区块 §r| §b%d §6LivingEntities §r| §b%d §6TileEntities'
+    redstone_suppressor: '    §6[§9Redstone Suppressor§6] §c%d §aREvents/chunk §r| §c%d §aPiston/chunk'
+    entity_culler: '    §6[§9Entity Culler§6] §c%d §aEntities/chunk §r| §c%d §aEntities/region'
+    entity_ai_suppressor: '    §6[§9Entity AI§6] §c%s'
+    mobcap: '    §6[§9Mob Spawn Limit§6] §aSoft Limit: §c%d  §r| §aHard Limit: §c%d'
+    adjust_view_distance: '    §6[§9View Distance§6] §c%d'
+    world_name: §d>> §fWorld §6[§a%s§6]
+  error:
+    bad_world: 未知的世界 %s
+    operation_not_exist: "操作不存在: %s"
+    rule_not_exist: "规则不存在: %s"
+    region_not_exist: "区域不存在: %s"
+    empty_operation: "%s: 空的文件或模块未被启用"
+  redstone:
+    msg: "§6[§9%s§6] §6[§cRedstone Suppressed§6] §fchunk §6[§b%d %d§6] §fradius §b%d §6[§9REvents §c%d §f| §9Piston §c%d§6]"
+  timings:
+    data: "§6[§3%s§6] §rcount §6%d§r time §9%d§fms"
+  operation:
+    engage: "§6[§a%s§6] §cEngage §r%s"
+    release: "§6[§a%s§6] §aRelease §r%s"
+  region:
+    exist: "已经存在: %s"
+    info:
+      name: "名称: %s , 是否启用: %s"
+      location: "世界: %s [%d, %d] [%d, %d]"
+      bypass: "忽略: %s"
+      enforce: "执行: %s"
+log:
+  redstone: "[YASUI] 位于 [%s, %d, %d] 的红石已被停用, 半径: %d "
+internal:
+  info:
+    command_complete: 命令已经执行!
+    usage_prompt: '用法: %s'
+    using_language: '现在使用语言: %s'
