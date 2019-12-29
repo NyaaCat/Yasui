@@ -10,4 +10,4 @@ engage:
   message: '&b[YASUI] &c[ENGAGED] &6Mob spawn limited'
 release:
   condition: tps_5m > 19.5
-  message: '&b[YASUI] &c[RELEASED] &6Mob spawn lifted'
+  message: '&b[YASUI] &a[RELEASED] &6Mob spawn lifted'
