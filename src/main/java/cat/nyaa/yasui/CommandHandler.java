@@ -79,33 +79,44 @@ public class CommandHandler extends CommandReceiver {
     @SubCommand(value = "chunkevents", permission = "yasui.profiler", tabCompleter = "tabCompleteWorld")
     public void commandChunkEvents(CommandSender sender, Arguments args) {
         World world = getWorld(sender, args);
-        if (plugin.profilerStatsMonitor == null) {
+        ProfilerStatsMonitor profilerStatsMonitor = plugin.profilerStatsMonitor;
+        if (profilerStatsMonitor == null) {
             msg(sender, "user.profiler.not_enabled");
             return;
         }
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
-            Deque<Pair<Long, Map<ChunkCoordinate, ProfilerStatsMonitor.ChunkStat>>> redstoneStats = plugin.profilerStatsMonitor.getRedstoneStats(world);
+            Deque<Pair<Long, Map<ChunkCoordinate, ProfilerStatsMonitor.ChunkStat>>> redstoneStats = profilerStatsMonitor.getRedstoneStats(world);
             Iterator<Pair<Long, Map<ChunkCoordinate, ProfilerStatsMonitor.ChunkStat>>> descendingIterator = redstoneStats.descendingIterator();
             List<Pair<Long, Map<ChunkCoordinate, ProfilerStatsMonitor.ChunkStat>>> snapshot = new ArrayList<>(600);
-            while (descendingIterator.hasNext()) {
-                snapshot.add(descendingIterator.next());
-                if (snapshot.size() == 600) break;
-            }
-            Map<ChunkCoordinate, ProfilerStatsMonitor.ChunkStat> stat = snapshot.stream().map(Pair::getValue).reduce(new HashMap<>(), (total, tick) -> {
-                tick.forEach((chunk, value) -> {
-                    if (value.getPhysics() != 0 || value.getRedstone() != 0) {
-                        total.computeIfAbsent(chunk, (ignored) -> new ProfilerStatsMonitor.ChunkStat()).add(value);
-                    }
+            boolean locked = false;
+            try {
+                while (descendingIterator.hasNext()) {
+                    snapshot.add(descendingIterator.next());
+                    if (snapshot.size() == 600) break;
+                }
+                locked = profilerStatsMonitor.tryLock(world, 5);
+                Map<ChunkCoordinate, ProfilerStatsMonitor.ChunkStat> stat = snapshot.stream().map(Pair::getValue).reduce(new HashMap<>(), (total, tick) -> {
+                    tick.forEach((chunk, value) -> {
+                        if (value.getPhysics() != 0 || value.getRedstone() != 0) {
+                            total.computeIfAbsent(chunk, (ignored) -> new ProfilerStatsMonitor.ChunkStat()).add(value);
+                        }
+                    });
+                    return total;
                 });
-                return total;
-            });
-            stat.entrySet().stream().sorted(Comparator.comparing(e -> -e.getValue().getRedstone())).limit(plugin.config.profiler_event_chunk_count).forEach(
-                    e -> new Message("")
-                            .append(e.getKey().getComponent())
-                            .append(I18n.format("user.chunk.total", e.getValue().getPhysics() + e.getValue().getRedstone()))
-                            .append(I18n.format("user.chunk.events", e.getValue().getRedstone(), e.getValue().getPhysics()))
-                            .send(sender)
-            );
+                stat.entrySet().stream().sorted(Comparator.comparing(e -> -e.getValue().getRedstone())).limit(plugin.config.profiler_event_chunk_count).forEach(
+                        e -> new Message("")
+                                .append(e.getKey().getComponent())
+                                .append(I18n.format("user.chunk.total", e.getValue().getPhysics() + e.getValue().getRedstone()))
+                                .append(I18n.format("user.chunk.events", e.getValue().getRedstone(), e.getValue().getPhysics()))
+                                .send(sender)
+                );
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }finally {
+                if (locked) {
+                    profilerStatsMonitor.unlock(world);
+                }
+            }
         });
     }
 
