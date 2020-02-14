@@ -90,11 +90,11 @@ public class CommandHandler extends CommandReceiver {
             List<Pair<Long, Map<ChunkCoordinate, ProfilerStatsMonitor.ChunkStat>>> snapshot = new ArrayList<>(600);
             boolean locked = false;
             try {
+                locked = profilerStatsMonitor.tryLock(world, 5);
                 while (descendingIterator.hasNext()) {
                     snapshot.add(descendingIterator.next());
                     if (snapshot.size() == 600) break;
                 }
-                locked = profilerStatsMonitor.tryLock(world, 5);
                 Map<ChunkCoordinate, ProfilerStatsMonitor.ChunkStat> stat = snapshot.stream().map(Pair::getValue).reduce(new HashMap<>(), (total, tick) -> {
                     tick.forEach((chunk, value) -> {
                         if (value.getPhysics() != 0 || value.getRedstone() != 0) {
