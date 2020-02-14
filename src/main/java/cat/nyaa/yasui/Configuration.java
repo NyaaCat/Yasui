@@ -138,10 +138,10 @@ public class Configuration extends PluginConfigure {
     }
 
     public Region getRegion(ChunkCoordinate id) {
-        Region region = regionConfig.cache.getIfPresent(id);
+        Region region = regionConfig.cache.getIfPresent(id).orElse(null);
         if (region == null) {
             region = getDefaultRegion(Bukkit.getWorld(id.getWorld()));
-            regionConfig.cache.put(id, region);
+            regionConfig.cache.put(id, Optional.of(region));
         }
         return region;
     }

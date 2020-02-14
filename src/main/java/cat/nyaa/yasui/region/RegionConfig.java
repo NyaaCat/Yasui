@@ -11,16 +11,17 @@ import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.HashMap;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 public class RegionConfig extends FileConfigure {
     private final Yasui plugin;
     public HashMap<String, Region> regions = new HashMap<>();
-    public LoadingCache<ChunkCoordinate, Region> cache = CacheBuilder.newBuilder()
+    public LoadingCache<ChunkCoordinate, Optional<Region>> cache = CacheBuilder.newBuilder()
             .maximumSize(10240)
             .expireAfterAccess(900, TimeUnit.SECONDS)
-            .build(new CacheLoader<ChunkCoordinate, Region>() {
-                public Region load(ChunkCoordinate id) {
+            .build(new CacheLoader<ChunkCoordinate, Optional<Region>>() {
+                public Optional<Region> load(ChunkCoordinate id) {
                     Region region = null;
                     for (Region v : plugin.config.regionConfig.regions.values()) {
                         if (v.enabled && v.contains(id)) {
@@ -32,7 +33,7 @@ public class RegionConfig extends FileConfigure {
                             }
                         }
                     }
-                    return region;
+                    return Optional.ofNullable(region);
                 }
             });
 
