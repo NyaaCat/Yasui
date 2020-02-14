@@ -90,7 +90,10 @@ public class CommandHandler extends CommandReceiver {
             List<Pair<Long, Map<ChunkCoordinate, ProfilerStatsMonitor.ChunkStat>>> snapshot = new ArrayList<>(600);
             boolean locked = false;
             try {
-                locked = profilerStatsMonitor.tryLock(world, 5);
+                int tryTime = 0;
+                while(!locked && tryTime++ < 20){
+                    locked = profilerStatsMonitor.tryLock(world, 5);
+                }
                 while (descendingIterator.hasNext()) {
                     snapshot.add(descendingIterator.next());
                     if (snapshot.size() == 600) break;
