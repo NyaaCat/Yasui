@@ -1,7 +1,6 @@
 package cat.nyaa.yasui.other;
 
 import cat.nyaa.nyaacore.Message;
-import cat.nyaa.nyaacore.utils.NmsUtils;
 import cat.nyaa.nyaacore.utils.ReflectionUtils;
 import cat.nyaa.nyaautils.NyaaUtils;
 import cat.nyaa.yasui.Yasui;
@@ -181,14 +180,20 @@ public class Utils {
         if (ai || operation == null || operation.entity_ai_suppressor_exclude_type.contains(entity.getType()) ||
                 (operation.entity_ai_suppressor_exclude_tagged && entity.getCustomName() != null) ||
                 (operation.entity_ai_suppressor_exclude_tamed && entity instanceof Tameable && ((Tameable) entity).getOwner() != null)) {
-            NmsUtils.setFromMobSpawner(entity, false);
+            nerfAI(entity, false);
             entity.setAI(true);
         } else if (operation.entity_ai_suppresse_method != NoAIType.NO_TARGETING) {
             if (operation.entity_ai_suppresse_method == NoAIType.NERFING) {
-                NmsUtils.setFromMobSpawner(entity, true);
+                nerfAI(entity, true);
             } else if (operation.entity_ai_suppresse_method == NoAIType.NO_AI) {
                 entity.setAI(false);
             }
+        }
+    }
+
+    private static void nerfAI(LivingEntity entity, boolean flag) {
+        if (entity instanceof Mob) {
+            ((Mob) entity).setAware(!flag);
         }
     }
 
