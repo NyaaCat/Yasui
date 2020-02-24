@@ -20,6 +20,7 @@ import java.io.IOException;
 import java.net.URL;
 import java.security.CodeSource;
 import java.util.*;
+import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
@@ -138,7 +139,12 @@ public class Configuration extends PluginConfigure {
     }
 
     public Region getRegion(ChunkCoordinate id) {
-        Region region = regionConfig.cache.getIfPresent(id).orElse(null);
+        Region region = null;
+        try {
+            region = regionConfig.cache.get(id).orElse(null);
+        } catch (ExecutionException e) {
+            e.printStackTrace();
+        }
         if (region == null) {
             region = getDefaultRegion(Bukkit.getWorld(id.getWorld()));
             regionConfig.cache.put(id, Optional.of(region));
