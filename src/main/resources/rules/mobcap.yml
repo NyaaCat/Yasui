@@ -7,7 +7,7 @@ worlds:
   - world_the_end
 engage:
   condition: tps_5m < 17.0 && world_living_entities > 1500
-  message: '&b[YASUI] &c[ENGAGED] &6Mob spawn limited'
+  message: '&b[YASUI] &c[ENGAGED] &6Mobcap enabled.'
 release:
   condition: tps_5m > 19.5
-  message: '&b[YASUI] &c[RELEASED] &6Mob spawn lifted'
+  message: '&b[YASUI] &c[RELEASED] &6Mobcap disabled.'
