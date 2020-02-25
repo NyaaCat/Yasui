@@ -7,5 +7,5 @@ entity_culler:
     - ARMOR_STAND
     tagged: true
     tamed: true
-  per_chunk_limit: 12
-  per_region_limit: 30
+  per_chunk_limit: 6
+  per_region_limit: 48
