@@ -28,6 +28,7 @@ public class ChunkTask extends BukkitRunnable {
     public ChunkCoordinate sourceId = null;
     public boolean allowRedstone = true;
     public boolean noAI = false;
+    public boolean forceUpdateEntity = true;
     public Region region = null;
     public Map<EntityType, Integer> mobcapEntityTypeCount = new HashMap<>();
 

@@ -77,7 +77,7 @@ public class Utils {
         Operation ai_suppressor = task.region.get(ModuleType.entity_ai_suppressor);
         Operation entity_culler = task.region.get(ModuleType.entity_culler);
         Operation mobcap = task.region.get(ModuleType.mobcap);
-        if (ai_suppressor != null || entity_culler != null || mobcap != null || task.noAI) {
+        if (task.forceUpdateEntity || ai_suppressor != null || entity_culler != null || mobcap != null || task.noAI) {
             task.mobcapEntityTypeCount.clear();
             int count = getLivingEntityCount(chunk, mobcap);
             int per_chunk_max = entity_culler != null ? entity_culler.entity_culler_per_chunk_limit : -1;
@@ -92,6 +92,7 @@ public class Utils {
                     }
                 }
             }
+            task.forceUpdateEntity = false;
             task.noAI = ai_suppressor != null;
             task.LivingEntityCount = count - removed;
         }
