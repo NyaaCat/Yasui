@@ -81,7 +81,8 @@ public class EntityListener implements Listener {
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onMobDeath(EntityDeathEvent event) {
         LivingEntity e = event.getEntity();
-        ChunkTask task = ChunkTask.getOrCreateTask(e.getChunk());
+        Chunk chunk = e.getLocation().getChunk(); //use Spigot compatible method
+        ChunkTask task = ChunkTask.getOrCreateTask(chunk);
         WorldTask worldTask = WorldTask.getOrCreateTask(e.getWorld());
         task.LivingEntityCount--;
         worldTask.livingEntityCount--;
