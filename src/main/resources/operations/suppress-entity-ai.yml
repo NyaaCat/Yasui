@@ -3,7 +3,7 @@ entity_ai_suppressor:
   method: NERFING # NO_TARGETING | NO_AI | NERFING
   exclude: # entities won't be suppressed, typically used with mob farms that take adv of entity anger
     type:
-    - PIG_ZOMBIE
+    - ZOMBIFIED_PIGLIN
     - ENDERMAN
     - DOLPHIN
     tagged: false  # has custom name or tag

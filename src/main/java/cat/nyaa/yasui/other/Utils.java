@@ -202,7 +202,11 @@ public class Utils {
         EnumSet<E> set = EnumSet.noneOf(c);
         if (list != null) {
             for (String name : list) {
-                set.add(Enum.valueOf(c, name));
+                if (name.equals("PIG_ZOMBIE")){
+                    name = "ZOMBIFIED_PIGLIN";
+                }
+                E e = Enum.valueOf(c, name);
+                set.add(e);
             }
         }
         return set;

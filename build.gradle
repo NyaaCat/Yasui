@@ -3,7 +3,7 @@ apply plugin: "maven-publish"
 
 ext.majorVersion = 7
 ext.minorVersion = 0
-ext.minecraftVersion = "1.15.2"
+ext.minecraftVersion = "1.16.1"
 sourceCompatibility = 1.8
 targetCompatibility = 1.8
 

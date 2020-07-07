@@ -5,7 +5,7 @@ mobcap:
     types:
       VILLAGER: 100
       PILLAGER: 100
-      PIG_ZOMBIE: 200
+      ZOMBIFIED_PIGLIN: 200
   chunk:
     default: 32
     types:
