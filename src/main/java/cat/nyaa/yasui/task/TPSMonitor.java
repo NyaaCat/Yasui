@@ -154,7 +154,7 @@ public class TPSMonitor extends BukkitRunnable {
                     .replaceAll("\\{world_random_tick_speed}", String.valueOf(newTickSpeed >= 0 ? newTickSpeed : oldTickSpeed))
                     .replaceAll("\\{world_name}", region.name)
                     .replaceAll("\\{world_view_distance}", String.valueOf(newVD > 0 ? newVD : oldVD));
-            if (!msg.equals(rule.lastMessages.get(region.name)) || broadcast) {
+            if (broadcast && !msg.equals(rule.lastMessages.get(region.name))) {
                 Utils.broadcast(plugin.config.broadcast, msg, world);
                 rule.lastMessages.put(region.name, msg);
             }
