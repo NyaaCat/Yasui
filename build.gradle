@@ -2,7 +2,7 @@ apply plugin: "java-library"
 apply plugin: "maven-publish"
 
 ext.majorVersion = 7
-ext.minorVersion = 0
+ext.minorVersion = 2
 ext.minecraftVersion = "1.15.2"
 sourceCompatibility = 1.8
 targetCompatibility = 1.8
@@ -43,8 +43,8 @@ dependencies {
         compileOnly project(":NyaaCore")
         compileOnly project(":NyaaUtils")
     } else {
-        compileOnly('cat.nyaa:nyaacore:7.0-SNAPSHOT')
-        compileOnly('cat.nyaa:nyaautils:7.0-SNAPSHOT')
+        compileOnly('cat.nyaa:nyaacore:7.2-SNAPSHOT')
+        compileOnly('cat.nyaa:nyaautils:7.2-SNAPSHOT')
     }
 
     // 3rd party plugins
