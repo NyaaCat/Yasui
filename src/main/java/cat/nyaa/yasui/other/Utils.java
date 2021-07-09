@@ -32,20 +32,7 @@ public class Utils {
     }
 
     public static double[] getTPS() {
-        try {
-            Object nmsServer = ReflectionUtils.getNMSClass("MinecraftServer").getMethod("getServer").invoke(null);
-            Field field = nmsServer.getClass().getField("recentTps");
-            return (double[]) field.get(nmsServer);
-        } catch (IllegalAccessException e) {
-            e.printStackTrace();
-        } catch (InvocationTargetException e) {
-            e.printStackTrace();
-        } catch (NoSuchMethodException e) {
-            e.printStackTrace();
-        } catch (NoSuchFieldException e) {
-            e.printStackTrace();
-        }
-        return null;
+        return Bukkit.getTPS();
     }
 
     public static int getLivingEntityCount(Chunk chunk, Operation mobcap) {
