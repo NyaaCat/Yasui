@@ -2,10 +2,10 @@ apply plugin: "java-library"
 apply plugin: "maven-publish"
 
 ext.majorVersion = 8
-ext.minorVersion = 0
-ext.minecraftVersion = "1.16.1"
-sourceCompatibility = 1.8
-targetCompatibility = 1.8
+ext.minorVersion = 1
+ext.minecraftVersion = "1.17"
+sourceCompatibility = 16
+targetCompatibility = 16
 
 // Suppiled by Jenkins
 ext.buildNumber = System.env.BUILD_NUMBER == null ? "x"                : "$System.env.BUILD_NUMBER"
@@ -17,7 +17,8 @@ archivesBaseName = "Yasui-mc$minecraftVersion"
 version = "$majorVersion.$minorVersion.$buildNumber"
 
 repositories {
-    jcenter()
+    //jcenter()
+    mavenCentral()
     maven { name 'Spigot';      url 'https://hub.spigotmc.org/nexus/content/repositories/snapshots/' }
     maven { name 'Sonatype';    url 'https://oss.sonatype.org/content/groups/public' }
     maven { name 'NyaaCat';     url 'https://ci.nyaacat.com/maven/' }
@@ -29,7 +30,8 @@ repositories {
 
 dependencies {
     // spigot
-    compileOnly "com.destroystokyo.paper:paper-api:$minecraftVersion-R0.1-SNAPSHOT"
+    compileOnly "io.papermc.paper:paper-api:$minecraftVersion-R0.1-SNAPSHOT"
+    //compileOnly "com.destroystokyo.paper:paper-api:$minecraftVersion-R0.1-SNAPSHOT"
     compileOnly ('com.sk89q.worldedit:worldedit-bukkit:7.0.1-SNAPSHOT') {
         exclude group: 'io.papermc', module: 'paperlib'
         exclude group: 'org.bstats.bStats-Metrics', module: 'bstats-bukkit'
@@ -43,12 +45,12 @@ dependencies {
         compileOnly project(":NyaaCore")
         compileOnly project(":NyaaUtils")
     } else {
-        compileOnly('cat.nyaa:nyaacore:8.0-SNAPSHOT')
-        compileOnly('cat.nyaa:nyaautils:8.0-SNAPSHOT')
+        compileOnly('cat.nyaa:nyaacore:8.1-SNAPSHOT')
+        compileOnly('cat.nyaa:nyaautils:8.1-SNAPSHOT')
     }
 
     // 3rd party plugins
-    //compileOnly 'com.udojava:EvalEx:2.1' // NyaaCore shadows this
+    // compileOnly 'com.udojava:EvalEx:2.1' // NyaaCore shadows this
 
     // annotation processor
 }
