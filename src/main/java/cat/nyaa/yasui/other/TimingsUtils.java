@@ -42,7 +42,7 @@ public class TimingsUtils {
             return;
         }
         try {
-            nms_World = ReflectionUtils.getNMSClass("World");
+            nms_World = Class.forName("net.minecraft.world.level.World");
             nms_World_timings = nms_World.getField("timings");
             paper_TimingsManager = Class.forName("co.aikar.timings.TimingsManager");
             paper_TimingsManager_TIMING_MAP = paper_TimingsManager.getDeclaredField("TIMING_MAP");
