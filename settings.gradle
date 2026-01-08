@@ -1,0 +1,11 @@
+pluginManagement {
+    repositories {
+        gradlePluginPortal()
+        maven {
+            name = 'PaperMC'
+            url = 'https://repo.papermc.io/repository/maven-public/'
+        }
+    }
+}
+
+rootProject.name = 'yasui'

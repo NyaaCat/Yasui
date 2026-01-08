@@ -1,57 +1,35 @@
 # Yasui Configuration - Paper 1.21.8 Server Optimization Plugin
 
 optimizations:
-  # Hopper optimization using event-driven tracking + async pre-computation
+  # Hopper optimization using event-driven tracking + periodic pre-computation
   hopper:
     enabled: true
-    # Async scan interval in ticks (5 = every 5 ticks)
+    # Scan interval in ticks (5 = every 5 ticks)
     async-scan-interval: 5
     # Cache time-to-live in milliseconds
     cache-ttl: 1000
+    # Max hoppers to scan per tick to avoid spikes
+    max-scan-per-tick: 200
 
   # Villager POI (Point of Interest) caching to reduce repeated lookups
+  # All villagers are optimized by default for simplicity
   villager-poi:
     enabled: true
     cache-poi-lookups: true
-    # Rules for which villagers to optimize
-    # Each rule specifies: type, named (true/false), distance threshold, and optimize flag
-    rules:
-      - type: VILLAGER
-        named: true
-        distance: ">64"
-        optimize: true
-      - type: VILLAGER
-        named: false
-        distance: ">32"
-        optimize: true
 
-  # Entity spread ticking - distant entities tick less frequently
+  # Entity distance cache - no tick freezing; used to gate expensive optimizations
   entity-spread:
     enabled: true
     # Scan interval for updating distance categories (in ticks)
     scan-interval: 100
     # Distance threshold in blocks - entities within this range tick normally
     near-distance: 32
-    # Rules for spread ticking intervals
-    # spread-interval: 1 = every tick (no optimization), 2 = every other tick, 4 = every 4th tick, etc.
-    rules:
-      - type: VILLAGER
-        named: true
-        spread-interval: 4
-      - type: VILLAGER
-        named: false
-        spread-interval: 4
-      - type: ZOMBIE
-        named: false
-        spread-interval: 2
-      - type: SKELETON
-        named: false
-        spread-interval: 2
-      - type: CREEPER
-        named: false
-        spread-interval: 2
+    # Legacy spread-interval rules are currently unused (tick freezing removed)
+    default-interval: 2
+    rules: []
 
   # Chunk random tick position caching to reduce position recalculation
+  # DISABLED: Not implemented in this build; keep false to avoid overhead
   chunk-cache:
-    enabled: true
+    enabled: false
     cache-random-tick-positions: true

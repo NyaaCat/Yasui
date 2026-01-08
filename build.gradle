@@ -1,11 +1,16 @@
-apply plugin: "java-library"
-apply plugin: "maven-publish"
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+    id 'io.papermc.paperweight.userdev' version '2.0.0-beta.19'
+}
 
 ext.majorVersion = 7
 ext.minorVersion = 0
 ext.minecraftVersion = "1.21.8"
-sourceCompatibility = 21
-targetCompatibility = 21
+
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of(21)
+}
 
 // Suppiled by Jenkins
 ext.buildNumber = System.env.BUILD_NUMBER == null ? "x"                : "$System.env.BUILD_NUMBER"
@@ -13,8 +18,12 @@ ext.mavenDirectory = System.env.MAVEN_DIR == null ? "$projectDir/repo" : "$Syste
 
 // Version used for distribution. Different from maven repo
 group = "cat.nyaa"
-archivesBaseName = "Yasui-mc$minecraftVersion"
 version = "$majorVersion.$minorVersion.$buildNumber"
+
+// Base name for archives (Gradle 9 compatible)
+base {
+    archivesName = "Yasui-mc$minecraftVersion"
+}
 
 repositories {
     mavenCentral()
@@ -23,12 +32,19 @@ repositories {
 
 
 dependencies {
-    // Paper API
-    compileOnly "io.papermc.paper:paper-api:$minecraftVersion-R0.1-SNAPSHOT"
+    // Paper development bundle - includes API + NMS with Mojang mappings
+    // Do NOT add Paper API separately - dev bundle includes it
+    paperweight.paperDevBundle("$minecraftVersion-R0.1-SNAPSHOT")
 }
 
 compileJava {
     options.compilerArgs += ["-Xlint:deprecation"]
+    options.encoding = 'UTF-8'
+}
+
+// Reobfuscate for production - converts Mojang mappings to Spigot for server compatibility
+assemble {
+    dependsOn(reobfJar)
 }
 
 // publications
