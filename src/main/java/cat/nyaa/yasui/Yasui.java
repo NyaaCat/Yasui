@@ -1,69 +1,109 @@
 package cat.nyaa.yasui;
 
-import cat.nyaa.yasui.listener.EntityListener;
-import cat.nyaa.yasui.listener.RedstoneListener;
-import cat.nyaa.yasui.listener.WorldListener;
-import cat.nyaa.yasui.task.ChunkTask;
-import cat.nyaa.yasui.task.RegionTask;
-import cat.nyaa.yasui.task.TPSMonitor;
-import org.bukkit.event.HandlerList;
+import cat.nyaa.yasui.command.YasuiCommand;
+import cat.nyaa.yasui.optimizer.HopperOptimizer;
+import cat.nyaa.yasui.optimizer.VillagerPOICache;
+import cat.nyaa.yasui.optimizer.EntitySpreadTicker;
+import cat.nyaa.yasui.optimizer.ChunkTickCache;
 import org.bukkit.plugin.java.JavaPlugin;
 
-public final class Yasui extends JavaPlugin {
-
-    public static Yasui INSTANCE;
-    public static boolean hasNU;
-    public Configuration config;
-    public I18n i18n;
-    public CommandHandler commandHandler;
-    public TPSMonitor tpsMonitor;
-    public EntityListener entityListener;
-    public ProfilerStatsMonitor profilerStatsMonitor;
-    public ProfilerListener profilerListener;
-    public RedstoneListener redstoneListener;
-    public WorldListener worldListener;
+/**
+ * Yasui - Paper 1.21.8 Server Optimization Plugin
+ *
+ * Reduces server tick time through targeted optimizations:
+ * - Hopper caching with async pre-computation
+ * - Villager POI caching to reduce repeated lookups
+ * - Distance-based entity spread ticking
+ * - Chunk random tick position caching
+ */
+public class Yasui extends JavaPlugin {
+    private YasuiConfig config;
+    private HopperOptimizer hopperOptimizer;
+    private VillagerPOICache villagerCache;
+    private EntitySpreadTicker entitySpread;
+    private ChunkTickCache chunkCache;
 
     @Override
     public void onEnable() {
-        INSTANCE = this;
-        hasNU = getServer().getPluginManager().isPluginEnabled("NyaaUtils");
-        config = new Configuration(this);
-        config.load();
-        i18n = new I18n(this, this.config.language);
-        i18n.load();
-        commandHandler = new CommandHandler(this, this.i18n);
-        getCommand("yasui").setExecutor(commandHandler);
-        getCommand("yasui").setTabCompleter(commandHandler);
-        tpsMonitor = new TPSMonitor(this);
-        entityListener = new EntityListener(this);
-        worldListener = new WorldListener(this);
-        if (config.profiler_listen_event) {
-            profilerStatsMonitor = new ProfilerStatsMonitor(this);
-            profilerStatsMonitor.run();
-            profilerListener = new ProfilerListener(this);
+        // Save default config if not exists
+        saveDefaultConfig();
+
+        // Load configuration
+        config = new YasuiConfig(this);
+
+        // Initialize optimizers
+        if (config.isHopperEnabled()) {
+            hopperOptimizer = new HopperOptimizer(this, config);
+            getServer().getPluginManager().registerEvents(hopperOptimizer, this);
+            hopperOptimizer.start();
+            getLogger().info("Hopper optimizer enabled");
         }
-        redstoneListener = new RedstoneListener(this);
+
+        if (config.isVillagerPOIEnabled()) {
+            villagerCache = new VillagerPOICache(this, config);
+            getServer().getPluginManager().registerEvents(villagerCache, this);
+            villagerCache.initialize();
+            getLogger().info("Villager POI cache enabled");
+        }
+
+        if (config.isEntitySpreadEnabled()) {
+            entitySpread = new EntitySpreadTicker(this, config);
+            entitySpread.start();
+            getLogger().info("Entity spread ticker enabled");
+        }
+
+        if (config.isChunkCacheEnabled()) {
+            chunkCache = new ChunkTickCache(this, config);
+            getServer().getPluginManager().registerEvents(chunkCache, this);
+            chunkCache.initialize();
+            getLogger().info("Chunk tick cache enabled");
+        }
+
+        // Register command
+        getCommand("yasui").setExecutor(new YasuiCommand(this));
+
+        getLogger().info("Yasui optimization plugin loaded successfully!");
     }
 
     @Override
     public void onDisable() {
-        disable(true);
-    }
-
-    public void disable(boolean saveConfig) {
-        getServer().getScheduler().cancelTasks(this);
-        getCommand("yasui").setExecutor(null);
-        getCommand("yasui").setTabCompleter(null);
-        HandlerList.unregisterAll(this);
-        ChunkTask.taskMap.clear();
-        RegionTask.taskMap.clear();
-        if (saveConfig) {
-            config.save();
+        // Shutdown optimizers gracefully
+        if (hopperOptimizer != null) {
+            hopperOptimizer.shutdown();
         }
+
+        if (entitySpread != null) {
+            entitySpread.shutdown();
+        }
+
+        if (villagerCache != null) {
+            villagerCache.clearAll();
+        }
+
+        if (chunkCache != null) {
+            chunkCache.clearAll();
+        }
+
+        getLogger().info("Yasui optimization plugin disabled");
     }
 
-    public void reload() {
-        disable(false);
-        onEnable();
+    public YasuiConfig getYasuiConfig() {
+        return config;
+    }
+
+    public HopperOptimizer getHopperOptimizer() {
+        return hopperOptimizer;
+    }
+
+    public VillagerPOICache getVillagerCache() {
+        return villagerCache;
+    }
+
+    public EntitySpreadTicker getEntitySpread() {
+        return entitySpread;
+    }
+
+    public ChunkTickCache getChunkCache() {
+        return chunkCache;
     }
 }

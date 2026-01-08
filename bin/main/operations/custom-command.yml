@@ -1,0 +1,4 @@
+# Execute command on engage or release.
+command_executor:
+  engage: 'essentials:killall entities all'
+  release: '' # empty string will not do anything

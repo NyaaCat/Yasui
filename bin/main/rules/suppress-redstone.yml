@@ -1,0 +1,13 @@
+enabled: false
+operations: 
+- 'suppress-redstone'
+worlds:
+- world
+- world_nether
+- world_the_end
+engage:
+  condition: tps_5m < 15.0
+  message: '&b[YASUI] &f[{world_name}] &c[ENGAGED] &6Redstone Suppressed'
+release:
+  condition: tps_5m > 19.0
+  message: '&b[YASUI] &f[{world_name}] &a[RELEASED] &6Redstone Recovered'

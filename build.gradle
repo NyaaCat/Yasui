@@ -1,11 +1,11 @@
 apply plugin: "java-library"
 apply plugin: "maven-publish"
 
-ext.majorVersion = 6
-ext.minorVersion = 4
-ext.minecraftVersion = "1.14.1"
-sourceCompatibility = 1.8
-targetCompatibility = 1.8
+ext.majorVersion = 7
+ext.minorVersion = 0
+ext.minecraftVersion = "1.21.8"
+sourceCompatibility = 21
+targetCompatibility = 21
 
 // Suppiled by Jenkins
 ext.buildNumber = System.env.BUILD_NUMBER == null ? "x"                : "$System.env.BUILD_NUMBER"
@@ -17,44 +17,19 @@ archivesBaseName = "Yasui-mc$minecraftVersion"
 version = "$majorVersion.$minorVersion.$buildNumber"
 
 repositories {
-    jcenter()
-    maven { name 'Spigot';      url 'https://hub.spigotmc.org/nexus/content/repositories/snapshots/' }
-    maven { name 'Sonatype';    url 'https://oss.sonatype.org/content/groups/public' }
-    maven { name 'NyaaCat';     url 'https://ci.nyaacat.com/maven/' }
+    mavenCentral()
+    maven { name 'PaperMC'; url 'https://repo.papermc.io/repository/maven-public/' }
 }
 
 
 dependencies {
-    // spigot
-    compileOnly "org.spigotmc:spigot-api:$minecraftVersion-R0.1-SNAPSHOT"
-
-    // other nyaa plugins
-    if (gradle.hasProperty("useLocalDependencies") && gradle.useLocalDependencies) {
-        compileOnly project(":NyaaCore")
-        compileOnly project(":NyaaUtils")
-    } else {
-        compileOnly('cat.nyaa:nyaacore:6.4-SNAPSHOT')
-        compileOnly('cat.nyaa:nyaautils:6.4-SNAPSHOT')
-    }
-
-    // 3rd party plugins
-    //compileOnly 'com.udojava:EvalEx:2.1' // NyaaCore shadows this
-
-    // annotation processor
-    compileOnly 'org.librazy:NyaaUtilsLangChecker:2.0-SNAPSHOT'
-    annotationProcessor 'org.librazy:NyaaUtilsLangChecker:2.0-SNAPSHOT'
-    annotationProcessor "org.spigotmc:spigot-api:$minecraftVersion-R0.1-SNAPSHOT"
+    // Paper API
+    compileOnly "io.papermc.paper:paper-api:$minecraftVersion-R0.1-SNAPSHOT"
 }
 
-// TODO: langcheck temporarily disabled
-// String nyaaCoreLangDir = System.getenv("NYAACORE_LANG_DIR")
-// compileJava {
-//     options.compilerArgs += ["-Xplugin:NyaaUtilsLangAnnotationProcessor", "-Xlint:deprecation"]
-//     if (nyaaCoreLangDir != null) {
-//         options.compilerArgs += ["-ALANG_DIR_ADDITIONAL_PATH=" + nyaaCoreLangDir]
-//     }
-// }
-
+compileJava {
+    options.compilerArgs += ["-Xlint:deprecation"]
+}
 
 // publications
 task sourcesJar(type: Jar) {
