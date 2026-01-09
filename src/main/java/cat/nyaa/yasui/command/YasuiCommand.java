@@ -1,7 +1,9 @@
 package cat.nyaa.yasui.command;
 
 import cat.nyaa.yasui.Yasui;
+import cat.nyaa.yasui.optimizer.EntityHotspotOptimizer;
 import cat.nyaa.yasui.optimizer.EntitySpreadTicker;
+import cat.nyaa.yasui.optimizer.HopperOptimizer;
 import cat.nyaa.yasui.optimizer.VillagerPOICache;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
@@ -54,11 +56,16 @@ public class YasuiCommand implements CommandExecutor, TabCompleter {
 
         // Hopper optimizer
         if (plugin.getHopperOptimizer() != null) {
+            HopperOptimizer.RollingStats rollingStats = plugin.getHopperOptimizer().getRollingStats();
             int activeHoppers = plugin.getHopperOptimizer().getActiveHopperCount();
             int cacheSize = plugin.getHopperOptimizer().getCacheSize();
             sender.sendMessage("§aHopper Optimizer: §fEnabled");
             sender.sendMessage("  §7Active Hoppers: §f" + activeHoppers);
             sender.sendMessage("  §7Cache Size: §f" + cacheSize);
+            sender.sendMessage("  §7Cache Hits/Misses (1h): §f" + rollingStats.cacheHits() + "§7/§f" + rollingStats.cacheMisses());
+            sender.sendMessage("  §7Transfers Canceled (1h): §f" + rollingStats.transferCancelled());
+            sender.sendMessage("  §7Pickups Canceled (1h): §f" + rollingStats.pickupCancelled());
+            sender.sendMessage("  §7Cache Updates (1h): §f" + rollingStats.cacheUpdates());
         } else {
             sender.sendMessage("§cHopper Optimizer: §fDisabled");
         }
@@ -66,12 +73,17 @@ public class YasuiCommand implements CommandExecutor, TabCompleter {
         // Villager POI cache
         if (plugin.getVillagerCache() != null) {
             int cacheSize = plugin.getVillagerCache().getCacheSize();
-            VillagerPOICache.RestoreStats restoreStats = plugin.getVillagerCache().getRestoreStats();
             VillagerPOICache.RollingRestoreStats rollingStats = plugin.getVillagerCache().getRollingRestoreStats();
+            VillagerPOICache.RollingSearchStats searchStats = plugin.getVillagerCache().getRollingSearchStats();
+            VillagerPOICache.CacheStats cacheStats = plugin.getVillagerCache().getCacheStats();
             sender.sendMessage("§aVillager POI Cache: §fEnabled");
             sender.sendMessage("  §7Cached POIs: §f" + cacheSize);
-            sender.sendMessage("  §7Job Site Restores: §f" + restoreStats.applied() + "§7/§f" + restoreStats.attempts());
             sender.sendMessage("  §7Job Site Restores (1h): §f" + rollingStats.applied() + "§7/§f" + rollingStats.attempts());
+            sender.sendMessage("  §7Restore Candidates (1h): §f" + rollingStats.candidates());
+            sender.sendMessage("  §7Hooked Brains: §f" + cacheStats.hookedBrains());
+            sender.sendMessage("  §7POI Search Cache: §f" + cacheStats.searchCacheSize());
+            sender.sendMessage("  §7POI Search Hits/Misses (1h): §f" + searchStats.hits() + "§7/§f" + searchStats.misses());
+            sender.sendMessage("  §7Behavior Throttled: §f" + cacheStats.throttledBrains());
         } else {
             sender.sendMessage("§cVillager POI Cache: §fDisabled");
         }
@@ -85,6 +97,18 @@ public class YasuiCommand implements CommandExecutor, TabCompleter {
             sender.sendMessage("  §7Tracked Entities: §f" + stats.trackedEntities());
         } else {
             sender.sendMessage("§cEntity Distance Cache: §fDisabled");
+        }
+
+        if (plugin.getEntityHotspotOptimizer() != null) {
+            EntityHotspotOptimizer.Stats stats = plugin.getEntityHotspotOptimizer().getStats();
+            sender.sendMessage("§aEntity Hotspot Optimizer: §fEnabled");
+            sender.sendMessage("  §7Suppressed Collisions: §f" + stats.suppressedEntities());
+            sender.sendMessage("  §7Time-Sliced Collisions: §f" + stats.timeSlicedEntities());
+            sender.sendMessage("  §7Pathfinding Budgeted: §f" + stats.pathBudgetedEntities());
+            sender.sendMessage("  §7Goals Throttled: §f" + stats.goalThrottledEntities());
+            sender.sendMessage("  §7Goals Wrapped: §f" + stats.wrappedGoals());
+        } else {
+            sender.sendMessage("§cEntity Hotspot Optimizer: §fDisabled");
         }
     }
 
@@ -106,6 +130,7 @@ public class YasuiCommand implements CommandExecutor, TabCompleter {
         sender.sendMessage("  §7- Hopper caching with periodic pre-computation");
         sender.sendMessage("  §7- Villager POI lookup caching");
         sender.sendMessage("  §7- Distance cache for gating expensive optimizations");
+        sender.sendMessage("  §7- Hotspot collision/AI budgeting (off-screen, configurable)");
         sender.sendMessage("");
         sender.sendMessage("§fGoal: §7Reduce server tick time while preserving vanilla behavior");
         sender.sendMessage("§fCommands: §e/yasui status §7| §e/yasui reload §7| §e/yasui info");

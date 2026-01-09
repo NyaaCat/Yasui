@@ -10,11 +10,13 @@ import net.minecraft.world.WorldlyContainer;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.HopperBlock;
 import net.minecraft.world.level.block.entity.HopperBlockEntity;
+import net.minecraft.world.level.chunk.ChunkAccess;
+import net.minecraft.world.level.chunk.status.ChunkStatus;
 import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.Chunk;
 import org.bukkit.block.Block;
-import org.bukkit.block.BlockState;
-import org.bukkit.block.Hopper;
+import org.bukkit.craftbukkit.CraftChunk;
 import org.bukkit.craftbukkit.CraftWorld;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -47,6 +49,14 @@ public class HopperOptimizer implements Listener {
     private final YasuiConfig config;
     private final Set<Location> activeHoppers = ConcurrentHashMap.newKeySet();
     private final Map<Location, HopperCache> cache = new ConcurrentHashMap<>();
+    private final long[] rollingCacheHits = new long[60];
+    private final long[] rollingCacheMisses = new long[60];
+    private final long[] rollingTransferCancelled = new long[60];
+    private final long[] rollingPickupCancelled = new long[60];
+    private final long[] rollingCacheUpdates = new long[60];
+    private int rollingIndex = 0;
+    private long rollingBucketStart = alignToMinute(System.currentTimeMillis());
+    private static final long ROLLING_BUCKET_MS = 60 * 1000L;
     private BukkitTask scanTask;
     private final List<Location> scanSnapshot = new ArrayList<>();
     private int scanIndex = 0;
@@ -62,6 +72,7 @@ public class HopperOptimizer implements Listener {
      * Cache record for hopper state
      */
     public record HopperCache(boolean targetFull, boolean sourceFull, long timestamp) {}
+    public record RollingStats(long cacheHits, long cacheMisses, long transferCancelled, long pickupCancelled, long cacheUpdates) {}
 
     /**
      * Start the periodic scanning task
@@ -121,7 +132,9 @@ public class HopperOptimizer implements Listener {
             boolean targetFull = target != null && isContainerFull(target, facing.getOpposite());
 
             // Cache the results
-            cache.put(loc, new HopperCache(targetFull, sourceFull, System.currentTimeMillis()));
+            long now = System.currentTimeMillis();
+            cache.put(loc, new HopperCache(targetFull, sourceFull, now));
+            recordCacheUpdate(now);
 
         } catch (Exception e) {
             // Handle world unload or chunk unload gracefully
@@ -139,6 +152,7 @@ public class HopperOptimizer implements Listener {
         }
         activeHoppers.clear();
         cache.clear();
+        clearRollingBuckets();
     }
 
     /**
@@ -196,6 +210,7 @@ public class HopperOptimizer implements Listener {
             HopperCache cached = getCachedState(sourceLoc);
             if (cached != null && cached.targetFull()) {
                 event.setCancelled(true);
+                recordTransferCancelled(System.currentTimeMillis());
                 return;
             }
         }
@@ -204,6 +219,7 @@ public class HopperOptimizer implements Listener {
             HopperCache destCache = getCachedState(destLoc);
             if (destCache != null && destCache.sourceFull()) {
                 event.setCancelled(true);
+                recordTransferCancelled(System.currentTimeMillis());
             }
         }
     }
@@ -216,7 +232,7 @@ public class HopperOptimizer implements Listener {
     public void onHopperPickupOptimization(InventoryPickupItemEvent event) {
         // Lightweight check: Use getLocation() instead of getHolder()
         Location loc = event.getInventory().getLocation();
-        if (loc == null) {
+        if (loc == null || loc.getBlock().getType() != Material.HOPPER) {
             return;
         }
 
@@ -224,6 +240,7 @@ public class HopperOptimizer implements Listener {
         HopperCache cached = getCachedState(loc);
         if (cached != null && cached.sourceFull()) {
             event.setCancelled(true);
+            recordPickupCancelled(System.currentTimeMillis());
         }
     }
 
@@ -277,11 +294,7 @@ public class HopperOptimizer implements Listener {
      */
     @EventHandler(priority = EventPriority.MONITOR)
     public void onChunkLoad(ChunkLoadEvent event) {
-        for (BlockState state : event.getChunk().getTileEntities()) {
-            if (state instanceof Hopper hopper) {
-                activeHoppers.add(hopper.getLocation());
-            }
-        }
+        trackChunkHoppers(event.getChunk(), true);
     }
 
     /**
@@ -289,9 +302,20 @@ public class HopperOptimizer implements Listener {
      */
     @EventHandler(priority = EventPriority.MONITOR)
     public void onChunkUnload(ChunkUnloadEvent event) {
-        for (BlockState state : event.getChunk().getTileEntities()) {
-            if (state instanceof Hopper hopper) {
-                Location loc = hopper.getLocation();
+        trackChunkHoppers(event.getChunk(), false);
+    }
+
+    private void trackChunkHoppers(Chunk chunk, boolean add) {
+        ChunkAccess handle = ((CraftChunk) chunk).getHandle(ChunkStatus.FULL);
+        for (var entry : handle.blockEntities.values()) {
+            if (!(entry instanceof HopperBlockEntity hopper)) {
+                continue;
+            }
+            BlockPos pos = hopper.getBlockPos();
+            Location loc = new Location(chunk.getWorld(), pos.getX(), pos.getY(), pos.getZ());
+            if (add) {
+                activeHoppers.add(loc);
+            } else {
                 activeHoppers.remove(loc);
                 cache.remove(loc);
             }
@@ -307,15 +331,18 @@ public class HopperOptimizer implements Listener {
     public HopperCache getCachedState(Location location) {
         HopperCache cached = cache.get(location);
         if (cached == null) {
+            recordCacheMiss(System.currentTimeMillis());
             return null;
         }
 
         long now = System.currentTimeMillis();
         if (now - cached.timestamp() > config.getHopperCacheTTL()) {
             cache.remove(location);
+            recordCacheMiss(now);
             return null;
         }
 
+        recordCacheHit(now);
         return cached;
     }
 
@@ -395,5 +422,82 @@ public class HopperOptimizer implements Listener {
      */
     public int getCacheSize() {
         return cache.size();
+    }
+
+    public RollingStats getRollingStats() {
+        updateRollingBuckets(System.currentTimeMillis());
+        return new RollingStats(
+            sumRolling(rollingCacheHits),
+            sumRolling(rollingCacheMisses),
+            sumRolling(rollingTransferCancelled),
+            sumRolling(rollingPickupCancelled),
+            sumRolling(rollingCacheUpdates)
+        );
+    }
+
+    private void recordCacheHit(long now) {
+        updateRollingBuckets(now);
+        rollingCacheHits[rollingIndex]++;
+    }
+
+    private void recordCacheMiss(long now) {
+        updateRollingBuckets(now);
+        rollingCacheMisses[rollingIndex]++;
+    }
+
+    private void recordTransferCancelled(long now) {
+        updateRollingBuckets(now);
+        rollingTransferCancelled[rollingIndex]++;
+    }
+
+    private void recordPickupCancelled(long now) {
+        updateRollingBuckets(now);
+        rollingPickupCancelled[rollingIndex]++;
+    }
+
+    private void recordCacheUpdate(long now) {
+        updateRollingBuckets(now);
+        rollingCacheUpdates[rollingIndex]++;
+    }
+
+    private void updateRollingBuckets(long now) {
+        long elapsed = now - rollingBucketStart;
+        if (elapsed < ROLLING_BUCKET_MS) {
+            return;
+        }
+        int steps = (int) Math.min(rollingCacheHits.length, elapsed / ROLLING_BUCKET_MS);
+        for (int i = 0; i < steps; i++) {
+            rollingIndex = (rollingIndex + 1) % rollingCacheHits.length;
+            rollingCacheHits[rollingIndex] = 0;
+            rollingCacheMisses[rollingIndex] = 0;
+            rollingTransferCancelled[rollingIndex] = 0;
+            rollingPickupCancelled[rollingIndex] = 0;
+            rollingCacheUpdates[rollingIndex] = 0;
+        }
+        rollingBucketStart += (long) steps * ROLLING_BUCKET_MS;
+    }
+
+    private void clearRollingBuckets() {
+        for (int i = 0; i < rollingCacheHits.length; i++) {
+            rollingCacheHits[i] = 0;
+            rollingCacheMisses[i] = 0;
+            rollingTransferCancelled[i] = 0;
+            rollingPickupCancelled[i] = 0;
+            rollingCacheUpdates[i] = 0;
+        }
+        rollingIndex = 0;
+        rollingBucketStart = alignToMinute(System.currentTimeMillis());
+    }
+
+    private long sumRolling(long[] buckets) {
+        long total = 0;
+        for (long bucket : buckets) {
+            total += bucket;
+        }
+        return total;
+    }
+
+    private static long alignToMinute(long now) {
+        return (now / ROLLING_BUCKET_MS) * ROLLING_BUCKET_MS;
     }
 }

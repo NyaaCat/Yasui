@@ -2,6 +2,7 @@ package cat.nyaa.yasui;
 
 import cat.nyaa.yasui.command.YasuiCommand;
 import cat.nyaa.yasui.optimizer.HopperOptimizer;
+import cat.nyaa.yasui.optimizer.EntityHotspotOptimizer;
 import cat.nyaa.yasui.optimizer.VillagerPOICache;
 import cat.nyaa.yasui.optimizer.EntitySpreadTicker;
 import org.bukkit.event.HandlerList;
@@ -20,6 +21,7 @@ public class Yasui extends JavaPlugin {
     private HopperOptimizer hopperOptimizer;
     private VillagerPOICache villagerCache;
     private EntitySpreadTicker entitySpread;
+    private EntityHotspotOptimizer entityHotspotOptimizer;
 
     @Override
     public void onEnable() {
@@ -51,6 +53,13 @@ public class Yasui extends JavaPlugin {
             getLogger().info("Entity distance cache enabled (no tick freezing)");
         }
 
+        if (config.isEntityHotspotEnabled()) {
+            entityHotspotOptimizer = new EntityHotspotOptimizer(this, config);
+            getServer().getPluginManager().registerEvents(entityHotspotOptimizer, this);
+            entityHotspotOptimizer.start();
+            getLogger().info("Entity hotspot optimizer enabled");
+        }
+
         // Register command
         getCommand("yasui").setExecutor(new YasuiCommand(this));
 
@@ -68,6 +77,11 @@ public class Yasui extends JavaPlugin {
         if (entitySpread != null) {
             HandlerList.unregisterAll(entitySpread);
             entitySpread.shutdown();
+        }
+
+        if (entityHotspotOptimizer != null) {
+            HandlerList.unregisterAll(entityHotspotOptimizer);
+            entityHotspotOptimizer.shutdown();
         }
 
         if (villagerCache != null) {
@@ -135,6 +149,20 @@ public class Yasui extends JavaPlugin {
             getLogger().info("Entity distance cache disabled");
         }
 
+        if (entityHotspotOptimizer != null) {
+            HandlerList.unregisterAll(entityHotspotOptimizer);
+            entityHotspotOptimizer.shutdown();
+            entityHotspotOptimizer = null;
+        }
+        if (config.isEntityHotspotEnabled()) {
+            entityHotspotOptimizer = new EntityHotspotOptimizer(this, config);
+            getServer().getPluginManager().registerEvents(entityHotspotOptimizer, this);
+            entityHotspotOptimizer.start();
+            getLogger().info("Entity hotspot optimizer reloaded");
+        } else {
+            getLogger().info("Entity hotspot optimizer disabled");
+        }
+
         getLogger().info("Configuration reload complete!");
     }
 
@@ -152,5 +180,9 @@ public class Yasui extends JavaPlugin {
 
     public EntitySpreadTicker getEntitySpread() {
         return entitySpread;
+    }
+
+    public EntityHotspotOptimizer getEntityHotspotOptimizer() {
+        return entityHotspotOptimizer;
     }
 }

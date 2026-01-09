@@ -4,8 +4,11 @@ import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.entity.EntityType;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Configuration handler for Yasui plugin
@@ -23,13 +26,49 @@ public class YasuiConfig {
     private boolean villagerPOIEnabled;
     private boolean cachePOILookups;
     private List<POIRule> poiRules;
+    private boolean villagerBehaviorThrottleEnabled;
+    private boolean villagerBehaviorThrottleRequireDistant;
+    private int villagerBehaviorThrottleInterval;
+    private boolean villagerBehaviorThrottleOneShotOnly;
 
     // Entity distance cache settings
     private boolean entitySpreadEnabled;
     private int spreadScanInterval;
     private double nearDistance;
-    private int defaultSpreadInterval;
-    private List<SpreadRule> spreadRules;
+
+    // Entity hotspot optimizer settings
+    private boolean entityHotspotEnabled;
+    private int entityHotspotScanInterval;
+    private int entityHotspotThreshold;
+    private boolean entityHotspotRequireDistant;
+    private boolean entityHotspotOnlyPassive;
+    private boolean entityHotspotExcludeNamed;
+    private boolean entityHotspotExcludeLeashed;
+    private boolean entityHotspotExcludeTamed;
+    private boolean entityHotspotExcludeBaby;
+    private Set<EntityType> entityHotspotIncludeTypes;
+    private Set<EntityType> entityHotspotExcludeTypes;
+
+    private boolean collisionSuppressionEnabled;
+    private boolean collisionTimeSlicingEnabled;
+    private boolean collisionRequireHotspot;
+    private int collisionEntitiesPerCollidable;
+
+    private boolean pathfindingBudgetEnabled;
+    private boolean pathfindingRequireHotspot;
+    private float pathfindingMultiplier;
+
+    private boolean goalThrottleEnabled;
+    private boolean goalThrottleRequireHotspot;
+    private boolean goalThrottleStaggerEnabled;
+    private boolean goalThrottleIdleBackoffEnabled;
+    private int goalThrottleIdleBackoffThreshold;
+    private int goalThrottleIdleBackoffStep;
+    private int goalThrottleIdleBackoffMaxCanUseInterval;
+    private int goalThrottleIdleBackoffMaxTickInterval;
+    private int goalThrottleDefaultCanUseInterval;
+    private int goalThrottleDefaultTickInterval;
+    private List<GoalThrottleRule> goalThrottleRules;
 
     public YasuiConfig(Yasui plugin) {
         this.plugin = plugin;
@@ -46,12 +85,47 @@ public class YasuiConfig {
         villagerPOIEnabled = true;
         cachePOILookups = true;
         poiRules = new ArrayList<>();
+        villagerBehaviorThrottleEnabled = true;
+        villagerBehaviorThrottleRequireDistant = true;
+        villagerBehaviorThrottleInterval = 40;
+        villagerBehaviorThrottleOneShotOnly = true;
 
         entitySpreadEnabled = true;
         spreadScanInterval = 100;
         nearDistance = 32.0;
-        defaultSpreadInterval = 2;
-        spreadRules = new ArrayList<>();
+
+        entityHotspotEnabled = true;
+        entityHotspotScanInterval = 40;
+        entityHotspotThreshold = 24;
+        entityHotspotRequireDistant = true;
+        entityHotspotOnlyPassive = true;
+        entityHotspotExcludeNamed = true;
+        entityHotspotExcludeLeashed = true;
+        entityHotspotExcludeTamed = true;
+        entityHotspotExcludeBaby = false;
+        entityHotspotIncludeTypes = new HashSet<>();
+        entityHotspotExcludeTypes = new HashSet<>();
+
+        collisionSuppressionEnabled = true;
+        collisionTimeSlicingEnabled = true;
+        collisionRequireHotspot = true;
+        collisionEntitiesPerCollidable = 12;
+
+        pathfindingBudgetEnabled = true;
+        pathfindingRequireHotspot = true;
+        pathfindingMultiplier = 0.6f;
+
+        goalThrottleEnabled = true;
+        goalThrottleRequireHotspot = true;
+        goalThrottleStaggerEnabled = true;
+        goalThrottleIdleBackoffEnabled = true;
+        goalThrottleIdleBackoffThreshold = 60;
+        goalThrottleIdleBackoffStep = 40;
+        goalThrottleIdleBackoffMaxCanUseInterval = 200;
+        goalThrottleIdleBackoffMaxTickInterval = 20;
+        goalThrottleDefaultCanUseInterval = 20;
+        goalThrottleDefaultTickInterval = 2;
+        goalThrottleRules = defaultGoalThrottleRules();
 
         // Hopper optimization
         ConfigurationSection hopperSection = plugin.getConfig().getConfigurationSection("optimizations.hopper");
@@ -83,6 +157,14 @@ public class YasuiConfig {
                     }
                 }
             }
+
+            ConfigurationSection behaviorSection = poiSection.getConfigurationSection("behavior-throttle");
+            if (behaviorSection != null) {
+                villagerBehaviorThrottleEnabled = behaviorSection.getBoolean("enabled", true);
+                villagerBehaviorThrottleRequireDistant = behaviorSection.getBoolean("require-distant", true);
+                villagerBehaviorThrottleInterval = Math.max(1, behaviorSection.getInt("interval", 40));
+                villagerBehaviorThrottleOneShotOnly = behaviorSection.getBoolean("one-shot-only", true);
+            }
         }
 
         // Entity distance cache
@@ -91,20 +173,53 @@ public class YasuiConfig {
             entitySpreadEnabled = spreadSection.getBoolean("enabled", true);
             spreadScanInterval = spreadSection.getInt("scan-interval", 100);
             nearDistance = spreadSection.getDouble("near-distance", 32.0);
-            defaultSpreadInterval = spreadSection.getInt("default-interval", 2);
+        }
 
-            spreadRules = new ArrayList<>();
-            List<Map<?, ?>> rulesRaw = spreadSection.getMapList("rules");
-            if (rulesRaw != null) {
-                for (Map<?, ?> ruleMap : rulesRaw) {
-                    try {
-                        EntityType type = EntityType.valueOf(readString(ruleMap, "type", "VILLAGER"));
-                        boolean named = readBoolean(ruleMap, "named", false);
-                        int interval = Math.max(1, readInt(ruleMap, "spread-interval", 1));
-                        spreadRules.add(new SpreadRule(type, named, interval));
-                    } catch (IllegalArgumentException e) {
-                        plugin.getLogger().warning("Invalid entity type in spread rule: " + ruleMap.get("type"));
-                    }
+        ConfigurationSection hotspotSection = plugin.getConfig().getConfigurationSection("optimizations.entity-optimizer");
+        if (hotspotSection != null) {
+            entityHotspotEnabled = hotspotSection.getBoolean("enabled", true);
+            entityHotspotScanInterval = Math.max(5, hotspotSection.getInt("scan-interval", 40));
+            entityHotspotThreshold = Math.max(1, hotspotSection.getInt("hotspot-threshold", 24));
+            entityHotspotRequireDistant = hotspotSection.getBoolean("require-distant", true);
+
+            ConfigurationSection filterSection = hotspotSection.getConfigurationSection("filters");
+            if (filterSection != null) {
+                entityHotspotOnlyPassive = filterSection.getBoolean("only-passive", true);
+                entityHotspotExcludeNamed = filterSection.getBoolean("exclude-named", true);
+                entityHotspotExcludeLeashed = filterSection.getBoolean("exclude-leashed", true);
+                entityHotspotExcludeTamed = filterSection.getBoolean("exclude-tamed", true);
+                entityHotspotExcludeBaby = filterSection.getBoolean("exclude-babies", false);
+                entityHotspotIncludeTypes = readEntityTypeSet(filterSection.getStringList("include-types"));
+                entityHotspotExcludeTypes = readEntityTypeSet(filterSection.getStringList("exclude-types"));
+            }
+
+            ConfigurationSection collisionSection = hotspotSection.getConfigurationSection("collision");
+            if (collisionSection != null) {
+                collisionSuppressionEnabled = collisionSection.getBoolean("suppression-enabled", true);
+                collisionTimeSlicingEnabled = collisionSection.getBoolean("time-slicing-enabled", true);
+                collisionRequireHotspot = collisionSection.getBoolean("require-hotspot", true);
+                collisionEntitiesPerCollidable = Math.max(1, collisionSection.getInt("entities-per-collidable", 12));
+            }
+
+            ConfigurationSection aiSection = hotspotSection.getConfigurationSection("ai");
+            if (aiSection != null) {
+                pathfindingBudgetEnabled = aiSection.getBoolean("pathfinding-budget-enabled", true);
+                pathfindingRequireHotspot = aiSection.getBoolean("pathfinding-require-hotspot", true);
+                pathfindingMultiplier = (float) Math.max(0.1, Math.min(1.0, aiSection.getDouble("pathfinding-multiplier", 0.6)));
+
+                goalThrottleEnabled = aiSection.getBoolean("goal-throttle-enabled", true);
+                goalThrottleRequireHotspot = aiSection.getBoolean("goal-throttle-require-hotspot", true);
+                goalThrottleStaggerEnabled = aiSection.getBoolean("goal-throttle-stagger-enabled", true);
+                goalThrottleIdleBackoffEnabled = aiSection.getBoolean("goal-throttle-idle-backoff-enabled", true);
+                goalThrottleIdleBackoffThreshold = Math.max(0, aiSection.getInt("goal-throttle-idle-backoff-threshold", 60));
+                goalThrottleIdleBackoffStep = Math.max(1, aiSection.getInt("goal-throttle-idle-backoff-step", 40));
+                goalThrottleIdleBackoffMaxCanUseInterval = Math.max(1, aiSection.getInt("goal-throttle-idle-backoff-max-can-use-interval", 200));
+                goalThrottleIdleBackoffMaxTickInterval = Math.max(1, aiSection.getInt("goal-throttle-idle-backoff-max-tick-interval", 20));
+                goalThrottleDefaultCanUseInterval = Math.max(1, aiSection.getInt("goal-throttle-default-can-use-interval", 20));
+                goalThrottleDefaultTickInterval = Math.max(1, aiSection.getInt("goal-throttle-default-tick-interval", 2));
+                goalThrottleRules = readGoalThrottleRules(aiSection.getMapList("goal-throttle-goals"));
+                if (goalThrottleRules.isEmpty()) {
+                    goalThrottleRules = defaultGoalThrottleRules();
                 }
             }
         }
@@ -149,6 +264,22 @@ public class YasuiConfig {
         return type == EntityType.VILLAGER;
     }
 
+    public boolean isVillagerBehaviorThrottleEnabled() {
+        return villagerBehaviorThrottleEnabled;
+    }
+
+    public boolean isVillagerBehaviorThrottleRequireDistant() {
+        return villagerBehaviorThrottleRequireDistant;
+    }
+
+    public int getVillagerBehaviorThrottleInterval() {
+        return villagerBehaviorThrottleInterval;
+    }
+
+    public boolean isVillagerBehaviorThrottleOneShotOnly() {
+        return villagerBehaviorThrottleOneShotOnly;
+    }
+
     // Entity distance cache getters
     public boolean isEntitySpreadEnabled() {
         return entitySpreadEnabled;
@@ -162,15 +293,142 @@ public class YasuiConfig {
         return nearDistance;
     }
 
-    public int getSpreadInterval(EntityType type, boolean hasName) {
-        if (spreadRules != null) {
-            for (SpreadRule rule : spreadRules) {
-                if (rule.type() == type && rule.named() == hasName) {
-                    return Math.max(1, rule.interval());
-                }
+    // Entity hotspot optimizer getters
+    public boolean isEntityHotspotEnabled() {
+        return entityHotspotEnabled;
+    }
+
+    public int getEntityHotspotScanInterval() {
+        return entityHotspotScanInterval;
+    }
+
+    public int getEntityHotspotThreshold() {
+        return entityHotspotThreshold;
+    }
+
+    public boolean isEntityHotspotRequireDistant() {
+        return entityHotspotRequireDistant;
+    }
+
+    public boolean isEntityHotspotOnlyPassive() {
+        return entityHotspotOnlyPassive;
+    }
+
+    public boolean isEntityHotspotExcludeNamed() {
+        return entityHotspotExcludeNamed;
+    }
+
+    public boolean isEntityHotspotExcludeLeashed() {
+        return entityHotspotExcludeLeashed;
+    }
+
+    public boolean isEntityHotspotExcludeTamed() {
+        return entityHotspotExcludeTamed;
+    }
+
+    public boolean isEntityHotspotExcludeBaby() {
+        return entityHotspotExcludeBaby;
+    }
+
+    public Set<EntityType> getEntityHotspotIncludeTypes() {
+        return entityHotspotIncludeTypes;
+    }
+
+    public Set<EntityType> getEntityHotspotExcludeTypes() {
+        return entityHotspotExcludeTypes;
+    }
+
+    public double getEntityHotspotNearDistanceSquared() {
+        return nearDistance * nearDistance;
+    }
+
+    public boolean isCollisionSuppressionEnabled() {
+        return collisionSuppressionEnabled;
+    }
+
+    public boolean isCollisionTimeSlicingEnabled() {
+        return collisionTimeSlicingEnabled;
+    }
+
+    public boolean isCollisionRequireHotspot() {
+        return collisionRequireHotspot;
+    }
+
+    public int getCollisionEntitiesPerCollidable() {
+        return collisionEntitiesPerCollidable;
+    }
+
+    public boolean isPathfindingBudgetEnabled() {
+        return pathfindingBudgetEnabled;
+    }
+
+    public boolean isPathfindingRequireHotspot() {
+        return pathfindingRequireHotspot;
+    }
+
+    public float getPathfindingMultiplier() {
+        return pathfindingMultiplier;
+    }
+
+    public boolean isGoalThrottleEnabled() {
+        return goalThrottleEnabled;
+    }
+
+    public boolean isGoalThrottleRequireHotspot() {
+        return goalThrottleRequireHotspot;
+    }
+
+    public boolean isGoalThrottleStaggerEnabled() {
+        return goalThrottleStaggerEnabled;
+    }
+
+    public boolean isGoalThrottleIdleBackoffEnabled() {
+        return goalThrottleIdleBackoffEnabled;
+    }
+
+    public int getGoalThrottleIdleBackoffThreshold() {
+        return goalThrottleIdleBackoffThreshold;
+    }
+
+    public int getGoalThrottleIdleBackoffStep() {
+        return goalThrottleIdleBackoffStep;
+    }
+
+    public int getGoalThrottleIdleBackoffMaxCanUseInterval() {
+        return goalThrottleIdleBackoffMaxCanUseInterval;
+    }
+
+    public int getGoalThrottleIdleBackoffMaxTickInterval() {
+        return goalThrottleIdleBackoffMaxTickInterval;
+    }
+
+    public GoalThrottleRule getGoalThrottleRule(String goalClassName) {
+        if (goalThrottleRules == null || goalThrottleRules.isEmpty()) {
+            return null;
+        }
+        String simple = goalClassName.substring(goalClassName.lastIndexOf('.') + 1);
+        GoalThrottleRule wildcard = null;
+        for (GoalThrottleRule rule : goalThrottleRules) {
+            if ("*".equals(rule.name())) {
+                wildcard = rule;
+                continue;
+            }
+            if (rule.name().equalsIgnoreCase(goalClassName) || rule.name().equalsIgnoreCase(simple)) {
+                return rule;
             }
         }
-        return Math.max(1, defaultSpreadInterval); // Default: use configured default interval
+        if (wildcard != null) {
+            return new GoalThrottleRule(simple, wildcard.canUseInterval(), wildcard.tickInterval());
+        }
+        return null;
+    }
+
+    public int getGoalThrottleDefaultCanUseInterval() {
+        return goalThrottleDefaultCanUseInterval;
+    }
+
+    public int getGoalThrottleDefaultTickInterval() {
+        return goalThrottleDefaultTickInterval;
     }
 
     // Configuration records
@@ -186,7 +444,7 @@ public class YasuiConfig {
         }
     }
 
-    public record SpreadRule(EntityType type, boolean named, int interval) {}
+    public record GoalThrottleRule(String name, int canUseInterval, int tickInterval) {}
 
     public enum DistanceOp {
         GT, GE, LT, LE, EQ
@@ -274,5 +532,56 @@ public class YasuiConfig {
             return value.toString();
         }
         return defaultValue;
+    }
+
+    private Set<EntityType> readEntityTypeSet(List<String> raw) {
+        Set<EntityType> result = new HashSet<>();
+        if (raw == null) {
+            return result;
+        }
+        for (String entry : raw) {
+            if (entry == null || entry.isBlank()) {
+                continue;
+            }
+            try {
+                result.add(EntityType.valueOf(entry.trim().toUpperCase(Locale.ROOT)));
+            } catch (IllegalArgumentException e) {
+                plugin.getLogger().warning("Invalid entity type in entity optimizer: " + entry);
+            }
+        }
+        return result;
+    }
+
+    private List<GoalThrottleRule> readGoalThrottleRules(List<Map<?, ?>> rawRules) {
+        List<GoalThrottleRule> rules = new ArrayList<>();
+        if (rawRules == null) {
+            return rules;
+        }
+        for (Map<?, ?> ruleMap : rawRules) {
+            String name = readString(ruleMap, "name", "").trim();
+            if (name.isEmpty()) {
+                continue;
+            }
+            int canUseInterval = Math.max(1, readInt(ruleMap, "can-use-interval", goalThrottleDefaultCanUseInterval));
+            int tickInterval = Math.max(1, readInt(ruleMap, "tick-interval", goalThrottleDefaultTickInterval));
+            rules.add(new GoalThrottleRule(name, canUseInterval, tickInterval));
+        }
+        return rules;
+    }
+
+    private List<GoalThrottleRule> defaultGoalThrottleRules() {
+        List<GoalThrottleRule> rules = new ArrayList<>();
+        rules.add(new GoalThrottleRule("MeleeAttackGoal", 20, 3));
+        rules.add(new GoalThrottleRule("NearestAttackableTargetGoal", 20, 2));
+        rules.add(new GoalThrottleRule("HurtByTargetGoal", 20, 2));
+        rules.add(new GoalThrottleRule("RandomStrollGoal", 20, 2));
+        rules.add(new GoalThrottleRule("WaterAvoidingRandomStrollGoal", 20, 2));
+        rules.add(new GoalThrottleRule("RandomSwimmingGoal", 20, 2));
+        rules.add(new GoalThrottleRule("MoveThroughVillageGoal", 40, 4));
+        rules.add(new GoalThrottleRule("RemoveBlockGoal", 40, 4));
+        rules.add(new GoalThrottleRule("BreakDoorGoal", 40, 4));
+        rules.add(new GoalThrottleRule("RandomLookAroundGoal", 20, 2));
+        rules.add(new GoalThrottleRule("LookAtPlayerGoal", 20, 2));
+        return rules;
     }
 }

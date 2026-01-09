@@ -107,19 +107,4 @@ public class NMSUtil {
         return sb.toString();
     }
 
-    /**
-     * Clear all cached handles (useful for reload)
-     */
-    public static void clearCache() {
-        methodHandleCache.clear();
-        fieldHandleCache.clear();
-    }
-
-    /**
-     * Functional interface for method hooks
-     */
-    @FunctionalInterface
-    public interface MethodHook {
-        Object invoke(MethodHandle original, Object... args) throws Throwable;
-    }
 }

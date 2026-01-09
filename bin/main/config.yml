@@ -9,14 +9,22 @@ optimizations:
     # Cache time-to-live in milliseconds
     cache-ttl: 1000
     # Max hoppers to scan per tick to avoid spikes
-    max-scan-per-tick: 200
-    # Max hoppers to scan per tick to avoid spikes
+    max-scan-per-tick: 50
 
   # Villager POI (Point of Interest) caching to reduce repeated lookups
   # All villagers are optimized by default for simplicity
   villager-poi:
     enabled: true
     cache-poi-lookups: true
+    # Throttle heavy villager brain behaviors (AcquirePoi/PoiCompetitorScan) for distant villagers
+    behavior-throttle:
+      enabled: true
+      # Only apply when villager is beyond entity-spread near-distance
+      require-distant: true
+      # Minimum ticks between OneShot behavior tryStart calls
+      interval: 40
+      # Only throttle OneShot behaviors (safe for movement)
+      one-shot-only: true
 
   # Entity distance cache - no tick freezing; used to gate expensive optimizations
   entity-spread:
@@ -25,12 +33,88 @@ optimizations:
     scan-interval: 100
     # Distance threshold in blocks - entities within this range tick normally
     near-distance: 32
-    # Legacy spread-interval rules are currently unused (tick freezing removed)
-    default-interval: 2
-    rules: []
 
-  # Chunk random tick position caching to reduce position recalculation
-  # DISABLED: Not implemented in this build; keep false to avoid overhead
-  chunk-cache:
-    enabled: false
-    cache-random-tick-positions: true
+  # Entity hotspot optimizer (collision + AI budgets)
+  entity-optimizer:
+    enabled: true
+    # Scan interval for hotspot detection (in ticks)
+    scan-interval: 40
+    # Minimum living entities in a chunk to treat it as a hotspot
+    hotspot-threshold: 24
+    # Only optimize entities beyond the entity-spread near-distance
+    require-distant: true
+    filters:
+      # Only apply to passive mobs by default
+      only-passive: false
+      # Skip named mobs (keep custom behavior intact)
+      exclude-named: false
+      # Skip leashed mobs (avoid visible tug glitches)
+      exclude-leashed: false
+      # Skip tamed mobs (avoid pet behavior changes)
+      exclude-tamed: false
+      # Skip babies (avoid breeding/farm edge cases)
+      exclude-babies: false
+      # Optional allow/deny lists (uppercase EntityType names)
+      include-types: []
+      exclude-types: []
+    collision:
+      # Off-screen collision suppression for hotspots
+      suppression-enabled: false
+      # Time-slice collisions across ticks to avoid spikes
+      time-slicing-enabled: true
+      # Only apply collision optimizations in hotspot chunks
+      require-hotspot: true
+      # Roughly 1 collidable per N entities per tick
+      entities-per-collidable: 12
+    ai:
+      # Lower pathfinding search budget for distant/hotspot mobs
+      pathfinding-budget-enabled: true
+      pathfinding-require-hotspot: true
+      pathfinding-multiplier: 0.6
+      # Goal throttling to reduce canUse/tick churn
+      goal-throttle-enabled: true
+      goal-throttle-require-hotspot: true
+      # Stagger goal checks to spread cost across ticks
+      goal-throttle-stagger-enabled: true
+      # Back off goal checks for idle/stuck mobs (still rechecks periodically)
+      goal-throttle-idle-backoff-enabled: true
+      goal-throttle-idle-backoff-threshold: 60        # ticks before backoff starts
+      goal-throttle-idle-backoff-step: 40             # ticks per backoff step
+      goal-throttle-idle-backoff-max-can-use-interval: 200
+      goal-throttle-idle-backoff-max-tick-interval: 20
+      goal-throttle-default-can-use-interval: 20
+      goal-throttle-default-tick-interval: 2
+      goal-throttle-goals:
+        - name: MeleeAttackGoal
+          can-use-interval: 20
+          tick-interval: 3
+        - name: NearestAttackableTargetGoal
+          can-use-interval: 20
+          tick-interval: 2
+        - name: HurtByTargetGoal
+          can-use-interval: 20
+          tick-interval: 2
+        - name: RandomStrollGoal
+          can-use-interval: 20
+          tick-interval: 2
+        - name: WaterAvoidingRandomStrollGoal
+          can-use-interval: 20
+          tick-interval: 2
+        - name: RandomSwimmingGoal
+          can-use-interval: 20
+          tick-interval: 2
+        - name: MoveThroughVillageGoal
+          can-use-interval: 40
+          tick-interval: 4
+        - name: RemoveBlockGoal
+          can-use-interval: 40
+          tick-interval: 4
+        - name: BreakDoorGoal
+          can-use-interval: 40
+          tick-interval: 4
+        - name: RandomLookAroundGoal
+          can-use-interval: 20
+          tick-interval: 2
+        - name: LookAtPlayerGoal
+          can-use-interval: 20
+          tick-interval: 2

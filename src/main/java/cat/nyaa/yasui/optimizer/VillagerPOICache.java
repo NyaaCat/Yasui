@@ -2,12 +2,17 @@ package cat.nyaa.yasui.optimizer;
 
 import cat.nyaa.yasui.Yasui;
 import cat.nyaa.yasui.YasuiConfig;
+import cat.nyaa.yasui.nms.NMSUtil;
 import com.google.common.collect.ImmutableList;
 import com.mojang.datafixers.util.Pair;
+import io.papermc.paper.util.PoiAccess;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.GlobalPos;
 import net.minecraft.core.Holder;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.entity.ai.behavior.AcquirePoi;
+import net.minecraft.world.entity.ai.behavior.BehaviorControl;
+import net.minecraft.world.entity.ai.behavior.OneShot;
 import net.minecraft.world.entity.ai.Brain;
 import net.minecraft.world.entity.ai.behavior.Behavior;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
@@ -16,6 +21,7 @@ import net.minecraft.world.entity.ai.village.poi.PoiManager;
 import net.minecraft.world.entity.ai.village.poi.PoiType;
 import net.minecraft.world.entity.npc.Villager;
 import net.minecraft.world.entity.schedule.Activity;
+import net.minecraft.world.level.pathfinder.Path;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -34,13 +40,15 @@ import org.bukkit.scheduler.BukkitTask;
 import org.bukkit.entity.Player;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.lang.invoke.MethodHandle;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.LongAdder;
 import java.util.function.Predicate;
 
 /**
@@ -63,14 +71,22 @@ public class VillagerPOICache implements Listener {
     private final Map<UUID, POICache> cache = new ConcurrentHashMap<>();
     private final Map<String, CachedPOISearchResult> poiSearchCache = new ConcurrentHashMap<>();
     private final Map<UUID, Long> lastMemoryRestore = new ConcurrentHashMap<>();
-    private final LongAdder restoreAttempts = new LongAdder();
-    private final LongAdder restoreApplied = new LongAdder();
+    private final Map<UUID, Long> lastSearchAttempt = new ConcurrentHashMap<>();
     private final long[] rollingRestoreAttempts = new long[60];
     private final long[] rollingRestoreApplied = new long[60];
+    private final long[] rollingRestoreCandidates = new long[60];
+    private final long[] rollingSearchHits = new long[60];
+    private final long[] rollingSearchMisses = new long[60];
     private int rollingRestoreIndex = 0;
     private long rollingRestoreBucketStart = alignToMinute(System.currentTimeMillis());
     private final Map<UUID, Integer> brainHooks = new ConcurrentHashMap<>();
+    private final Map<UUID, Integer> behaviorHooks = new ConcurrentHashMap<>();
+    private final Map<UUID, List<BehaviorSwap>> behaviorSwaps = new ConcurrentHashMap<>();
+    private final Set<UUID> behaviorThrottleEntities = new HashSet<>();
     private int currentTick = 0;
+
+    private static final MethodHandle BRAIN_BEHAVIORS_GETTER =
+        NMSUtil.getFieldGetter(Brain.class, "availableBehaviorsByPriority");
 
     private final Set<Material> poiBlocks = Set.of(
         Material.COMPOSTER,
@@ -93,11 +109,14 @@ public class VillagerPOICache implements Listener {
 
     // POI search cache TTL
     private static final int POI_SEARCH_CACHE_TTL = 100; // 5 seconds
+    private static final long POI_SEARCH_CACHE_TTL_MS = POI_SEARCH_CACHE_TTL * 50L;
+    private static final long POI_SEARCH_ATTEMPT_COOLDOWN_MS = 20 * 50L;
     private static final long POI_CACHE_MAX_AGE_MS = 5 * 60 * 1000L;
     private static final long MEMORY_RESTORE_COOLDOWN_MS = 5 * 1000L;
     private static final double MAX_RESTORE_DISTANCE_SQUARED = 64 * 64;
     private static final int JOB_SITE_HOOK_PRIORITY = 5;
     private static final long ROLLING_BUCKET_MS = 60 * 1000L;
+    private static final String SEARCH_KEY_SEPARATOR = ":";
 
     private BukkitTask scanTask;
     private BukkitTask tickTask;
@@ -153,6 +172,7 @@ public class VillagerPOICache implements Listener {
         if (tickTask != null) {
             tickTask.cancel();
         }
+        restoreAllBehaviors();
         clearAll();
     }
 
@@ -160,11 +180,17 @@ public class VillagerPOICache implements Listener {
      * Scan and optimize all villagers
      */
     private void scanAndOptimizeVillagers() {
+        Set<UUID> newBehaviorThrottleEntities = new HashSet<>();
+        Map<UUID, org.bukkit.entity.Villager> allVillagers = new ConcurrentHashMap<>();
+        boolean useSpread = plugin.getEntitySpread() != null;
+
         for (World world : Bukkit.getWorlds()) {
             List<Player> players = world.getPlayers();
-            List<Location> playerLocations = new ArrayList<>(players.size());
-            for (Player player : players) {
-                playerLocations.add(player.getLocation());
+            List<Location> playerLocations = useSpread ? Collections.emptyList() : new ArrayList<>(players.size());
+            if (!useSpread) {
+                for (Player player : players) {
+                    playerLocations.add(player.getLocation());
+                }
             }
 
             for (Entity entity : world.getEntitiesByClass(org.bukkit.entity.Villager.class)) {
@@ -175,6 +201,7 @@ public class VillagerPOICache implements Listener {
 
                 org.bukkit.entity.Villager bukkitVillager = (org.bukkit.entity.Villager) entity;
                 UUID uuid = bukkitVillager.getUniqueId();
+                allVillagers.put(uuid, bukkitVillager);
 
                 try {
                     // Get NMS villager and level
@@ -182,6 +209,10 @@ public class VillagerPOICache implements Listener {
                     Villager nmsVillager = craftVillager.getHandle();
                     ServerLevel serverLevel = ((CraftWorld) world).getHandle();
                     ensureBrainHooked(bukkitVillager, nmsVillager);
+                    if (shouldThrottleBehavior(nearestDistance, bukkitVillager)) {
+                        newBehaviorThrottleEntities.add(uuid);
+                        wrapBehaviorsIfNeeded(bukkitVillager, nmsVillager);
+                    }
 
                     // Read and cache existing job site memory (read-only)
                     Optional<GlobalPos> existingJobSite = nmsVillager.getBrain()
@@ -223,6 +254,10 @@ public class VillagerPOICache implements Listener {
                 }
             }
         }
+
+        cleanupBehaviorSwaps(newBehaviorThrottleEntities, allVillagers);
+        behaviorThrottleEntities.clear();
+        behaviorThrottleEntities.addAll(newBehaviorThrottleEntities);
     }
 
     /**
@@ -242,12 +277,14 @@ public class VillagerPOICache implements Listener {
         CachedPOISearchResult result = poiSearchCache.get(searchKey);
         if (result != null) {
             long age = System.currentTimeMillis() - result.timestamp();
-            if (age < POI_SEARCH_CACHE_TTL * 50) { // Convert ticks to ms
+            if (age < POI_SEARCH_CACHE_TTL_MS) {
+                recordSearchHit();
                 return result.positions();
             } else {
                 poiSearchCache.remove(searchKey);
             }
         }
+        recordSearchMiss();
         return null;
     }
 
@@ -258,7 +295,7 @@ public class VillagerPOICache implements Listener {
         if (currentTick % 100 == 0) { // Every 5 seconds
             long now = System.currentTimeMillis();
             poiSearchCache.entrySet().removeIf(entry ->
-                (now - entry.getValue().timestamp()) > (POI_SEARCH_CACHE_TTL * 50)
+                (now - entry.getValue().timestamp()) > POI_SEARCH_CACHE_TTL_MS
             );
         }
     }
@@ -270,10 +307,12 @@ public class VillagerPOICache implements Listener {
         cache.clear();
         poiSearchCache.clear();
         lastMemoryRestore.clear();
-        restoreAttempts.reset();
-        restoreApplied.reset();
+        lastSearchAttempt.clear();
         clearRollingRestoreBuckets();
         brainHooks.clear();
+        behaviorHooks.clear();
+        behaviorSwaps.clear();
+        behaviorThrottleEntities.clear();
     }
 
     /**
@@ -344,6 +383,17 @@ public class VillagerPOICache implements Listener {
         };
     }
 
+    private String buildSearchKey(org.bukkit.entity.Villager villager, BlockPos center) {
+        UUID worldId = villager.getWorld().getUID();
+        int chunkX = center.getX() >> 4;
+        int chunkZ = center.getZ() >> 4;
+        return buildSearchChunkPrefix(worldId, chunkX, chunkZ) + villager.getProfession().getKey().getKey();
+    }
+
+    private String buildSearchChunkPrefix(UUID worldId, int chunkX, int chunkZ) {
+        return worldId + SEARCH_KEY_SEPARATOR + chunkX + SEARCH_KEY_SEPARATOR + chunkZ + SEARCH_KEY_SEPARATOR;
+    }
+
     /**
      * Invalidate POI cache when a POI block is broken
      */
@@ -376,14 +426,19 @@ public class VillagerPOICache implements Listener {
             POICache poiCache = entry.getValue();
             if (poiCache.location().equals(location)) {
                 lastMemoryRestore.remove(entry.getKey());
+                lastSearchAttempt.remove(entry.getKey());
                 return true;
             }
             return false;
         });
 
-        // Invalidate search cache entries near this location
-        String locationKey = location.getBlockX() + "," + location.getBlockY() + "," + location.getBlockZ();
-        poiSearchCache.keySet().removeIf(key -> key.contains(locationKey));
+        // Invalidate search cache entries for the same chunk
+        if (location.getWorld() != null) {
+            int chunkX = location.getBlockX() >> 4;
+            int chunkZ = location.getBlockZ() >> 4;
+            String prefix = buildSearchChunkPrefix(location.getWorld().getUID(), chunkX, chunkZ);
+            poiSearchCache.keySet().removeIf(key -> key.startsWith(prefix));
+        }
     }
 
     /**
@@ -392,6 +447,7 @@ public class VillagerPOICache implements Listener {
     public void removePOI(UUID villagerUUID) {
         cache.remove(villagerUUID);
         lastMemoryRestore.remove(villagerUUID);
+        lastSearchAttempt.remove(villagerUUID);
     }
 
     /**
@@ -401,19 +457,36 @@ public class VillagerPOICache implements Listener {
         return cache.size();
     }
 
-    public RestoreStats getRestoreStats() {
-        return new RestoreStats(restoreAttempts.sum(), restoreApplied.sum());
-    }
-
     public RollingRestoreStats getRollingRestoreStats() {
         updateRollingBuckets(System.currentTimeMillis());
         long attempts = 0;
         long applied = 0;
+        long candidates = 0;
         for (int i = 0; i < rollingRestoreAttempts.length; i++) {
             attempts += rollingRestoreAttempts[i];
             applied += rollingRestoreApplied[i];
+            candidates += rollingRestoreCandidates[i];
         }
-        return new RollingRestoreStats(attempts, applied);
+        return new RollingRestoreStats(attempts, applied, candidates);
+    }
+
+    public RollingSearchStats getRollingSearchStats() {
+        updateRollingBuckets(System.currentTimeMillis());
+        long hits = 0;
+        long misses = 0;
+        for (int i = 0; i < rollingSearchHits.length; i++) {
+            hits += rollingSearchHits[i];
+            misses += rollingSearchMisses[i];
+        }
+        return new RollingSearchStats(hits, misses);
+    }
+
+    public CacheStats getCacheStats() {
+        return new CacheStats(
+            brainHooks.size(),
+            poiSearchCache.size(),
+            behaviorThrottleEntities.size()
+        );
     }
 
     /**
@@ -430,6 +503,7 @@ public class VillagerPOICache implements Listener {
     private boolean removeIfExpired(Map.Entry<UUID, POICache> entry, long now, long maxAge) {
         if ((now - entry.getValue().timestamp()) > maxAge) {
             lastMemoryRestore.remove(entry.getKey());
+            lastSearchAttempt.remove(entry.getKey());
             return true;
         }
         return false;
@@ -465,6 +539,111 @@ public class VillagerPOICache implements Listener {
         recordRestoreApplied();
         lastMemoryRestore.put(bukkitVillager.getUniqueId(), now);
         return true;
+    }
+
+    private boolean tryAssignFromSearchCache(org.bukkit.entity.Villager bukkitVillager,
+                                             Villager nmsVillager,
+                                             ServerLevel level,
+                                             double nearestDistance) {
+        if (!isEligibleForSearchCache(bukkitVillager, nearestDistance)) {
+            return false;
+        }
+
+        UUID uuid = bukkitVillager.getUniqueId();
+        long now = System.currentTimeMillis();
+        long lastAttempt = lastSearchAttempt.getOrDefault(uuid, 0L);
+        if (now - lastAttempt < POI_SEARCH_ATTEMPT_COOLDOWN_MS) {
+            return false;
+        }
+        lastSearchAttempt.put(uuid, now);
+
+        BlockPos origin = nmsVillager.blockPosition();
+        String searchKey = buildSearchKey(bukkitVillager, origin);
+        PoiManager poiManager = level.getPoiManager();
+        Predicate<Holder<PoiType>> acquirable = getAcquirableJobSitePredicate(nmsVillager);
+
+        List<Pair<Holder<PoiType>, BlockPos>> candidates = getCachedOrSearchCandidates(searchKey, level, poiManager, acquirable, origin);
+        if (candidates.isEmpty()) {
+            return false;
+        }
+
+        Set<Pair<Holder<PoiType>, BlockPos>> candidateSet = new HashSet<>(candidates);
+        Path path = AcquirePoi.findPathToPois(nmsVillager, candidateSet);
+        if (path == null || !path.canReach()) {
+            return false;
+        }
+
+        BlockPos target = path.getTarget();
+        if (poiManager.take(acquirable, (holder, blockPos) -> blockPos.equals(target), target, 1).isEmpty()) {
+            return false;
+        }
+
+        nmsVillager.getBrain().setMemory(MemoryModuleType.POTENTIAL_JOB_SITE, GlobalPos.of(level.dimension(), target));
+        return true;
+    }
+
+    private boolean isEligibleForSearchCache(org.bukkit.entity.Villager bukkitVillager, double nearestDistance) {
+        if (!config.isCachePOILookups()) {
+            return false;
+        }
+        if (!bukkitVillager.isAdult()) {
+            return false;
+        }
+        if (bukkitVillager.getProfession() == org.bukkit.entity.Villager.Profession.NONE
+            || bukkitVillager.getProfession() == org.bukkit.entity.Villager.Profession.NITWIT) {
+            return false;
+        }
+        boolean hasName = bukkitVillager.customName() != null;
+        if (!config.shouldOptimizePOI(EntityType.VILLAGER, hasName, nearestDistance)) {
+            return false;
+        }
+        long now = System.currentTimeMillis();
+        long lastAttempt = lastSearchAttempt.getOrDefault(bukkitVillager.getUniqueId(), 0L);
+        return now - lastAttempt >= POI_SEARCH_ATTEMPT_COOLDOWN_MS;
+    }
+
+    private List<Pair<Holder<PoiType>, BlockPos>> getCachedOrSearchCandidates(String searchKey,
+                                                                              ServerLevel level,
+                                                                              PoiManager poiManager,
+                                                                              Predicate<Holder<PoiType>> acquirable,
+                                                                              BlockPos origin) {
+        List<BlockPos> cachedPositions = getCachedSearchResult(searchKey);
+        List<Pair<Holder<PoiType>, BlockPos>> candidates = new ArrayList<>();
+
+        if (cachedPositions == null) {
+            PoiAccess.findNearestPoiPositions(
+                poiManager,
+                acquirable,
+                null,
+                origin,
+                AcquirePoi.SCAN_RANGE,
+                AcquirePoi.SCAN_RANGE * AcquirePoi.SCAN_RANGE,
+                PoiManager.Occupancy.HAS_SPACE,
+                false,
+                5,
+                candidates
+            );
+
+            List<BlockPos> positions = new ArrayList<>(candidates.size());
+            for (Pair<Holder<PoiType>, BlockPos> pair : candidates) {
+                positions.add(pair.getSecond());
+            }
+            cacheSearchResult(searchKey, positions);
+            return candidates;
+        }
+
+        for (BlockPos pos : cachedPositions) {
+            if (!level.isLoaded(pos)) {
+                continue;
+            }
+            Optional<Holder<PoiType>> type = poiManager.getType(pos);
+            if (type.isEmpty() || !acquirable.test(type.get())) {
+                continue;
+            }
+            candidates.add(Pair.of(type.get(), pos));
+        }
+
+        return candidates;
     }
 
     private POICache getRestoreCandidate(org.bukkit.entity.Villager bukkitVillager, Villager nmsVillager, double nearestDistance) {
@@ -509,6 +688,7 @@ public class VillagerPOICache implements Listener {
             return null;
         }
 
+        recordRestoreCandidate();
         return cached;
     }
 
@@ -518,14 +698,27 @@ public class VillagerPOICache implements Listener {
 
     private void recordRestoreAttempt() {
         updateRollingBuckets(System.currentTimeMillis());
-        restoreAttempts.increment();
         rollingRestoreAttempts[rollingRestoreIndex]++;
     }
 
     private void recordRestoreApplied() {
         updateRollingBuckets(System.currentTimeMillis());
-        restoreApplied.increment();
         rollingRestoreApplied[rollingRestoreIndex]++;
+    }
+
+    private void recordRestoreCandidate() {
+        updateRollingBuckets(System.currentTimeMillis());
+        rollingRestoreCandidates[rollingRestoreIndex]++;
+    }
+
+    private void recordSearchHit() {
+        updateRollingBuckets(System.currentTimeMillis());
+        rollingSearchHits[rollingRestoreIndex]++;
+    }
+
+    private void recordSearchMiss() {
+        updateRollingBuckets(System.currentTimeMillis());
+        rollingSearchMisses[rollingRestoreIndex]++;
     }
 
     private void updateRollingBuckets(long now) {
@@ -538,6 +731,9 @@ public class VillagerPOICache implements Listener {
             rollingRestoreIndex = (rollingRestoreIndex + 1) % rollingRestoreAttempts.length;
             rollingRestoreAttempts[rollingRestoreIndex] = 0;
             rollingRestoreApplied[rollingRestoreIndex] = 0;
+            rollingRestoreCandidates[rollingRestoreIndex] = 0;
+            rollingSearchHits[rollingRestoreIndex] = 0;
+            rollingSearchMisses[rollingRestoreIndex] = 0;
         }
         rollingRestoreBucketStart += (long) steps * ROLLING_BUCKET_MS;
     }
@@ -546,6 +742,9 @@ public class VillagerPOICache implements Listener {
         for (int i = 0; i < rollingRestoreAttempts.length; i++) {
             rollingRestoreAttempts[i] = 0;
             rollingRestoreApplied[i] = 0;
+            rollingRestoreCandidates[i] = 0;
+            rollingSearchHits[i] = 0;
+            rollingSearchMisses[i] = 0;
         }
         rollingRestoreIndex = 0;
         rollingRestoreBucketStart = alignToMinute(System.currentTimeMillis());
@@ -571,6 +770,125 @@ public class VillagerPOICache implements Listener {
         );
     }
 
+    private boolean shouldThrottleBehavior(double nearestDistance, org.bukkit.entity.Villager villager) {
+        if (!config.isVillagerBehaviorThrottleEnabled()) {
+            return false;
+        }
+        if (!config.isVillagerBehaviorThrottleRequireDistant()) {
+            return true;
+        }
+        EntitySpreadTicker spread = plugin.getEntitySpread();
+        if (spread != null) {
+            return spread.getDistanceCategory(villager.getUniqueId()) == EntitySpreadTicker.DistanceCategory.DISTANT;
+        }
+        return nearestDistance >= config.getNearDistance();
+    }
+
+    private boolean shouldThrottleBehavior(Villager villager) {
+        return config.isVillagerBehaviorThrottleEnabled()
+            && behaviorThrottleEntities.contains(villager.getUUID());
+    }
+
+    private void wrapBehaviorsIfNeeded(org.bukkit.entity.Villager bukkitVillager, Villager nmsVillager) {
+        if (!config.isVillagerBehaviorThrottleEnabled()) {
+            return;
+        }
+        UUID uuid = bukkitVillager.getUniqueId();
+        Brain<Villager> brain = nmsVillager.getBrain();
+        int brainId = System.identityHashCode(brain);
+        Integer current = behaviorHooks.get(uuid);
+        if (current != null && current == brainId) {
+            return;
+        }
+        if (current != null && current != brainId) {
+            restoreBehaviorSwaps(uuid);
+        }
+        behaviorHooks.put(uuid, brainId);
+
+        Map<Integer, Map<Activity, Set<BehaviorControl<? super Villager>>>> byPriority = getBehaviorMap(brain);
+        if (byPriority == null) {
+            return;
+        }
+        boolean oneShotOnly = config.isVillagerBehaviorThrottleOneShotOnly();
+        int interval = config.getVillagerBehaviorThrottleInterval();
+        List<BehaviorSwap> swaps = new ArrayList<>();
+
+        for (Map<Activity, Set<BehaviorControl<? super Villager>>> byActivity : byPriority.values()) {
+            for (Set<BehaviorControl<? super Villager>> behaviors : byActivity.values()) {
+                List<BehaviorControl<? super Villager>> snapshot = new ArrayList<>(behaviors);
+                List<BehaviorSwap> setSwaps = new ArrayList<>();
+                for (BehaviorControl<? super Villager> behavior : snapshot) {
+                    if (behavior instanceof ThrottledBehavior) {
+                        continue;
+                    }
+                    if (oneShotOnly && !(behavior instanceof OneShot)) {
+                        continue;
+                    }
+                    @SuppressWarnings("unchecked")
+                    BehaviorControl<Villager> cast = (BehaviorControl<Villager>) behavior;
+                    ThrottledBehavior throttled = new ThrottledBehavior(cast, this, interval);
+                    setSwaps.add(new BehaviorSwap(behaviors, behavior, throttled));
+                }
+                if (!setSwaps.isEmpty()) {
+                    for (BehaviorSwap swap : setSwaps) {
+                        behaviors.remove(swap.original());
+                    }
+                    for (BehaviorSwap swap : setSwaps) {
+                        behaviors.add(swap.wrapper());
+                    }
+                    swaps.addAll(setSwaps);
+                }
+            }
+        }
+
+        if (!swaps.isEmpty()) {
+            behaviorSwaps.put(uuid, swaps);
+        }
+    }
+
+    private void cleanupBehaviorSwaps(Set<UUID> targets, Map<UUID, org.bukkit.entity.Villager> allVillagers) {
+        behaviorSwaps.entrySet().removeIf(entry -> {
+            UUID uuid = entry.getKey();
+            org.bukkit.entity.Villager villager = allVillagers.get(uuid);
+            if (villager != null && villager.isValid() && targets.contains(uuid)) {
+                return false;
+            }
+            for (BehaviorSwap swap : entry.getValue()) {
+                swap.set().remove(swap.wrapper());
+                swap.set().add(swap.original());
+            }
+            behaviorHooks.remove(uuid);
+            return true;
+        });
+    }
+
+    private void restoreBehaviorSwaps(UUID uuid) {
+        List<BehaviorSwap> swaps = behaviorSwaps.remove(uuid);
+        if (swaps != null) {
+            for (BehaviorSwap swap : swaps) {
+                swap.set().remove(swap.wrapper());
+                swap.set().add(swap.original());
+            }
+        }
+        behaviorHooks.remove(uuid);
+    }
+
+    private void restoreAllBehaviors() {
+        for (UUID uuid : new ArrayList<>(behaviorSwaps.keySet())) {
+            restoreBehaviorSwaps(uuid);
+        }
+        behaviorThrottleEntities.clear();
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<Integer, Map<Activity, Set<BehaviorControl<? super Villager>>>> getBehaviorMap(Brain<Villager> brain) {
+        Object value = NMSUtil.invokeHandle(BRAIN_BEHAVIORS_GETTER, brain);
+        if (value instanceof Map<?, ?> map) {
+            return (Map<Integer, Map<Activity, Set<BehaviorControl<? super Villager>>>>) map;
+        }
+        return null;
+    }
+
     private final class CachedJobSiteBehavior extends Behavior<Villager> {
         private CachedJobSiteBehavior() {
             super(Map.of(
@@ -583,14 +901,20 @@ public class VillagerPOICache implements Listener {
         protected boolean checkExtraStartConditions(ServerLevel level, Villager owner) {
             org.bukkit.entity.Villager bukkitVillager = (org.bukkit.entity.Villager) owner.getBukkitEntity();
             double nearestDistance = getNearestPlayerDistanceForHook(owner.getUUID());
-            return getRestoreCandidate(bukkitVillager, owner, nearestDistance) != null;
+            if (getRestoreCandidate(bukkitVillager, owner, nearestDistance) != null) {
+                return true;
+            }
+            return isEligibleForSearchCache(bukkitVillager, nearestDistance);
         }
 
         @Override
         protected void start(ServerLevel level, Villager entity, long gameTime) {
             org.bukkit.entity.Villager bukkitVillager = (org.bukkit.entity.Villager) entity.getBukkitEntity();
             double nearestDistance = getNearestPlayerDistanceForHook(entity.getUUID());
-            tryRestoreJobSite(bukkitVillager, entity, level, nearestDistance);
+            if (tryRestoreJobSite(bukkitVillager, entity, level, nearestDistance)) {
+                return;
+            }
+            tryAssignFromSearchCache(bukkitVillager, entity, level, nearestDistance);
         }
     }
 
@@ -606,6 +930,15 @@ public class VillagerPOICache implements Listener {
     }
 
     private double getNearestPlayerDistance(Entity entity, List<Location> playerLocations) {
+        EntitySpreadTicker spread = plugin.getEntitySpread();
+        if (spread != null) {
+            double distanceSquared = spread.getNearestPlayerDistanceSquared(entity.getUniqueId());
+            if (!Double.isFinite(distanceSquared)) {
+                return Double.MAX_VALUE;
+            }
+            return Math.sqrt(distanceSquared);
+        }
+
         if (playerLocations.isEmpty()) {
             return Double.MAX_VALUE;
         }
@@ -623,6 +956,63 @@ public class VillagerPOICache implements Listener {
         return Math.sqrt(minDistanceSquared);
     }
 
-    public record RestoreStats(long attempts, long applied) {}
-    public record RollingRestoreStats(long attempts, long applied) {}
+    private record BehaviorSwap(Set<BehaviorControl<? super Villager>> set,
+                                BehaviorControl<? super Villager> original,
+                                BehaviorControl<? super Villager> wrapper) {}
+
+    private static final class ThrottledBehavior implements BehaviorControl<Villager> {
+        private final BehaviorControl<Villager> delegate;
+        private final VillagerPOICache cache;
+        private final int interval;
+        private long lastTryStart = Long.MIN_VALUE;
+        private boolean lastTryStartResult = false;
+
+        private ThrottledBehavior(BehaviorControl<Villager> delegate, VillagerPOICache cache, int interval) {
+            this.delegate = delegate;
+            this.cache = cache;
+            this.interval = Math.max(1, interval);
+        }
+
+        @Override
+        public Behavior.Status getStatus() {
+            return delegate.getStatus();
+        }
+
+        @Override
+        public boolean tryStart(ServerLevel level, Villager entity, long gameTime) {
+            if (!cache.shouldThrottleBehavior(entity)) {
+                return delegate.tryStart(level, entity, gameTime);
+            }
+            if (gameTime - lastTryStart < interval) {
+                return lastTryStartResult;
+            }
+            lastTryStart = gameTime;
+            lastTryStartResult = delegate.tryStart(level, entity, gameTime);
+            return lastTryStartResult;
+        }
+
+        @Override
+        public void tickOrStop(ServerLevel level, Villager entity, long gameTime) {
+            delegate.tickOrStop(level, entity, gameTime);
+        }
+
+        @Override
+        public void doStop(ServerLevel level, Villager entity, long gameTime) {
+            delegate.doStop(level, entity, gameTime);
+        }
+
+        @Override
+        public String debugString() {
+            return delegate.debugString();
+        }
+
+        @Override
+        public String toString() {
+            return "Throttled(" + delegate.debugString() + ")";
+        }
+    }
+
+    public record RollingRestoreStats(long attempts, long applied, long candidates) {}
+    public record RollingSearchStats(long hits, long misses) {}
+    public record CacheStats(int hookedBrains, int searchCacheSize, int throttledBrains) {}
 }
