@@ -21,6 +21,12 @@ optimizations:
       ttl-jitter-ticks: 10
       max-entries: 20000
       cache-empty-results: false
+    competitor-scan-cache:
+      enabled: true
+      ttl-ticks: 10
+      ttl-jitter-ticks: 10
+      max-entries: 10000
+      cache-empty-results: false
 
   # Entity distance cache - no tick freezing; used for quick near/distant checks
   entity-spread:
@@ -33,5 +39,5 @@ optimizations:
   # Pathfinding result cache (short TTL, preserves vanilla behavior)
   pathfinding-cache:
     enabled: true
-    ttl-ticks: 3
-    ttl-jitter-ticks: 1
+    ttl-ticks: 2
+    ttl-jitter-ticks: 3

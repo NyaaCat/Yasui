@@ -5,6 +5,7 @@ import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.lang.reflect.Field;
 import java.util.List;
+import java.util.Optional;
 import java.util.function.Predicate;
 
 /**
@@ -56,6 +57,7 @@ public final class NmsReflect {
 
     // PoiAccess
     private static volatile MethodHandle poiAccessFindNearest;
+    private static volatile MethodHandle poiManagerGetType;
 
     private NmsReflect() {}
 
@@ -135,6 +137,7 @@ public final class NmsReflect {
         Class<?> poiAccessClass = Class.forName("io.papermc.paper.util.PoiAccess", true, nmsClassLoader);
         Class<?> poiManagerClass = Class.forName("net.minecraft.world.entity.ai.village.poi.PoiManager", true, nmsClassLoader);
         Class<?> occupancyClass = Class.forName("net.minecraft.world.entity.ai.village.poi.PoiManager$Occupancy", true, nmsClassLoader);
+        poiManagerGetType = lookup.findVirtual(poiManagerClass, "getType", MethodType.methodType(Optional.class, blockPosClass));
         poiAccessFindNearest = lookup.findStatic(poiAccessClass, "findNearestPoiPositions",
             MethodType.methodType(void.class,
                 poiManagerClass, Predicate.class, Predicate.class, blockPosClass,
@@ -272,6 +275,17 @@ public final class NmsReflect {
                 range, maxDistanceSquared, occupancy, load, max, ret);
         } catch (Throwable t) {
             log("findNearestPoiPositions failed: " + t.getMessage());
+        }
+    }
+
+    public static Object getPoiType(Object poiManager, Object blockPos) {
+        if (!initialized || initFailed || poiManagerGetType == null || poiManager == null || blockPos == null) {
+            return Optional.empty();
+        }
+        try {
+            return poiManagerGetType.invoke(poiManager, blockPos);
+        } catch (Throwable t) {
+            return Optional.empty();
         }
     }
 

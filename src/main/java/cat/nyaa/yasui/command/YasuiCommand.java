@@ -4,10 +4,12 @@ import cat.nyaa.yasui.Yasui;
 import cat.nyaa.yasui.optimizer.EntitySpreadTicker;
 import cat.nyaa.yasui.optimizer.HopperOptimizer;
 import cat.nyaa.yasui.optimizer.PathfindingCacheTracker;
+import cat.nyaa.yasui.optimizer.PoiCompetitorCacheTracker;
 import cat.nyaa.yasui.optimizer.PoiSearchCacheTracker;
 import cat.nyaa.yasui.optimizer.VillagerPOICache;
 import cat.nyaa.yasui.nms.HopperNmsHook;
 import cat.nyaa.yasui.nms.PathfindingNmsHook;
+import cat.nyaa.yasui.nms.PoiCompetitorNmsHook;
 import cat.nyaa.yasui.nms.PoiSearchNmsHook;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
@@ -87,6 +89,14 @@ public class YasuiCommand implements CommandExecutor, TabCompleter {
             } else {
                 sender.sendMessage("  §7POI Search Cache: §fDisabled");
             }
+            if (plugin.getPoiCompetitorCacheTracker() != null) {
+                PoiCompetitorCacheTracker.RollingStats stats = plugin.getPoiCompetitorCacheTracker().getRollingStats();
+                sender.sendMessage("  §7POI Competitor Cache: §f" + plugin.getPoiCompetitorCacheTracker().getCacheSize());
+                sender.sendMessage("  §7POI Competitor Hits/Misses (1h): §f" + stats.hits() + "§7/§f" + stats.misses());
+                sender.sendMessage("  §7CompetitorScan Hook: §f" + (PoiCompetitorNmsHook.isHookActive() ? "Active" : "Inactive"));
+            } else {
+                sender.sendMessage("  §7POI Competitor Cache: §fDisabled");
+            }
         } else {
             sender.sendMessage("§cVillager POI Cache: §fDisabled");
         }
@@ -130,6 +140,7 @@ public class YasuiCommand implements CommandExecutor, TabCompleter {
         sender.sendMessage("§fOptimizations:");
         sender.sendMessage("  §7- Hopper full-check caching (NMS hook)");
         sender.sendMessage("  §7- Villager job-site restore + AcquirePoi search caching");
+        sender.sendMessage("  §7- PoiCompetitorScan POI type caching");
         sender.sendMessage("  §7- Distance cache for quick near/distant checks");
         sender.sendMessage("  §7- Pathfinding result cache (short TTL)");
         sender.sendMessage("");

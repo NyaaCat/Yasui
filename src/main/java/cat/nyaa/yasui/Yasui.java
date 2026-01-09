@@ -5,9 +5,11 @@ import cat.nyaa.yasui.optimizer.HopperOptimizer;
 import cat.nyaa.yasui.optimizer.VillagerPOICache;
 import cat.nyaa.yasui.optimizer.EntitySpreadTicker;
 import cat.nyaa.yasui.optimizer.PathfindingCacheTracker;
+import cat.nyaa.yasui.optimizer.PoiCompetitorCacheTracker;
 import cat.nyaa.yasui.optimizer.PoiSearchCacheTracker;
 import cat.nyaa.yasui.nms.HopperNmsHook;
 import cat.nyaa.yasui.nms.PathfindingNmsHook;
+import cat.nyaa.yasui.nms.PoiCompetitorNmsHook;
 import cat.nyaa.yasui.nms.PoiSearchNmsHook;
 import org.bukkit.event.HandlerList;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -21,6 +23,7 @@ import org.bukkit.plugin.java.JavaPlugin;
  * - Entity distance cache for quick near/distant checks
  * - Pathfinding result cache (short TTL)
  * - AcquirePoi search caching (short TTL)
+ * - PoiCompetitorScan POI type caching (short TTL)
  */
 public class Yasui extends JavaPlugin {
     private YasuiConfig config;
@@ -29,6 +32,7 @@ public class Yasui extends JavaPlugin {
     private EntitySpreadTicker entitySpread;
     private PathfindingCacheTracker pathfindingCacheTracker;
     private PoiSearchCacheTracker poiSearchCacheTracker;
+    private PoiCompetitorCacheTracker poiCompetitorCacheTracker;
 
     @Override
     public void onEnable() {
@@ -38,6 +42,7 @@ public class Yasui extends JavaPlugin {
         // Load configuration
         config = new YasuiConfig(this);
         boolean acquirePoiEnabled = config.isVillagerPOIEnabled() && config.isAcquirePoiCacheEnabled();
+        boolean competitorCacheEnabled = config.isVillagerPOIEnabled() && config.isPoiCompetitorCacheEnabled();
 
         if (config.isHopperFullCacheEnabled()) {
             boolean hookActive = HopperNmsHook.install(this);
@@ -78,6 +83,19 @@ public class Yasui extends JavaPlugin {
                 }
             }
         }
+        if (competitorCacheEnabled) {
+            boolean hookActive = PoiCompetitorNmsHook.install(this);
+            if (hookActive) {
+                getLogger().info("PoiCompetitor cache hook active");
+            } else {
+                String error = PoiCompetitorNmsHook.getErrorMessage();
+                if (error != null) {
+                    getLogger().warning("PoiCompetitor cache hook failed: " + error);
+                } else {
+                    getLogger().warning("PoiCompetitor cache hook failed");
+                }
+            }
+        }
         HopperNmsHook.configure(config.isHopperFullCacheEnabled(), config.getHopperFullCacheTtlTicks());
         PathfindingNmsHook.configure(
             config.isPathfindingCacheEnabled(),
@@ -90,6 +108,20 @@ public class Yasui extends JavaPlugin {
             config.getAcquirePoiCacheTtlJitterTicks(),
             config.getAcquirePoiCacheMaxEntries(),
             config.isAcquirePoiCacheEmptyResults()
+        );
+        PoiCompetitorNmsHook.configure(
+            competitorCacheEnabled,
+            config.getPoiCompetitorCacheTtlTicks(),
+            config.getPoiCompetitorCacheTtlJitterTicks(),
+            config.getPoiCompetitorCacheMaxEntries(),
+            config.isPoiCompetitorCacheEmptyResults()
+        );
+        PoiCompetitorNmsHook.configure(
+            competitorCacheEnabled,
+            config.getPoiCompetitorCacheTtlTicks(),
+            config.getPoiCompetitorCacheTtlJitterTicks(),
+            config.getPoiCompetitorCacheMaxEntries(),
+            config.isPoiCompetitorCacheEmptyResults()
         );
 
         // Initialize optimizers
@@ -126,6 +158,12 @@ public class Yasui extends JavaPlugin {
             getLogger().info("AcquirePoi search cache enabled");
         }
 
+        if (competitorCacheEnabled) {
+            poiCompetitorCacheTracker = new PoiCompetitorCacheTracker(this, config);
+            poiCompetitorCacheTracker.start();
+            getLogger().info("PoiCompetitor cache enabled");
+        }
+
         // Register command
         getCommand("yasui").setExecutor(new YasuiCommand(this));
 
@@ -155,6 +193,9 @@ public class Yasui extends JavaPlugin {
         }
         if (poiSearchCacheTracker != null) {
             poiSearchCacheTracker.shutdown();
+        }
+        if (poiCompetitorCacheTracker != null) {
+            poiCompetitorCacheTracker.shutdown();
         }
 
         getLogger().info("Yasui optimization plugin disabled");
@@ -199,6 +240,7 @@ public class Yasui extends JavaPlugin {
             }
         }
         boolean acquirePoiEnabled = config.isVillagerPOIEnabled() && config.isAcquirePoiCacheEnabled();
+        boolean competitorCacheEnabled = config.isVillagerPOIEnabled() && config.isPoiCompetitorCacheEnabled();
         if (acquirePoiEnabled && !PoiSearchNmsHook.isHookActive()) {
             boolean hookActive = PoiSearchNmsHook.install(this);
             if (hookActive) {
@@ -209,6 +251,19 @@ public class Yasui extends JavaPlugin {
                     getLogger().warning("AcquirePoi cache hook failed: " + error);
                 } else {
                     getLogger().warning("AcquirePoi cache hook failed");
+                }
+            }
+        }
+        if (competitorCacheEnabled && !PoiCompetitorNmsHook.isHookActive()) {
+            boolean hookActive = PoiCompetitorNmsHook.install(this);
+            if (hookActive) {
+                getLogger().info("PoiCompetitor cache hook active");
+            } else {
+                String error = PoiCompetitorNmsHook.getErrorMessage();
+                if (error != null) {
+                    getLogger().warning("PoiCompetitor cache hook failed: " + error);
+                } else {
+                    getLogger().warning("PoiCompetitor cache hook failed");
                 }
             }
         }
@@ -295,6 +350,18 @@ public class Yasui extends JavaPlugin {
             getLogger().info("AcquirePoi search cache disabled");
         }
 
+        if (poiCompetitorCacheTracker != null) {
+            poiCompetitorCacheTracker.shutdown();
+            poiCompetitorCacheTracker = null;
+        }
+        if (competitorCacheEnabled) {
+            poiCompetitorCacheTracker = new PoiCompetitorCacheTracker(this, config);
+            poiCompetitorCacheTracker.start();
+            getLogger().info("PoiCompetitor cache reloaded");
+        } else {
+            getLogger().info("PoiCompetitor cache disabled");
+        }
+
         getLogger().info("Configuration reload complete!");
     }
 
@@ -320,6 +387,10 @@ public class Yasui extends JavaPlugin {
 
     public PoiSearchCacheTracker getPoiSearchCacheTracker() {
         return poiSearchCacheTracker;
+    }
+
+    public PoiCompetitorCacheTracker getPoiCompetitorCacheTracker() {
+        return poiCompetitorCacheTracker;
     }
 
 }

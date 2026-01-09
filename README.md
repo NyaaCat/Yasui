@@ -4,6 +4,14 @@ Server optimization plugin for Paper 1.21.8. Reduces tick time by caching expens
 
 **Requirements:** Paper 1.21.8, Java 21+
 
+Start parameters:
+
+```
+-XX:+EnableDynamicAgentLoading -Djdk.attach.allowAttachSelf=true
+```
+
+With full JDK.
+
 ## Features
 
 ### Hopper Optimizer
@@ -21,9 +29,10 @@ Reduces POI search overhead by caching job site locations and AcquirePoi searche
 - Caches job site positions from villager brain memory
 - Restores cached POI when villager loses job site memory
 - AcquirePoi search cache (NMS hook, short TTL)
+- PoiCompetitorScan POI type cache (NMS hook, short TTL)
 - Validates POI block existence before restoration
 
-Note: The AcquirePoi hook uses JVM attach. If attach is disabled, the cache will be inactive.
+Note: The AcquirePoi and PoiCompetitorScan hooks use JVM attach. If attach is disabled, the caches will be inactive.
 
 ### Entity Distance Cache
 
@@ -70,6 +79,12 @@ optimizations:
       ttl-jitter-ticks: 10
       max-entries: 20000
       cache-empty-results: false
+    competitor-scan-cache:
+      enabled: true
+      ttl-ticks: 2
+      ttl-jitter-ticks: 1
+      max-entries: 10000
+      cache-empty-results: false
 
   entity-spread:
     enabled: true
@@ -109,6 +124,9 @@ Villager POI Cache: Enabled
   POI Search Cache: 156
   POI Search Hits/Misses (1h): 37/112
   AcquirePoi Hook: Active
+  POI Competitor Cache: 72
+  POI Competitor Hits/Misses (1h): 412/98
+  CompetitorScan Hook: Active
 
 Entity Distance Cache: Enabled
   Near Entities: 45 (full vanilla)

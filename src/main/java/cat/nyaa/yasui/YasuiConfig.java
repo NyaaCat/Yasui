@@ -28,6 +28,11 @@ public class YasuiConfig {
     private int acquirePoiCacheTtlJitterTicks;
     private int acquirePoiCacheMaxEntries;
     private boolean acquirePoiCacheEmptyResults;
+    private boolean poiCompetitorCacheEnabled;
+    private int poiCompetitorCacheTtlTicks;
+    private int poiCompetitorCacheTtlJitterTicks;
+    private int poiCompetitorCacheMaxEntries;
+    private boolean poiCompetitorCacheEmptyResults;
     private List<POIRule> poiRules;
 
     // Entity distance cache settings
@@ -58,6 +63,11 @@ public class YasuiConfig {
         acquirePoiCacheTtlJitterTicks = 10;
         acquirePoiCacheMaxEntries = 20000;
         acquirePoiCacheEmptyResults = false;
+        poiCompetitorCacheEnabled = true;
+        poiCompetitorCacheTtlTicks = 2;
+        poiCompetitorCacheTtlJitterTicks = 1;
+        poiCompetitorCacheMaxEntries = 10000;
+        poiCompetitorCacheEmptyResults = false;
         poiRules = new ArrayList<>();
 
         entitySpreadEnabled = true;
@@ -87,6 +97,14 @@ public class YasuiConfig {
                 acquirePoiCacheTtlJitterTicks = Math.max(0, acquireSection.getInt("ttl-jitter-ticks", 10));
                 acquirePoiCacheMaxEntries = Math.max(0, acquireSection.getInt("max-entries", 20000));
                 acquirePoiCacheEmptyResults = acquireSection.getBoolean("cache-empty-results", false);
+            }
+            ConfigurationSection competitorSection = poiSection.getConfigurationSection("competitor-scan-cache");
+            if (competitorSection != null) {
+                poiCompetitorCacheEnabled = competitorSection.getBoolean("enabled", true);
+                poiCompetitorCacheTtlTicks = Math.max(0, competitorSection.getInt("ttl-ticks", 2));
+                poiCompetitorCacheTtlJitterTicks = Math.max(0, competitorSection.getInt("ttl-jitter-ticks", 1));
+                poiCompetitorCacheMaxEntries = Math.max(0, competitorSection.getInt("max-entries", 10000));
+                poiCompetitorCacheEmptyResults = competitorSection.getBoolean("cache-empty-results", false);
             }
 
             poiRules = new ArrayList<>();
@@ -165,6 +183,26 @@ public class YasuiConfig {
 
     public boolean isAcquirePoiCacheEmptyResults() {
         return acquirePoiCacheEmptyResults;
+    }
+
+    public boolean isPoiCompetitorCacheEnabled() {
+        return poiCompetitorCacheEnabled;
+    }
+
+    public int getPoiCompetitorCacheTtlTicks() {
+        return poiCompetitorCacheTtlTicks;
+    }
+
+    public int getPoiCompetitorCacheTtlJitterTicks() {
+        return poiCompetitorCacheTtlJitterTicks;
+    }
+
+    public int getPoiCompetitorCacheMaxEntries() {
+        return poiCompetitorCacheMaxEntries;
+    }
+
+    public boolean isPoiCompetitorCacheEmptyResults() {
+        return poiCompetitorCacheEmptyResults;
     }
 
     public boolean shouldOptimizePOI(EntityType type, boolean hasName, double nearestPlayerDistance) {
