@@ -65,6 +65,10 @@ public class VillagerPOICache implements Listener {
     private final Map<UUID, Long> lastMemoryRestore = new ConcurrentHashMap<>();
     private final LongAdder restoreAttempts = new LongAdder();
     private final LongAdder restoreApplied = new LongAdder();
+    private final long[] rollingRestoreAttempts = new long[60];
+    private final long[] rollingRestoreApplied = new long[60];
+    private int rollingRestoreIndex = 0;
+    private long rollingRestoreBucketStart = alignToMinute(System.currentTimeMillis());
     private final Map<UUID, Integer> brainHooks = new ConcurrentHashMap<>();
     private int currentTick = 0;
 
@@ -93,6 +97,7 @@ public class VillagerPOICache implements Listener {
     private static final long MEMORY_RESTORE_COOLDOWN_MS = 5 * 1000L;
     private static final double MAX_RESTORE_DISTANCE_SQUARED = 64 * 64;
     private static final int JOB_SITE_HOOK_PRIORITY = 5;
+    private static final long ROLLING_BUCKET_MS = 60 * 1000L;
 
     private BukkitTask scanTask;
     private BukkitTask tickTask;
@@ -129,6 +134,7 @@ public class VillagerPOICache implements Listener {
         tickTask = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
             currentTick++;
             cleanupExpiredSearchCache();
+            updateRollingBuckets(System.currentTimeMillis());
             if (currentTick % 100 == 0) {
                 cleanupExpired(POI_CACHE_MAX_AGE_MS);
             }
@@ -266,6 +272,7 @@ public class VillagerPOICache implements Listener {
         lastMemoryRestore.clear();
         restoreAttempts.reset();
         restoreApplied.reset();
+        clearRollingRestoreBuckets();
         brainHooks.clear();
     }
 
@@ -398,6 +405,17 @@ public class VillagerPOICache implements Listener {
         return new RestoreStats(restoreAttempts.sum(), restoreApplied.sum());
     }
 
+    public RollingRestoreStats getRollingRestoreStats() {
+        updateRollingBuckets(System.currentTimeMillis());
+        long attempts = 0;
+        long applied = 0;
+        for (int i = 0; i < rollingRestoreAttempts.length; i++) {
+            attempts += rollingRestoreAttempts[i];
+            applied += rollingRestoreApplied[i];
+        }
+        return new RollingRestoreStats(attempts, applied);
+    }
+
     /**
      * Clean up expired cache entries
      * Can be called periodically to prevent memory buildup
@@ -437,14 +455,14 @@ public class VillagerPOICache implements Listener {
             return false;
         }
 
-        restoreAttempts.increment();
+        recordRestoreAttempt();
         if (poiManager.take(acquirable, (holder, blockPos) -> blockPos.equals(pos), pos, 1).isEmpty()) {
             return false;
         }
 
         GlobalPos globalPos = GlobalPos.of(level.dimension(), pos);
         nmsVillager.getBrain().setMemory(MemoryModuleType.POTENTIAL_JOB_SITE, globalPos);
-        restoreApplied.increment();
+        recordRestoreApplied();
         lastMemoryRestore.put(bukkitVillager.getUniqueId(), now);
         return true;
     }
@@ -496,6 +514,45 @@ public class VillagerPOICache implements Listener {
 
     private Predicate<Holder<PoiType>> getAcquirableJobSitePredicate(Villager villager) {
         return villager.getVillagerData().profession().value().acquirableJobSite();
+    }
+
+    private void recordRestoreAttempt() {
+        updateRollingBuckets(System.currentTimeMillis());
+        restoreAttempts.increment();
+        rollingRestoreAttempts[rollingRestoreIndex]++;
+    }
+
+    private void recordRestoreApplied() {
+        updateRollingBuckets(System.currentTimeMillis());
+        restoreApplied.increment();
+        rollingRestoreApplied[rollingRestoreIndex]++;
+    }
+
+    private void updateRollingBuckets(long now) {
+        long elapsed = now - rollingRestoreBucketStart;
+        if (elapsed < ROLLING_BUCKET_MS) {
+            return;
+        }
+        int steps = (int) Math.min(rollingRestoreAttempts.length, elapsed / ROLLING_BUCKET_MS);
+        for (int i = 0; i < steps; i++) {
+            rollingRestoreIndex = (rollingRestoreIndex + 1) % rollingRestoreAttempts.length;
+            rollingRestoreAttempts[rollingRestoreIndex] = 0;
+            rollingRestoreApplied[rollingRestoreIndex] = 0;
+        }
+        rollingRestoreBucketStart += (long) steps * ROLLING_BUCKET_MS;
+    }
+
+    private void clearRollingRestoreBuckets() {
+        for (int i = 0; i < rollingRestoreAttempts.length; i++) {
+            rollingRestoreAttempts[i] = 0;
+            rollingRestoreApplied[i] = 0;
+        }
+        rollingRestoreIndex = 0;
+        rollingRestoreBucketStart = alignToMinute(System.currentTimeMillis());
+    }
+
+    private static long alignToMinute(long now) {
+        return (now / ROLLING_BUCKET_MS) * ROLLING_BUCKET_MS;
     }
 
     private void ensureBrainHooked(org.bukkit.entity.Villager bukkitVillager, Villager nmsVillager) {
@@ -567,4 +624,5 @@ public class VillagerPOICache implements Listener {
     }
 
     public record RestoreStats(long attempts, long applied) {}
+    public record RollingRestoreStats(long attempts, long applied) {}
 }

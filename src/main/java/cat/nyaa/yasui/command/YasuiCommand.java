@@ -67,9 +67,11 @@ public class YasuiCommand implements CommandExecutor, TabCompleter {
         if (plugin.getVillagerCache() != null) {
             int cacheSize = plugin.getVillagerCache().getCacheSize();
             VillagerPOICache.RestoreStats restoreStats = plugin.getVillagerCache().getRestoreStats();
+            VillagerPOICache.RollingRestoreStats rollingStats = plugin.getVillagerCache().getRollingRestoreStats();
             sender.sendMessage("§aVillager POI Cache: §fEnabled");
             sender.sendMessage("  §7Cached POIs: §f" + cacheSize);
             sender.sendMessage("  §7Job Site Restores: §f" + restoreStats.applied() + "§7/§f" + restoreStats.attempts());
+            sender.sendMessage("  §7Job Site Restores (1h): §f" + rollingStats.applied() + "§7/§f" + rollingStats.attempts());
         } else {
             sender.sendMessage("§cVillager POI Cache: §fDisabled");
         }
