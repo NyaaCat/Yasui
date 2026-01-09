@@ -2,26 +2,14 @@ package cat.nyaa.yasui.optimizer;
 
 import cat.nyaa.yasui.Yasui;
 import cat.nyaa.yasui.YasuiConfig;
-import cat.nyaa.yasui.nms.NMSUtil;
-import com.google.common.collect.ImmutableList;
-import com.mojang.datafixers.util.Pair;
-import io.papermc.paper.util.PoiAccess;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.GlobalPos;
 import net.minecraft.core.Holder;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.world.entity.ai.behavior.AcquirePoi;
-import net.minecraft.world.entity.ai.behavior.BehaviorControl;
-import net.minecraft.world.entity.ai.behavior.OneShot;
-import net.minecraft.world.entity.ai.Brain;
-import net.minecraft.world.entity.ai.behavior.Behavior;
 import net.minecraft.world.entity.ai.memory.MemoryModuleType;
-import net.minecraft.world.entity.ai.memory.MemoryStatus;
 import net.minecraft.world.entity.ai.village.poi.PoiManager;
 import net.minecraft.world.entity.ai.village.poi.PoiType;
 import net.minecraft.world.entity.npc.Villager;
-import net.minecraft.world.entity.schedule.Activity;
-import net.minecraft.world.level.pathfinder.Path;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -31,62 +19,46 @@ import org.bukkit.craftbukkit.CraftWorld;
 import org.bukkit.craftbukkit.entity.CraftVillager;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
+import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.scheduler.BukkitTask;
-import org.bukkit.entity.Player;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-import java.lang.invoke.MethodHandle;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
 
 /**
  * Villager POI (Point of Interest) Cache Optimizer
  *
- * Optimizes villager AI by caching POI lookups and safely restoring job site memory.
- * Profiler shows villager AI consuming 20.25ms (38% of tick time):
- * - AcquirePoi: 2.02ms (POI searches)
- * - PoiCompetitorScan: 2.35ms (competitor checking)
- * - Brain.startEachNonRunningBehavior: 10.69ms (behavior tree evaluation)
- *
- * Strategy:
- * 1. Cache job site locations observed in villager brain memory
- * 2. If memory is cleared, reapply cached job site when safe
- * 3. Gate optimization via config rules (type/name/distance)
+ * Caches job site locations observed in villager brain memory.
+ * When memory is cleared, restores cached job site if it is still valid.
  */
 public class VillagerPOICache implements Listener {
+    private static final long POI_CACHE_MAX_AGE_MS = 5 * 60 * 1000L;
+    private static final long MEMORY_RESTORE_COOLDOWN_MS = 5 * 1000L;
+    private static final double MAX_RESTORE_DISTANCE_SQUARED = 64 * 64;
+    private static final long ROLLING_BUCKET_MS = 60 * 1000L;
+
     private final Yasui plugin;
     private final YasuiConfig config;
     private final Map<UUID, POICache> cache = new ConcurrentHashMap<>();
-    private final Map<String, CachedPOISearchResult> poiSearchCache = new ConcurrentHashMap<>();
     private final Map<UUID, Long> lastMemoryRestore = new ConcurrentHashMap<>();
-    private final Map<UUID, Long> lastSearchAttempt = new ConcurrentHashMap<>();
     private final long[] rollingRestoreAttempts = new long[60];
     private final long[] rollingRestoreApplied = new long[60];
     private final long[] rollingRestoreCandidates = new long[60];
-    private final long[] rollingSearchHits = new long[60];
-    private final long[] rollingSearchMisses = new long[60];
     private int rollingRestoreIndex = 0;
     private long rollingRestoreBucketStart = alignToMinute(System.currentTimeMillis());
-    private final Map<UUID, Integer> brainHooks = new ConcurrentHashMap<>();
-    private final Map<UUID, Integer> behaviorHooks = new ConcurrentHashMap<>();
-    private final Map<UUID, List<BehaviorSwap>> behaviorSwaps = new ConcurrentHashMap<>();
-    private final Set<UUID> behaviorThrottleEntities = new HashSet<>();
-    private int currentTick = 0;
-
-    private static final MethodHandle BRAIN_BEHAVIORS_GETTER =
-        NMSUtil.getFieldGetter(Brain.class, "availableBehaviorsByPriority");
+    private long lastCleanupTime = System.currentTimeMillis();
 
     private final Set<Material> poiBlocks = Set.of(
         Material.COMPOSTER,
@@ -107,19 +79,7 @@ public class VillagerPOICache implements Listener {
         Material.STONECUTTER
     );
 
-    // POI search cache TTL
-    private static final int POI_SEARCH_CACHE_TTL = 100; // 5 seconds
-    private static final long POI_SEARCH_CACHE_TTL_MS = POI_SEARCH_CACHE_TTL * 50L;
-    private static final long POI_SEARCH_ATTEMPT_COOLDOWN_MS = 20 * 50L;
-    private static final long POI_CACHE_MAX_AGE_MS = 5 * 60 * 1000L;
-    private static final long MEMORY_RESTORE_COOLDOWN_MS = 5 * 1000L;
-    private static final double MAX_RESTORE_DISTANCE_SQUARED = 64 * 64;
-    private static final int JOB_SITE_HOOK_PRIORITY = 5;
-    private static final long ROLLING_BUCKET_MS = 60 * 1000L;
-    private static final String SEARCH_KEY_SEPARATOR = ":";
-
     private BukkitTask scanTask;
-    private BukkitTask tickTask;
 
     public VillagerPOICache(Yasui plugin, YasuiConfig config) {
         this.plugin = plugin;
@@ -132,15 +92,9 @@ public class VillagerPOICache implements Listener {
     public record POICache(Location location, int blockHashCode, long timestamp) {}
 
     /**
-     * Cached POI search result
-     */
-    public record CachedPOISearchResult(List<BlockPos> positions, long timestamp) {}
-
-    /**
-     * Initialize the cache and start NMS scanning
+     * Initialize the cache and start scanning
      */
     public void initialize() {
-        // Start periodic scan to inject cached POI into villager brains
         scanTask = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
             try {
                 scanAndOptimizeVillagers();
@@ -149,17 +103,7 @@ public class VillagerPOICache implements Listener {
             }
         }, 20L, 20L); // Scan every 20 ticks (1 second)
 
-        // Start tick counter for cache cleanup
-        tickTask = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
-            currentTick++;
-            cleanupExpiredSearchCache();
-            updateRollingBuckets(System.currentTimeMillis());
-            if (currentTick % 100 == 0) {
-                cleanupExpired(POI_CACHE_MAX_AGE_MS);
-            }
-        }, 1L, 1L); // Every tick
-
-        plugin.getLogger().info("Villager POI optimizer initialized with search caching");
+        plugin.getLogger().info("Villager POI optimizer initialized");
     }
 
     /**
@@ -169,10 +113,6 @@ public class VillagerPOICache implements Listener {
         if (scanTask != null) {
             scanTask.cancel();
         }
-        if (tickTask != null) {
-            tickTask.cancel();
-        }
-        restoreAllBehaviors();
         clearAll();
     }
 
@@ -180,8 +120,9 @@ public class VillagerPOICache implements Listener {
      * Scan and optimize all villagers
      */
     private void scanAndOptimizeVillagers() {
-        Set<UUID> newBehaviorThrottleEntities = new HashSet<>();
-        Map<UUID, org.bukkit.entity.Villager> allVillagers = new ConcurrentHashMap<>();
+        updateRollingBuckets(System.currentTimeMillis());
+        cleanupExpiredIfNeeded();
+
         boolean useSpread = plugin.getEntitySpread() != null;
 
         for (World world : Bukkit.getWorlds()) {
@@ -201,20 +142,12 @@ public class VillagerPOICache implements Listener {
 
                 org.bukkit.entity.Villager bukkitVillager = (org.bukkit.entity.Villager) entity;
                 UUID uuid = bukkitVillager.getUniqueId();
-                allVillagers.put(uuid, bukkitVillager);
 
                 try {
-                    // Get NMS villager and level
                     CraftVillager craftVillager = (CraftVillager) bukkitVillager;
                     Villager nmsVillager = craftVillager.getHandle();
                     ServerLevel serverLevel = ((CraftWorld) world).getHandle();
-                    ensureBrainHooked(bukkitVillager, nmsVillager);
-                    if (shouldThrottleBehavior(nearestDistance, bukkitVillager)) {
-                        newBehaviorThrottleEntities.add(uuid);
-                        wrapBehaviorsIfNeeded(bukkitVillager, nmsVillager);
-                    }
 
-                    // Read and cache existing job site memory (read-only)
                     Optional<GlobalPos> existingJobSite = nmsVillager.getBrain()
                         .getMemory(MemoryModuleType.JOB_SITE);
                     Optional<GlobalPos> existingPotential = Optional.empty();
@@ -227,7 +160,6 @@ public class VillagerPOICache implements Listener {
                         : existingPotential;
 
                     if (existingMemory.isPresent()) {
-                        // Cache the existing job site (read-only observation)
                         GlobalPos globalPos = existingMemory.get();
                         BlockPos pos = globalPos.pos();
                         Location loc = new Location(
@@ -237,67 +169,29 @@ public class VillagerPOICache implements Listener {
                             pos.getZ()
                         );
 
-                        // Validate it's still a POI block
                         Block block = loc.getBlock();
                         if (isPOIBlock(block.getType())) {
                             cachePOI(uuid, loc);
                         } else {
                             removePOI(uuid);
                         }
-                    }
-                    if (existingMemory.isEmpty() && config.isCachePOILookups()) {
+                    } else if (config.isRestoreJobSiteEnabled()) {
                         tryRestoreJobSite(bukkitVillager, nmsVillager, serverLevel, nearestDistance);
                     }
                 } catch (Exception e) {
-                    // NMS access failed - remove from cache
                     removePOI(uuid);
                 }
             }
         }
-
-        cleanupBehaviorSwaps(newBehaviorThrottleEntities, allVillagers);
-        behaviorThrottleEntities.clear();
-        behaviorThrottleEntities.addAll(newBehaviorThrottleEntities);
     }
 
-    /**
-     * Cache POI search result for reuse
-     */
-    public void cacheSearchResult(String searchKey, List<BlockPos> positions) {
-        poiSearchCache.put(searchKey, new CachedPOISearchResult(
-            new ArrayList<>(positions),
-            System.currentTimeMillis()
-        ));
-    }
-
-    /**
-     * Get cached POI search result
-     */
-    public List<BlockPos> getCachedSearchResult(String searchKey) {
-        CachedPOISearchResult result = poiSearchCache.get(searchKey);
-        if (result != null) {
-            long age = System.currentTimeMillis() - result.timestamp();
-            if (age < POI_SEARCH_CACHE_TTL_MS) {
-                recordSearchHit();
-                return result.positions();
-            } else {
-                poiSearchCache.remove(searchKey);
-            }
+    private void cleanupExpiredIfNeeded() {
+        long now = System.currentTimeMillis();
+        if (now - lastCleanupTime < 5000L) {
+            return;
         }
-        recordSearchMiss();
-        return null;
-    }
-
-    /**
-     * Clean up expired POI search cache entries
-     */
-    private void cleanupExpiredSearchCache() {
-        if (currentTick % 100 == 0) { // Every 5 seconds
-            long now = System.currentTimeMillis();
-            poiSearchCache.entrySet().removeIf(entry ->
-                (now - entry.getValue().timestamp()) > POI_SEARCH_CACHE_TTL_MS
-            );
-        }
+        cleanupExpired(POI_CACHE_MAX_AGE_MS);
+        lastCleanupTime = now;
     }
 
     /**
@@ -305,19 +199,12 @@ public class VillagerPOICache implements Listener {
      */
     public void clearAll() {
         cache.clear();
-        poiSearchCache.clear();
         lastMemoryRestore.clear();
-        lastSearchAttempt.clear();
         clearRollingRestoreBuckets();
-        brainHooks.clear();
-        behaviorHooks.clear();
-        behaviorSwaps.clear();
-        behaviorThrottleEntities.clear();
     }
 
     /**
      * Check if should optimize this entity
-     * Simplified: optimize all villagers regardless of naming or distance
      */
     public boolean shouldOptimize(Entity entity, double nearestPlayerDistance) {
         if (entity.getType() != EntityType.VILLAGER) {
@@ -383,21 +270,10 @@ public class VillagerPOICache implements Listener {
         };
     }
 
-    private String buildSearchKey(org.bukkit.entity.Villager villager, BlockPos center) {
-        UUID worldId = villager.getWorld().getUID();
-        int chunkX = center.getX() >> 4;
-        int chunkZ = center.getZ() >> 4;
-        return buildSearchChunkPrefix(worldId, chunkX, chunkZ) + villager.getProfession().getKey().getKey();
-    }
-
-    private String buildSearchChunkPrefix(UUID worldId, int chunkX, int chunkZ) {
-        return worldId + SEARCH_KEY_SEPARATOR + chunkX + SEARCH_KEY_SEPARATOR + chunkZ + SEARCH_KEY_SEPARATOR;
-    }
-
     /**
      * Invalidate POI cache when a POI block is broken
      */
-    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    @EventHandler(priority = EventPriority.MONITOR)
     public void onBlockBreak(BlockBreakEvent event) {
         Material type = event.getBlock().getType();
         if (isPOIBlock(type)) {
@@ -407,9 +283,8 @@ public class VillagerPOICache implements Listener {
 
     /**
      * Invalidate POI cache when a POI block is placed
-     * (nearby villagers may want to acquire it)
      */
-    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    @EventHandler(priority = EventPriority.MONITOR)
     public void onBlockPlace(BlockPlaceEvent event) {
         Material type = event.getBlock().getType();
         if (isPOIBlock(type)) {
@@ -421,24 +296,14 @@ public class VillagerPOICache implements Listener {
      * Invalidate all cached POIs at a specific location
      */
     private void invalidatePOIAt(Location location) {
-        // Remove all cache entries pointing to this location
         cache.entrySet().removeIf(entry -> {
             POICache poiCache = entry.getValue();
             if (poiCache.location().equals(location)) {
                 lastMemoryRestore.remove(entry.getKey());
-                lastSearchAttempt.remove(entry.getKey());
                 return true;
             }
             return false;
         });
-
-        // Invalidate search cache entries for the same chunk
-        if (location.getWorld() != null) {
-            int chunkX = location.getBlockX() >> 4;
-            int chunkZ = location.getBlockZ() >> 4;
-            String prefix = buildSearchChunkPrefix(location.getWorld().getUID(), chunkX, chunkZ);
-            poiSearchCache.keySet().removeIf(key -> key.startsWith(prefix));
-        }
     }
 
     /**
@@ -447,7 +312,6 @@ public class VillagerPOICache implements Listener {
     public void removePOI(UUID villagerUUID) {
         cache.remove(villagerUUID);
         lastMemoryRestore.remove(villagerUUID);
-        lastSearchAttempt.remove(villagerUUID);
     }
 
     /**
@@ -470,28 +334,8 @@ public class VillagerPOICache implements Listener {
         return new RollingRestoreStats(attempts, applied, candidates);
     }
 
-    public RollingSearchStats getRollingSearchStats() {
-        updateRollingBuckets(System.currentTimeMillis());
-        long hits = 0;
-        long misses = 0;
-        for (int i = 0; i < rollingSearchHits.length; i++) {
-            hits += rollingSearchHits[i];
-            misses += rollingSearchMisses[i];
-        }
-        return new RollingSearchStats(hits, misses);
-    }
-
-    public CacheStats getCacheStats() {
-        return new CacheStats(
-            brainHooks.size(),
-            poiSearchCache.size(),
-            behaviorThrottleEntities.size()
-        );
-    }
-
     /**
      * Clean up expired cache entries
-     * Can be called periodically to prevent memory buildup
      */
     public void cleanupExpired(long maxAge) {
         long now = System.currentTimeMillis();
@@ -503,7 +347,6 @@ public class VillagerPOICache implements Listener {
     private boolean removeIfExpired(Map.Entry<UUID, POICache> entry, long now, long maxAge) {
         if ((now - entry.getValue().timestamp()) > maxAge) {
             lastMemoryRestore.remove(entry.getKey());
-            lastSearchAttempt.remove(entry.getKey());
             return true;
         }
         return false;
@@ -541,113 +384,12 @@ public class VillagerPOICache implements Listener {
         return true;
     }
 
-    private boolean tryAssignFromSearchCache(org.bukkit.entity.Villager bukkitVillager,
-                                             Villager nmsVillager,
-                                             ServerLevel level,
-                                             double nearestDistance) {
-        if (!isEligibleForSearchCache(bukkitVillager, nearestDistance)) {
-            return false;
-        }
-
-        UUID uuid = bukkitVillager.getUniqueId();
-        long now = System.currentTimeMillis();
-        long lastAttempt = lastSearchAttempt.getOrDefault(uuid, 0L);
-        if (now - lastAttempt < POI_SEARCH_ATTEMPT_COOLDOWN_MS) {
-            return false;
-        }
-        lastSearchAttempt.put(uuid, now);
-
-        BlockPos origin = nmsVillager.blockPosition();
-        String searchKey = buildSearchKey(bukkitVillager, origin);
-        PoiManager poiManager = level.getPoiManager();
-        Predicate<Holder<PoiType>> acquirable = getAcquirableJobSitePredicate(nmsVillager);
-
-        List<Pair<Holder<PoiType>, BlockPos>> candidates = getCachedOrSearchCandidates(searchKey, level, poiManager, acquirable, origin);
-        if (candidates.isEmpty()) {
-            return false;
-        }
-
-        Set<Pair<Holder<PoiType>, BlockPos>> candidateSet = new HashSet<>(candidates);
-        Path path = AcquirePoi.findPathToPois(nmsVillager, candidateSet);
-        if (path == null || !path.canReach()) {
-            return false;
-        }
-
-        BlockPos target = path.getTarget();
-        if (poiManager.take(acquirable, (holder, blockPos) -> blockPos.equals(target), target, 1).isEmpty()) {
-            return false;
-        }
-
-        nmsVillager.getBrain().setMemory(MemoryModuleType.POTENTIAL_JOB_SITE, GlobalPos.of(level.dimension(), target));
-        return true;
-    }
-
-    private boolean isEligibleForSearchCache(org.bukkit.entity.Villager bukkitVillager, double nearestDistance) {
-        if (!config.isCachePOILookups()) {
-            return false;
-        }
-        if (!bukkitVillager.isAdult()) {
-            return false;
-        }
-        if (bukkitVillager.getProfession() == org.bukkit.entity.Villager.Profession.NONE
-            || bukkitVillager.getProfession() == org.bukkit.entity.Villager.Profession.NITWIT) {
-            return false;
-        }
-        boolean hasName = bukkitVillager.customName() != null;
-        if (!config.shouldOptimizePOI(EntityType.VILLAGER, hasName, nearestDistance)) {
-            return false;
-        }
-        long now = System.currentTimeMillis();
-        long lastAttempt = lastSearchAttempt.getOrDefault(bukkitVillager.getUniqueId(), 0L);
-        return now - lastAttempt >= POI_SEARCH_ATTEMPT_COOLDOWN_MS;
-    }
-
-    private List<Pair<Holder<PoiType>, BlockPos>> getCachedOrSearchCandidates(String searchKey,
-                                                                              ServerLevel level,
-                                                                              PoiManager poiManager,
-                                                                              Predicate<Holder<PoiType>> acquirable,
-                                                                              BlockPos origin) {
-        List<BlockPos> cachedPositions = getCachedSearchResult(searchKey);
-        List<Pair<Holder<PoiType>, BlockPos>> candidates = new ArrayList<>();
-
-        if (cachedPositions == null) {
-            PoiAccess.findNearestPoiPositions(
-                poiManager,
-                acquirable,
-                null,
-                origin,
-                AcquirePoi.SCAN_RANGE,
-                AcquirePoi.SCAN_RANGE * AcquirePoi.SCAN_RANGE,
-                PoiManager.Occupancy.HAS_SPACE,
-                false,
-                5,
-                candidates
-            );
-
-            List<BlockPos> positions = new ArrayList<>(candidates.size());
-            for (Pair<Holder<PoiType>, BlockPos> pair : candidates) {
-                positions.add(pair.getSecond());
-            }
-            cacheSearchResult(searchKey, positions);
-            return candidates;
-        }
-
-        for (BlockPos pos : cachedPositions) {
-            if (!level.isLoaded(pos)) {
-                continue;
-            }
-            Optional<Holder<PoiType>> type = poiManager.getType(pos);
-            if (type.isEmpty() || !acquirable.test(type.get())) {
-                continue;
-            }
-            candidates.add(Pair.of(type.get(), pos));
-        }
-
-        return candidates;
+    private Predicate<Holder<PoiType>> getAcquirableJobSitePredicate(Villager villager) {
+        return villager.getVillagerData().profession().value().heldJobSite();
     }
 
     private POICache getRestoreCandidate(org.bukkit.entity.Villager bukkitVillager, Villager nmsVillager, double nearestDistance) {
-        if (!config.isCachePOILookups()) {
+        if (!config.isRestoreJobSiteEnabled()) {
             return null;
         }
         if (!bukkitVillager.isAdult()) {
@@ -657,7 +399,6 @@ public class VillagerPOICache implements Listener {
             || bukkitVillager.getProfession() == org.bukkit.entity.Villager.Profession.NITWIT) {
             return null;
         }
-
         boolean hasName = bukkitVillager.customName() != null;
         if (!config.shouldOptimizePOI(EntityType.VILLAGER, hasName, nearestDistance)) {
             return null;
@@ -666,6 +407,7 @@ public class VillagerPOICache implements Listener {
         UUID uuid = bukkitVillager.getUniqueId();
         POICache cached = cache.get(uuid);
         if (cached == null || !validateCachedPOI(cached)) {
+            removePOI(uuid);
             return null;
         }
 
@@ -675,25 +417,21 @@ public class VillagerPOICache implements Listener {
             return null;
         }
 
-        if ((now - lastMemoryRestore.getOrDefault(uuid, 0L)) < MEMORY_RESTORE_COOLDOWN_MS) {
+        long lastRestore = lastMemoryRestore.getOrDefault(uuid, 0L);
+        if (now - lastRestore < MEMORY_RESTORE_COOLDOWN_MS) {
             return null;
         }
 
         Location poiLocation = cached.location();
-        if (poiLocation.getWorld() == null || !poiLocation.getWorld().equals(bukkitVillager.getWorld())) {
+        if (poiLocation.getWorld() != bukkitVillager.getWorld()) {
             return null;
         }
-
         if (poiLocation.distanceSquared(bukkitVillager.getLocation()) > MAX_RESTORE_DISTANCE_SQUARED) {
             return null;
         }
 
         recordRestoreCandidate();
         return cached;
-    }
-
-    private Predicate<Holder<PoiType>> getAcquirableJobSitePredicate(Villager villager) {
-        return villager.getVillagerData().profession().value().acquirableJobSite();
     }
 
     private void recordRestoreAttempt() {
@@ -711,16 +449,6 @@ public class VillagerPOICache implements Listener {
         rollingRestoreCandidates[rollingRestoreIndex]++;
     }
 
-    private void recordSearchHit() {
-        updateRollingBuckets(System.currentTimeMillis());
-        rollingSearchHits[rollingRestoreIndex]++;
-    }
-
-    private void recordSearchMiss() {
-        updateRollingBuckets(System.currentTimeMillis());
-        rollingSearchMisses[rollingRestoreIndex]++;
-    }
-
     private void updateRollingBuckets(long now) {
         long elapsed = now - rollingRestoreBucketStart;
         if (elapsed < ROLLING_BUCKET_MS) {
@@ -732,8 +460,6 @@ public class VillagerPOICache implements Listener {
             rollingRestoreAttempts[rollingRestoreIndex] = 0;
             rollingRestoreApplied[rollingRestoreIndex] = 0;
             rollingRestoreCandidates[rollingRestoreIndex] = 0;
-            rollingSearchHits[rollingRestoreIndex] = 0;
-            rollingSearchMisses[rollingRestoreIndex] = 0;
         }
         rollingRestoreBucketStart += (long) steps * ROLLING_BUCKET_MS;
     }
@@ -743,8 +469,6 @@ public class VillagerPOICache implements Listener {
             rollingRestoreAttempts[i] = 0;
             rollingRestoreApplied[i] = 0;
             rollingRestoreCandidates[i] = 0;
-            rollingSearchHits[i] = 0;
-            rollingSearchMisses[i] = 0;
         }
         rollingRestoreIndex = 0;
         rollingRestoreBucketStart = alignToMinute(System.currentTimeMillis());
@@ -752,181 +476,6 @@ public class VillagerPOICache implements Listener {
 
     private static long alignToMinute(long now) {
         return (now / ROLLING_BUCKET_MS) * ROLLING_BUCKET_MS;
-    }
-
-    private void ensureBrainHooked(org.bukkit.entity.Villager bukkitVillager, Villager nmsVillager) {
-        UUID uuid = bukkitVillager.getUniqueId();
-        Brain<Villager> brain = nmsVillager.getBrain();
-        int brainId = System.identityHashCode(brain);
-        Integer current = brainHooks.get(uuid);
-        if (current != null && current == brainId) {
-            return;
-        }
-
-        brainHooks.put(uuid, brainId);
-        brain.addActivity(
-            Activity.CORE,
-            ImmutableList.of(Pair.of(JOB_SITE_HOOK_PRIORITY, new CachedJobSiteBehavior()))
-        );
-    }
-
-    private boolean shouldThrottleBehavior(double nearestDistance, org.bukkit.entity.Villager villager) {
-        if (!config.isVillagerBehaviorThrottleEnabled()) {
-            return false;
-        }
-        if (!config.isVillagerBehaviorThrottleRequireDistant()) {
-            return true;
-        }
-        EntitySpreadTicker spread = plugin.getEntitySpread();
-        if (spread != null) {
-            return spread.getDistanceCategory(villager.getUniqueId()) == EntitySpreadTicker.DistanceCategory.DISTANT;
-        }
-        return nearestDistance >= config.getNearDistance();
-    }
-
-    private boolean shouldThrottleBehavior(Villager villager) {
-        return config.isVillagerBehaviorThrottleEnabled()
-            && behaviorThrottleEntities.contains(villager.getUUID());
-    }
-
-    private void wrapBehaviorsIfNeeded(org.bukkit.entity.Villager bukkitVillager, Villager nmsVillager) {
-        if (!config.isVillagerBehaviorThrottleEnabled()) {
-            return;
-        }
-        UUID uuid = bukkitVillager.getUniqueId();
-        Brain<Villager> brain = nmsVillager.getBrain();
-        int brainId = System.identityHashCode(brain);
-        Integer current = behaviorHooks.get(uuid);
-        if (current != null && current == brainId) {
-            return;
-        }
-        if (current != null && current != brainId) {
-            restoreBehaviorSwaps(uuid);
-        }
-        behaviorHooks.put(uuid, brainId);
-
-        Map<Integer, Map<Activity, Set<BehaviorControl<? super Villager>>>> byPriority = getBehaviorMap(brain);
-        if (byPriority == null) {
-            return;
-        }
-        boolean oneShotOnly = config.isVillagerBehaviorThrottleOneShotOnly();
-        int interval = config.getVillagerBehaviorThrottleInterval();
-        List<BehaviorSwap> swaps = new ArrayList<>();
-
-        for (Map<Activity, Set<BehaviorControl<? super Villager>>> byActivity : byPriority.values()) {
-            for (Set<BehaviorControl<? super Villager>> behaviors : byActivity.values()) {
-                List<BehaviorControl<? super Villager>> snapshot = new ArrayList<>(behaviors);
-                List<BehaviorSwap> setSwaps = new ArrayList<>();
-                for (BehaviorControl<? super Villager> behavior : snapshot) {
-                    if (behavior instanceof ThrottledBehavior) {
-                        continue;
-                    }
-                    if (oneShotOnly && !(behavior instanceof OneShot)) {
-                        continue;
-                    }
-                    @SuppressWarnings("unchecked")
-                    BehaviorControl<Villager> cast = (BehaviorControl<Villager>) behavior;
-                    ThrottledBehavior throttled = new ThrottledBehavior(cast, this, interval);
-                    setSwaps.add(new BehaviorSwap(behaviors, behavior, throttled));
-                }
-                if (!setSwaps.isEmpty()) {
-                    for (BehaviorSwap swap : setSwaps) {
-                        behaviors.remove(swap.original());
-                    }
-                    for (BehaviorSwap swap : setSwaps) {
-                        behaviors.add(swap.wrapper());
-                    }
-                    swaps.addAll(setSwaps);
-                }
-            }
-        }
-
-        if (!swaps.isEmpty()) {
-            behaviorSwaps.put(uuid, swaps);
-        }
-    }
-
-    private void cleanupBehaviorSwaps(Set<UUID> targets, Map<UUID, org.bukkit.entity.Villager> allVillagers) {
-        behaviorSwaps.entrySet().removeIf(entry -> {
-            UUID uuid = entry.getKey();
-            org.bukkit.entity.Villager villager = allVillagers.get(uuid);
-            if (villager != null && villager.isValid() && targets.contains(uuid)) {
-                return false;
-            }
-            for (BehaviorSwap swap : entry.getValue()) {
-                swap.set().remove(swap.wrapper());
-                swap.set().add(swap.original());
-            }
-            behaviorHooks.remove(uuid);
-            return true;
-        });
-    }
-
-    private void restoreBehaviorSwaps(UUID uuid) {
-        List<BehaviorSwap> swaps = behaviorSwaps.remove(uuid);
-        if (swaps != null) {
-            for (BehaviorSwap swap : swaps) {
-                swap.set().remove(swap.wrapper());
-                swap.set().add(swap.original());
-            }
-        }
-        behaviorHooks.remove(uuid);
-    }
-
-    private void restoreAllBehaviors() {
-        for (UUID uuid : new ArrayList<>(behaviorSwaps.keySet())) {
-            restoreBehaviorSwaps(uuid);
-        }
-        behaviorThrottleEntities.clear();
-    }
-
-    @SuppressWarnings("unchecked")
-    private Map<Integer, Map<Activity, Set<BehaviorControl<? super Villager>>>> getBehaviorMap(Brain<Villager> brain) {
-        Object value = NMSUtil.invokeHandle(BRAIN_BEHAVIORS_GETTER, brain);
-        if (value instanceof Map<?, ?> map) {
-            return (Map<Integer, Map<Activity, Set<BehaviorControl<? super Villager>>>>) map;
-        }
-        return null;
-    }
-
-    private final class CachedJobSiteBehavior extends Behavior<Villager> {
-        private CachedJobSiteBehavior() {
-            super(Map.of(
-                MemoryModuleType.JOB_SITE, MemoryStatus.VALUE_ABSENT,
-                MemoryModuleType.POTENTIAL_JOB_SITE, MemoryStatus.VALUE_ABSENT
-            ), 1, 1);
-        }
-
-        @Override
-        protected boolean checkExtraStartConditions(ServerLevel level, Villager owner) {
-            org.bukkit.entity.Villager bukkitVillager = (org.bukkit.entity.Villager) owner.getBukkitEntity();
-            double nearestDistance = getNearestPlayerDistanceForHook(owner.getUUID());
-            if (getRestoreCandidate(bukkitVillager, owner, nearestDistance) != null) {
-                return true;
-            }
-            return isEligibleForSearchCache(bukkitVillager, nearestDistance);
-        }
-
-        @Override
-        protected void start(ServerLevel level, Villager entity, long gameTime) {
-            org.bukkit.entity.Villager bukkitVillager = (org.bukkit.entity.Villager) entity.getBukkitEntity();
-            double nearestDistance = getNearestPlayerDistanceForHook(entity.getUUID());
-            if (tryRestoreJobSite(bukkitVillager, entity, level, nearestDistance)) {
-                return;
-            }
-            tryAssignFromSearchCache(bukkitVillager, entity, level, nearestDistance);
-        }
-    }
-
-    private double getNearestPlayerDistanceForHook(UUID uuid) {
-        if (plugin.getEntitySpread() == null) {
-            return Double.MAX_VALUE;
-        }
-        double distanceSquared = plugin.getEntitySpread().getNearestPlayerDistanceSquared(uuid);
-        if (!Double.isFinite(distanceSquared)) {
-            return Double.MAX_VALUE;
-        }
-        return Math.sqrt(distanceSquared);
     }
 
     private double getNearestPlayerDistance(Entity entity, List<Location> playerLocations) {
@@ -956,63 +505,5 @@ public class VillagerPOICache implements Listener {
         return Math.sqrt(minDistanceSquared);
     }
 
-    private record BehaviorSwap(Set<BehaviorControl<? super Villager>> set,
-                                BehaviorControl<? super Villager> original,
-                                BehaviorControl<? super Villager> wrapper) {}
-
-    private static final class ThrottledBehavior implements BehaviorControl<Villager> {
-        private final BehaviorControl<Villager> delegate;
-        private final VillagerPOICache cache;
-        private final int interval;
-        private long lastTryStart = Long.MIN_VALUE;
-        private boolean lastTryStartResult = false;
-
-        private ThrottledBehavior(BehaviorControl<Villager> delegate, VillagerPOICache cache, int interval) {
-            this.delegate = delegate;
-            this.cache = cache;
-            this.interval = Math.max(1, interval);
-        }
-
-        @Override
-        public Behavior.Status getStatus() {
-            return delegate.getStatus();
-        }
-
-        @Override
-        public boolean tryStart(ServerLevel level, Villager entity, long gameTime) {
-            if (!cache.shouldThrottleBehavior(entity)) {
-                return delegate.tryStart(level, entity, gameTime);
-            }
-            if (gameTime - lastTryStart < interval) {
-                return lastTryStartResult;
-            }
-            lastTryStart = gameTime;
-            lastTryStartResult = delegate.tryStart(level, entity, gameTime);
-            return lastTryStartResult;
-        }
-
-        @Override
-        public void tickOrStop(ServerLevel level, Villager entity, long gameTime) {
-            delegate.tickOrStop(level, entity, gameTime);
-        }
-
-        @Override
-        public void doStop(ServerLevel level, Villager entity, long gameTime) {
-            delegate.doStop(level, entity, gameTime);
-        }
-
-        @Override
-        public String debugString() {
-            return delegate.debugString();
-        }
-
-        @Override
-        public String toString() {
-            return "Throttled(" + delegate.debugString() + ")";
-        }
-    }
-
     public record RollingRestoreStats(long attempts, long applied, long candidates) {}
-    public record RollingSearchStats(long hits, long misses) {}
-    public record CacheStats(int hookedBrains, int searchCacheSize, int throttledBrains) {}
 }

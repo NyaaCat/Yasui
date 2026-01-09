@@ -35,6 +35,8 @@ dependencies {
     // Paper development bundle - includes API + NMS with Mojang mappings
     // Do NOT add Paper API separately - dev bundle includes it
     paperweight.paperDevBundle("$minecraftVersion-R0.1-SNAPSHOT")
+    // ASM is required by the agent at runtime; bundle into the plugin jar
+    implementation "org.ow2.asm:asm:9.7.1"
 }
 
 compileJava {
@@ -51,6 +53,19 @@ assemble {
 task sourcesJar(type: Jar) {
     from sourceSets.main.allJava
     archiveClassifier = 'sources'
+}
+jar {
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    manifest {
+        attributes(
+            'Agent-Class': 'cat.nyaa.yasui.agent.YasuiAgent',
+            'Can-Redefine-Classes': 'true',
+            'Can-Retransform-Classes': 'true'
+        )
+    }
+    from {
+        configurations.runtimeClasspath.findAll { it.name.startsWith("asm-") }.collect { it.isDirectory() ? it : zipTree(it) }
+    }
 }
 processResources { // modify version string
     filesMatching("**/plugin.yml") {
@@ -73,4 +88,3 @@ publishing {
         }
     }
 }
-

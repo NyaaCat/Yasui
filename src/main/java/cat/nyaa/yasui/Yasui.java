@@ -2,9 +2,13 @@ package cat.nyaa.yasui;
 
 import cat.nyaa.yasui.command.YasuiCommand;
 import cat.nyaa.yasui.optimizer.HopperOptimizer;
-import cat.nyaa.yasui.optimizer.EntityHotspotOptimizer;
 import cat.nyaa.yasui.optimizer.VillagerPOICache;
 import cat.nyaa.yasui.optimizer.EntitySpreadTicker;
+import cat.nyaa.yasui.optimizer.PathfindingCacheTracker;
+import cat.nyaa.yasui.optimizer.PoiSearchCacheTracker;
+import cat.nyaa.yasui.nms.HopperNmsHook;
+import cat.nyaa.yasui.nms.PathfindingNmsHook;
+import cat.nyaa.yasui.nms.PoiSearchNmsHook;
 import org.bukkit.event.HandlerList;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -12,16 +16,19 @@ import org.bukkit.plugin.java.JavaPlugin;
  * Yasui - Paper 1.21.8 Server Optimization Plugin
  *
  * Reduces server tick time through targeted optimizations:
- * - Hopper caching with periodic pre-computation
+ * - Hopper full-check caching
  * - Villager POI caching to reduce repeated lookups
- * - Entity distance cache for gating expensive optimizations
+ * - Entity distance cache for quick near/distant checks
+ * - Pathfinding result cache (short TTL)
+ * - AcquirePoi search caching (short TTL)
  */
 public class Yasui extends JavaPlugin {
     private YasuiConfig config;
     private HopperOptimizer hopperOptimizer;
     private VillagerPOICache villagerCache;
     private EntitySpreadTicker entitySpread;
-    private EntityHotspotOptimizer entityHotspotOptimizer;
+    private PathfindingCacheTracker pathfindingCacheTracker;
+    private PoiSearchCacheTracker poiSearchCacheTracker;
 
     @Override
     public void onEnable() {
@@ -30,6 +37,60 @@ public class Yasui extends JavaPlugin {
 
         // Load configuration
         config = new YasuiConfig(this);
+        boolean acquirePoiEnabled = config.isVillagerPOIEnabled() && config.isAcquirePoiCacheEnabled();
+
+        if (config.isHopperFullCacheEnabled()) {
+            boolean hookActive = HopperNmsHook.install(this);
+            if (hookActive) {
+                getLogger().info("Hopper full-check hook active");
+            } else {
+                String error = HopperNmsHook.getErrorMessage();
+                if (error != null) {
+                    getLogger().warning("Hopper full-check hook failed: " + error);
+                } else {
+                    getLogger().warning("Hopper full-check hook failed");
+                }
+            }
+        }
+        if (config.isPathfindingCacheEnabled()) {
+            boolean hookActive = PathfindingNmsHook.install(this);
+            if (hookActive) {
+                getLogger().info("Pathfinding cache hook active");
+            } else {
+                String error = PathfindingNmsHook.getErrorMessage();
+                if (error != null) {
+                    getLogger().warning("Pathfinding cache hook failed: " + error);
+                } else {
+                    getLogger().warning("Pathfinding cache hook failed");
+                }
+            }
+        }
+        if (acquirePoiEnabled) {
+            boolean hookActive = PoiSearchNmsHook.install(this);
+            if (hookActive) {
+                getLogger().info("AcquirePoi cache hook active");
+            } else {
+                String error = PoiSearchNmsHook.getErrorMessage();
+                if (error != null) {
+                    getLogger().warning("AcquirePoi cache hook failed: " + error);
+                } else {
+                    getLogger().warning("AcquirePoi cache hook failed");
+                }
+            }
+        }
+        HopperNmsHook.configure(config.isHopperFullCacheEnabled(), config.getHopperFullCacheTtlTicks());
+        PathfindingNmsHook.configure(
+            config.isPathfindingCacheEnabled(),
+            config.getPathfindingCacheTtlTicks(),
+            config.getPathfindingCacheTtlJitterTicks()
+        );
+        PoiSearchNmsHook.configure(
+            acquirePoiEnabled,
+            config.getAcquirePoiCacheTtlTicks(),
+            config.getAcquirePoiCacheTtlJitterTicks(),
+            config.getAcquirePoiCacheMaxEntries(),
+            config.isAcquirePoiCacheEmptyResults()
+        );
 
         // Initialize optimizers
         if (config.isHopperEnabled()) {
@@ -50,14 +111,19 @@ public class Yasui extends JavaPlugin {
             entitySpread = new EntitySpreadTicker(this, config);
             getServer().getPluginManager().registerEvents(entitySpread, this);
             entitySpread.start();
-            getLogger().info("Entity distance cache enabled (no tick freezing)");
+            getLogger().info("Entity distance cache enabled");
         }
 
-        if (config.isEntityHotspotEnabled()) {
-            entityHotspotOptimizer = new EntityHotspotOptimizer(this, config);
-            getServer().getPluginManager().registerEvents(entityHotspotOptimizer, this);
-            entityHotspotOptimizer.start();
-            getLogger().info("Entity hotspot optimizer enabled");
+        if (config.isPathfindingCacheEnabled()) {
+            pathfindingCacheTracker = new PathfindingCacheTracker(this, config);
+            pathfindingCacheTracker.start();
+            getLogger().info("Pathfinding cache enabled");
+        }
+
+        if (acquirePoiEnabled) {
+            poiSearchCacheTracker = new PoiSearchCacheTracker(this, config);
+            poiSearchCacheTracker.start();
+            getLogger().info("AcquirePoi search cache enabled");
         }
 
         // Register command
@@ -79,14 +145,16 @@ public class Yasui extends JavaPlugin {
             entitySpread.shutdown();
         }
 
-        if (entityHotspotOptimizer != null) {
-            HandlerList.unregisterAll(entityHotspotOptimizer);
-            entityHotspotOptimizer.shutdown();
-        }
-
         if (villagerCache != null) {
             HandlerList.unregisterAll(villagerCache);
             villagerCache.shutdown();
+        }
+
+        if (pathfindingCacheTracker != null) {
+            pathfindingCacheTracker.shutdown();
+        }
+        if (poiSearchCacheTracker != null) {
+            poiSearchCacheTracker.shutdown();
         }
 
         getLogger().info("Yasui optimization plugin disabled");
@@ -103,6 +171,60 @@ public class Yasui extends JavaPlugin {
 
         // Reload config object
         config = new YasuiConfig(this);
+
+        if (config.isHopperFullCacheEnabled() && !HopperNmsHook.isHookActive()) {
+            boolean hookActive = HopperNmsHook.install(this);
+            if (hookActive) {
+                getLogger().info("Hopper full-check hook active");
+            } else {
+                String error = HopperNmsHook.getErrorMessage();
+                if (error != null) {
+                    getLogger().warning("Hopper full-check hook failed: " + error);
+                } else {
+                    getLogger().warning("Hopper full-check hook failed");
+                }
+            }
+        }
+        if (config.isPathfindingCacheEnabled() && !PathfindingNmsHook.isHookActive()) {
+            boolean hookActive = PathfindingNmsHook.install(this);
+            if (hookActive) {
+                getLogger().info("Pathfinding cache hook active");
+            } else {
+                String error = PathfindingNmsHook.getErrorMessage();
+                if (error != null) {
+                    getLogger().warning("Pathfinding cache hook failed: " + error);
+                } else {
+                    getLogger().warning("Pathfinding cache hook failed");
+                }
+            }
+        }
+        boolean acquirePoiEnabled = config.isVillagerPOIEnabled() && config.isAcquirePoiCacheEnabled();
+        if (acquirePoiEnabled && !PoiSearchNmsHook.isHookActive()) {
+            boolean hookActive = PoiSearchNmsHook.install(this);
+            if (hookActive) {
+                getLogger().info("AcquirePoi cache hook active");
+            } else {
+                String error = PoiSearchNmsHook.getErrorMessage();
+                if (error != null) {
+                    getLogger().warning("AcquirePoi cache hook failed: " + error);
+                } else {
+                    getLogger().warning("AcquirePoi cache hook failed");
+                }
+            }
+        }
+        HopperNmsHook.configure(config.isHopperFullCacheEnabled(), config.getHopperFullCacheTtlTicks());
+        PathfindingNmsHook.configure(
+            config.isPathfindingCacheEnabled(),
+            config.getPathfindingCacheTtlTicks(),
+            config.getPathfindingCacheTtlJitterTicks()
+        );
+        PoiSearchNmsHook.configure(
+            acquirePoiEnabled,
+            config.getAcquirePoiCacheTtlTicks(),
+            config.getAcquirePoiCacheTtlJitterTicks(),
+            config.getAcquirePoiCacheMaxEntries(),
+            config.isAcquirePoiCacheEmptyResults()
+        );
 
         // Restart hopper optimizer (or disable if not enabled)
         if (hopperOptimizer != null) {
@@ -149,18 +271,28 @@ public class Yasui extends JavaPlugin {
             getLogger().info("Entity distance cache disabled");
         }
 
-        if (entityHotspotOptimizer != null) {
-            HandlerList.unregisterAll(entityHotspotOptimizer);
-            entityHotspotOptimizer.shutdown();
-            entityHotspotOptimizer = null;
+        if (pathfindingCacheTracker != null) {
+            pathfindingCacheTracker.shutdown();
+            pathfindingCacheTracker = null;
         }
-        if (config.isEntityHotspotEnabled()) {
-            entityHotspotOptimizer = new EntityHotspotOptimizer(this, config);
-            getServer().getPluginManager().registerEvents(entityHotspotOptimizer, this);
-            entityHotspotOptimizer.start();
-            getLogger().info("Entity hotspot optimizer reloaded");
+        if (config.isPathfindingCacheEnabled()) {
+            pathfindingCacheTracker = new PathfindingCacheTracker(this, config);
+            pathfindingCacheTracker.start();
+            getLogger().info("Pathfinding cache reloaded");
         } else {
-            getLogger().info("Entity hotspot optimizer disabled");
+            getLogger().info("Pathfinding cache disabled");
+        }
+
+        if (poiSearchCacheTracker != null) {
+            poiSearchCacheTracker.shutdown();
+            poiSearchCacheTracker = null;
+        }
+        if (acquirePoiEnabled) {
+            poiSearchCacheTracker = new PoiSearchCacheTracker(this, config);
+            poiSearchCacheTracker.start();
+            getLogger().info("AcquirePoi search cache reloaded");
+        } else {
+            getLogger().info("AcquirePoi search cache disabled");
         }
 
         getLogger().info("Configuration reload complete!");
@@ -182,7 +314,12 @@ public class Yasui extends JavaPlugin {
         return entitySpread;
     }
 
-    public EntityHotspotOptimizer getEntityHotspotOptimizer() {
-        return entityHotspotOptimizer;
+    public PathfindingCacheTracker getPathfindingCacheTracker() {
+        return pathfindingCacheTracker;
     }
+
+    public PoiSearchCacheTracker getPoiSearchCacheTracker() {
+        return poiSearchCacheTracker;
+    }
+
 }
