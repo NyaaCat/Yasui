@@ -408,7 +408,11 @@ public final class AsyncPlayerSave {
             handle = MethodHandles.lookup().unreflect(method);
             advAsDataHandle = handle;
         }
-        return handle.invoke(playerAdvancements);
+        try {
+            return handle.invoke(playerAdvancements);
+        } catch (Throwable t) {
+            throw new Exception("Failed to invoke asData()", t);
+        }
     }
 
     private static Object getJsonOpsInstance() throws Exception {
