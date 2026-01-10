@@ -56,7 +56,12 @@ public class HopperOptimizer implements Listener {
                                long fullCacheStores, long fullCacheInvalidations) {}
 
     public void start() {
-        HopperNmsHook.configure(config.isHopperFullCacheEnabled(), config.getHopperFullCacheTtlTicks());
+        HopperNmsHook.configure(
+            config.isHopperFullCacheEnabled(),
+            config.getHopperFullCacheTtlTicks(),
+            config.isHopperFullCacheNegativeEnabled(),
+            config.getHopperFullCacheNegativeTtlTicks()
+        );
         statsTask = plugin.getServer().getScheduler().runTaskTimer(plugin, this::flushFullCacheStats, 20L, 20L);
         seedActiveHoppers();
         plugin.getLogger().info("Hopper optimizer started");

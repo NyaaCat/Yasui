@@ -15,12 +15,12 @@ final class HopperFullCacheBridge {
 
     private HopperFullCacheBridge() {}
 
-    static void configure(boolean enabled, int ttlTicks) {
+    static void configure(boolean enabled, int ttlTicks, boolean cacheNotFull, int cacheNotFullTtlTicks) {
         if (!resolve()) {
             return;
         }
         try {
-            configureHandle.invokeWithArguments(enabled, ttlTicks);
+            configureHandle.invokeWithArguments(enabled, ttlTicks, cacheNotFull, cacheNotFullTtlTicks);
         } catch (Throwable ignored) {
             // Hook not available; ignore silently to avoid spam on every reload.
         }
@@ -77,7 +77,7 @@ final class HopperFullCacheBridge {
                 cacheClass = Class.forName(CLASS_NAME, true, system);
                 MethodHandles.Lookup lookup = MethodHandles.publicLookup();
                 configureHandle = lookup.findStatic(cacheClass, "configure",
-                    MethodType.methodType(void.class, boolean.class, int.class));
+                    MethodType.methodType(void.class, boolean.class, int.class, boolean.class, int.class));
                 invalidateHandle = lookup.findStatic(cacheClass, "invalidate",
                     MethodType.methodType(void.class, Object.class));
                 drainStatsHandle = lookup.findStatic(cacheClass, "drainStats",

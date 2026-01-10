@@ -18,6 +18,8 @@ public class YasuiConfig {
     private boolean hopperEnabled;
     private boolean hopperFullCacheEnabled;
     private int hopperFullCacheTtlTicks;
+    private boolean hopperFullCacheNegativeEnabled;
+    private int hopperFullCacheNegativeTtlTicks;
     private boolean hopperFullCacheInvalidateOnEvent;
 
     // Villager POI settings
@@ -28,6 +30,7 @@ public class YasuiConfig {
     private int acquirePoiCacheTtlJitterTicks;
     private int acquirePoiCacheMaxEntries;
     private boolean acquirePoiCacheEmptyResults;
+    private boolean acquirePoiCachePredicateAware;
     private boolean poiCompetitorCacheEnabled;
     private int poiCompetitorCacheTtlTicks;
     private int poiCompetitorCacheTtlJitterTicks;
@@ -54,6 +57,8 @@ public class YasuiConfig {
         hopperEnabled = true;
         hopperFullCacheEnabled = true;
         hopperFullCacheTtlTicks = 2;
+        hopperFullCacheNegativeEnabled = false;
+        hopperFullCacheNegativeTtlTicks = 1;
         hopperFullCacheInvalidateOnEvent = true;
 
         villagerPOIEnabled = true;
@@ -63,6 +68,7 @@ public class YasuiConfig {
         acquirePoiCacheTtlJitterTicks = 10;
         acquirePoiCacheMaxEntries = 20000;
         acquirePoiCacheEmptyResults = false;
+        acquirePoiCachePredicateAware = false;
         poiCompetitorCacheEnabled = true;
         poiCompetitorCacheTtlTicks = 2;
         poiCompetitorCacheTtlJitterTicks = 1;
@@ -83,6 +89,8 @@ public class YasuiConfig {
             hopperEnabled = hopperSection.getBoolean("enabled", true);
             hopperFullCacheEnabled = hopperSection.getBoolean("full-cache-enabled", true);
             hopperFullCacheTtlTicks = Math.max(0, hopperSection.getInt("full-cache-ttl-ticks", 2));
+            hopperFullCacheNegativeEnabled = hopperSection.getBoolean("full-cache-negative-enabled", false);
+            hopperFullCacheNegativeTtlTicks = Math.max(0, hopperSection.getInt("full-cache-negative-ttl-ticks", 1));
             hopperFullCacheInvalidateOnEvent = hopperSection.getBoolean("full-cache-invalidate-on-event", true);
         }
 
@@ -97,6 +105,7 @@ public class YasuiConfig {
                 acquirePoiCacheTtlJitterTicks = Math.max(0, acquireSection.getInt("ttl-jitter-ticks", 10));
                 acquirePoiCacheMaxEntries = Math.max(0, acquireSection.getInt("max-entries", 20000));
                 acquirePoiCacheEmptyResults = acquireSection.getBoolean("cache-empty-results", false);
+                acquirePoiCachePredicateAware = acquireSection.getBoolean("predicate-aware", false);
             }
             ConfigurationSection competitorSection = poiSection.getConfigurationSection("competitor-scan-cache");
             if (competitorSection != null) {
@@ -152,6 +161,14 @@ public class YasuiConfig {
         return hopperFullCacheTtlTicks;
     }
 
+    public boolean isHopperFullCacheNegativeEnabled() {
+        return hopperFullCacheNegativeEnabled;
+    }
+
+    public int getHopperFullCacheNegativeTtlTicks() {
+        return hopperFullCacheNegativeTtlTicks;
+    }
+
     public boolean isHopperFullCacheInvalidateOnEvent() {
         return hopperFullCacheInvalidateOnEvent;
     }
@@ -183,6 +200,10 @@ public class YasuiConfig {
 
     public boolean isAcquirePoiCacheEmptyResults() {
         return acquirePoiCacheEmptyResults;
+    }
+
+    public boolean isAcquirePoiCachePredicateAware() {
+        return acquirePoiCachePredicateAware;
     }
 
     public boolean isPoiCompetitorCacheEnabled() {

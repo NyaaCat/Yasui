@@ -30,8 +30,8 @@ public final class HopperNmsHook {
         return errorMessage;
     }
 
-    public static void configure(boolean enabled, int ttlTicks) {
-        HopperFullCacheBridge.configure(enabled, ttlTicks);
+    public static void configure(boolean enabled, int ttlTicks, boolean cacheNotFull, int cacheNotFullTtlTicks) {
+        HopperFullCacheBridge.configure(enabled, ttlTicks, cacheNotFull, cacheNotFullTtlTicks);
     }
 
     public static void invalidate(Container container) {

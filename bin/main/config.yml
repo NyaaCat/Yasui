@@ -7,6 +7,9 @@ optimizations:
     # Short-circuit isFullContainer with a tiny TTL cache (NMS hook)
     full-cache-enabled: true
     full-cache-ttl-ticks: 2
+    # Optional: cache "not full" results for the same container briefly (use carefully).
+    full-cache-negative-enabled: false
+    full-cache-negative-ttl-ticks: 1
     full-cache-invalidate-on-event: true
 
   # Villager POI optimization
@@ -21,6 +24,8 @@ optimizations:
       ttl-jitter-ticks: 10
       max-entries: 20000
       cache-empty-results: false
+      # Use position predicate in search (faster misses, can change retry behavior).
+      predicate-aware: false
     competitor-scan-cache:
       enabled: true
       ttl-ticks: 10

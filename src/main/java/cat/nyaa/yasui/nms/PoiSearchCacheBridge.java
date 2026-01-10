@@ -15,12 +15,14 @@ final class PoiSearchCacheBridge {
 
     private PoiSearchCacheBridge() {}
 
-    static void configure(boolean enabled, int ttlTicks, int ttlJitterTicks, int maxEntries, boolean cacheEmptyResults) {
+    static void configure(boolean enabled, int ttlTicks, int ttlJitterTicks, int maxEntries, boolean cacheEmptyResults,
+                          boolean predicateAware) {
         if (!resolve()) {
             return;
         }
         try {
-            configureHandle.invokeWithArguments(enabled, ttlTicks, ttlJitterTicks, maxEntries, cacheEmptyResults);
+            configureHandle.invokeWithArguments(
+                enabled, ttlTicks, ttlJitterTicks, maxEntries, cacheEmptyResults, predicateAware);
         } catch (Throwable ignored) {
         }
     }
@@ -80,7 +82,8 @@ final class PoiSearchCacheBridge {
                 cacheClass = Class.forName(CLASS_NAME, true, system);
                 MethodHandles.Lookup lookup = MethodHandles.publicLookup();
                 configureHandle = lookup.findStatic(cacheClass, "configure",
-                    MethodType.methodType(void.class, boolean.class, int.class, int.class, int.class, boolean.class));
+                    MethodType.methodType(void.class, boolean.class, int.class, int.class, int.class, boolean.class,
+                        boolean.class));
                 drainStatsHandle = lookup.findStatic(cacheClass, "drainStats",
                     MethodType.methodType(long[].class));
                 cacheSizeHandle = lookup.findStatic(cacheClass, "getCacheSize",

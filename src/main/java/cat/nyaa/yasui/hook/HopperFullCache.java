@@ -1,6 +1,5 @@
 package cat.nyaa.yasui.hook;
 
-import java.util.Collections;
 import java.util.Map;
 import java.util.WeakHashMap;
 import java.util.concurrent.atomic.LongAdder;
@@ -13,20 +12,29 @@ import java.util.concurrent.atomic.LongAdder;
  */
 public final class HopperFullCache {
     private static final int[][] CACHED_SLOTS = new int[55][];
-    private static final Map<Object, CacheEntry> CACHE = Collections.synchronizedMap(new WeakHashMap<>());
+    // Server thread only (NMS hopper tick), so avoid synchronized map overhead.
+    private static final Map<Object, CacheEntry> CACHE = new WeakHashMap<>();
     private static final LongAdder cacheHits = new LongAdder();
     private static final LongAdder cacheMisses = new LongAdder();
     private static final LongAdder cacheStores = new LongAdder();
     private static final LongAdder cacheInvalidations = new LongAdder();
     private static volatile boolean enabled = true;
     private static volatile int ttlTicks = 2;
+    private static volatile boolean cacheNotFull = false;
+    private static volatile int cacheNotFullTtlTicks = 1;
     private static volatile boolean hookActive = false;
+    private static volatile Object l1Key;
+    private static volatile CacheEntry l1Entry;
 
     private HopperFullCache() {}
 
-    public static void configure(boolean enabled, int ttlTicks) {
+    public static void configure(boolean enabled, int ttlTicks, boolean cacheNotFull, int cacheNotFullTtlTicks) {
         HopperFullCache.enabled = enabled;
         HopperFullCache.ttlTicks = Math.max(0, ttlTicks);
+        HopperFullCache.cacheNotFull = cacheNotFull;
+        HopperFullCache.cacheNotFullTtlTicks = Math.max(0, cacheNotFullTtlTicks);
+        l1Key = null;
+        l1Entry = null;
     }
 
     public static boolean isHookActive() {
@@ -49,23 +57,39 @@ public final class HopperFullCache {
         if (!NmsReflect.init(container)) {
             return false;
         }
-        if (!enabled || ttlTicks == 0) {
+        if (!enabled || (ttlTicks == 0 && (!cacheNotFull || cacheNotFullTtlTicks == 0))) {
             return computeFull(container, directionOrdinal);
         }
 
         int tick = NmsReflect.getCurrentTick();
         Object key = getKey(container);
-        CacheEntry entry = CACHE.get(key);
-        if (entry != null && entry.isValid(tick, ttlTicks, directionOrdinal)) {
+        CacheEntry l1 = l1Entry;
+        Object l1KeyLocal = l1Key;
+        if (l1 != null && isSameKey(l1KeyLocal, key) && l1.isValid(tick, directionOrdinal)) {
             cacheHits.increment();
+            return l1.full();
+        }
+
+        CacheEntry entry = CACHE.get(key);
+        if (entry != null && entry.isValid(tick, directionOrdinal)) {
+            cacheHits.increment();
+            setL1(key, entry);
             return entry.full();
+        }
+        if (entry != null) {
+            CACHE.remove(key);
         }
 
         boolean full = computeFull(container, directionOrdinal);
         cacheMisses.increment();
-        if (full) {
-            CACHE.put(key, new CacheEntry(true, tick, directionOrdinal));
+        int entryTtl = full ? ttlTicks : (cacheNotFull ? cacheNotFullTtlTicks : 0);
+        if (entryTtl > 0) {
+            CacheEntry created = new CacheEntry(full, tick + entryTtl, directionOrdinal);
+            CACHE.put(key, created);
+            setL1(key, created);
             cacheStores.increment();
+        } else {
+            clearL1IfMatch(key);
         }
         return full;
     }
@@ -81,6 +105,7 @@ public final class HopperFullCache {
         if (removed != null) {
             cacheInvalidations.increment();
         }
+        clearL1IfMatch(key);
     }
 
     public static long[] drainStats() {
@@ -105,10 +130,11 @@ public final class HopperFullCache {
         int[] slots = getSlots(container, directionOrdinal);
         for (int slot : slots) {
             Object item = NmsReflect.getItem(container, slot);
-            if (item == null || NmsReflect.isItemEmpty(item)) {
+            if (item == null) {
                 return false;
             }
-            if (NmsReflect.getItemCount(item) < NmsReflect.getItemMaxStackSize(item)) {
+            int count = NmsReflect.getItemCount(item);
+            if (count <= 0 || count < NmsReflect.getItemMaxStackSize(item)) {
                 return false;
             }
         }
@@ -140,10 +166,36 @@ public final class HopperFullCache {
         return slots;
     }
 
-    private record CacheEntry(boolean full, int tick, int directionOrdinal) {
-        private boolean isValid(int currentTick, int ttl, int direction) {
+    private static void setL1(Object key, CacheEntry entry) {
+        l1Key = key;
+        l1Entry = entry;
+    }
+
+    private static void clearL1IfMatch(Object key) {
+        Object l1KeyLocal = l1Key;
+        if (l1KeyLocal != null && isSameKey(l1KeyLocal, key)) {
+            l1Key = null;
+            l1Entry = null;
+        }
+    }
+
+    private static boolean isSameKey(Object left, Object right) {
+        if (left == right) {
+            return true;
+        }
+        if (left == null || right == null) {
+            return false;
+        }
+        if (left instanceof CompoundKey || right instanceof CompoundKey) {
+            return left.equals(right);
+        }
+        return false;
+    }
+
+    private record CacheEntry(boolean full, int expiryTick, int directionOrdinal) {
+        private boolean isValid(int currentTick, int direction) {
             return directionOrdinal == direction
-                && currentTick - tick <= ttl;
+                && currentTick <= expiryTick;
         }
     }
 

@@ -1,5 +1,8 @@
 package cat.nyaa.yasui.hook;
 
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -26,16 +29,32 @@ public final class PoiSearchCache {
     private static volatile int ttlJitterTicks = 0;
     private static volatile int maxEntries = 20000;
     private static volatile boolean cacheEmptyResults = false;
+    private static volatile boolean predicateAware = false;
     private static volatile boolean hookActive = false;
+    private static final MethodHandle NULL_PAIR_SECOND = MethodHandles.dropArguments(
+        MethodHandles.constant(Object.class, null), 0, Object.class);
+    private static final ClassValue<MethodHandle> PAIR_SECOND_GETTER = new ClassValue<>() {
+        @Override
+        protected MethodHandle computeValue(Class<?> type) {
+            try {
+                return MethodHandles.publicLookup().findVirtual(
+                    type, "getSecond", MethodType.methodType(Object.class));
+            } catch (Throwable ignored) {
+                return NULL_PAIR_SECOND;
+            }
+        }
+    };
 
     private PoiSearchCache() {}
 
-    public static void configure(boolean enabled, int ttlTicks, int ttlJitterTicks, int maxEntries, boolean cacheEmptyResults) {
+    public static void configure(boolean enabled, int ttlTicks, int ttlJitterTicks, int maxEntries, boolean cacheEmptyResults,
+                                 boolean predicateAware) {
         PoiSearchCache.enabled = enabled;
         PoiSearchCache.ttlTicks = Math.max(0, ttlTicks);
         PoiSearchCache.ttlJitterTicks = Math.max(0, ttlJitterTicks);
         PoiSearchCache.maxEntries = maxEntries;
         PoiSearchCache.cacheEmptyResults = cacheEmptyResults;
+        PoiSearchCache.predicateAware = predicateAware;
     }
 
     public static boolean isHookActive() {
@@ -87,6 +106,7 @@ public final class PoiSearchCache {
             return;
         }
 
+        int maxResults = Math.max(0, max);
         LruCache<CacheKey, CacheEntry> managerCache = getManagerCache(poiManager);
         CacheKey key = new CacheKey(
             NmsReflect.blockPosAsLong(sourcePosition),
@@ -94,7 +114,9 @@ public final class PoiSearchCache {
             Double.doubleToLongBits(maxDistanceSquared),
             occupancy,
             load,
-            villagePlaceType
+            villagePlaceType,
+            predicateAware ? maxResults : 0,
+            predicateAware
         );
 
         int tick = NmsReflect.getCurrentTick();
@@ -102,7 +124,7 @@ public final class PoiSearchCache {
         if (entry != null) {
             if (entry.isValid(tick)) {
                 cacheHits.increment();
-                fillResults(entry.results(), positionPredicate, max, ret);
+                fillResults(entry.results(), positionPredicate, maxResults, ret);
                 return;
             }
             managerCache.remove(key);
@@ -110,14 +132,17 @@ public final class PoiSearchCache {
 
         cacheMisses.increment();
         List results = new ArrayList();
+        Predicate searchPredicate = predicateAware ? positionPredicate : null;
+        int searchMax = predicateAware ? maxResults : Integer.MAX_VALUE;
         NmsReflect.findNearestPoiPositions(
-            poiManager, villagePlaceType, null, sourcePosition,
-            range, maxDistanceSquared, occupancy, load, Integer.MAX_VALUE, results);
-        fillResults(results, positionPredicate, max, ret);
+            poiManager, villagePlaceType, searchPredicate, sourcePosition,
+            range, maxDistanceSquared, occupancy, load, searchMax, results);
+        Predicate fillPredicate = (predicateAware && positionPredicate != null) ? null : positionPredicate;
+        fillResults(results, fillPredicate, maxResults, ret);
 
         if (!results.isEmpty() || cacheEmptyResults) {
             int expiryTick = tick + ttlTicks + computeJitter(key.hashCode(), ttlJitterTicks);
-            managerCache.put(key, new CacheEntry(expiryTick, List.copyOf(results)));
+            managerCache.put(key, new CacheEntry(expiryTick, results));
             cacheStores.increment();
         }
     }
@@ -151,7 +176,9 @@ public final class PoiSearchCache {
                             long maxDistanceBits,
                             Object occupancy,
                             boolean load,
-                            Object typePredicate) {}
+                            Object typePredicate,
+                            int max,
+                            boolean predicateAware) {}
 
     private record CacheEntry(int expiryTick, List<Object> results) {
         private boolean isValid(int currentTick) {
@@ -184,9 +211,12 @@ public final class PoiSearchCache {
     }
 
     private static Object getPairSecond(Object pair) {
+        if (pair == null) {
+            return null;
+        }
         try {
-            return pair.getClass().getMethod("getSecond").invoke(pair);
-        } catch (Exception e) {
+            return PAIR_SECOND_GETTER.get(pair.getClass()).invoke(pair);
+        } catch (Throwable ignored) {
             return null;
         }
     }

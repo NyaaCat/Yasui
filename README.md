@@ -68,6 +68,8 @@ optimizations:
     enabled: true
     full-cache-enabled: true
     full-cache-ttl-ticks: 2
+    full-cache-negative-enabled: false
+    full-cache-negative-ttl-ticks: 1
     full-cache-invalidate-on-event: true
 
   villager-poi:
@@ -79,6 +81,7 @@ optimizations:
       ttl-jitter-ticks: 10
       max-entries: 20000
       cache-empty-results: false
+      predicate-aware: false
     competitor-scan-cache:
       enabled: true
       ttl-ticks: 2

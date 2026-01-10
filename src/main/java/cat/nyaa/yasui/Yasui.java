@@ -96,7 +96,12 @@ public class Yasui extends JavaPlugin {
                 }
             }
         }
-        HopperNmsHook.configure(config.isHopperFullCacheEnabled(), config.getHopperFullCacheTtlTicks());
+        HopperNmsHook.configure(
+            config.isHopperFullCacheEnabled(),
+            config.getHopperFullCacheTtlTicks(),
+            config.isHopperFullCacheNegativeEnabled(),
+            config.getHopperFullCacheNegativeTtlTicks()
+        );
         PathfindingNmsHook.configure(
             config.isPathfindingCacheEnabled(),
             config.getPathfindingCacheTtlTicks(),
@@ -107,7 +112,8 @@ public class Yasui extends JavaPlugin {
             config.getAcquirePoiCacheTtlTicks(),
             config.getAcquirePoiCacheTtlJitterTicks(),
             config.getAcquirePoiCacheMaxEntries(),
-            config.isAcquirePoiCacheEmptyResults()
+            config.isAcquirePoiCacheEmptyResults(),
+            config.isAcquirePoiCachePredicateAware()
         );
         PoiCompetitorNmsHook.configure(
             competitorCacheEnabled,
@@ -267,7 +273,12 @@ public class Yasui extends JavaPlugin {
                 }
             }
         }
-        HopperNmsHook.configure(config.isHopperFullCacheEnabled(), config.getHopperFullCacheTtlTicks());
+        HopperNmsHook.configure(
+            config.isHopperFullCacheEnabled(),
+            config.getHopperFullCacheTtlTicks(),
+            config.isHopperFullCacheNegativeEnabled(),
+            config.getHopperFullCacheNegativeTtlTicks()
+        );
         PathfindingNmsHook.configure(
             config.isPathfindingCacheEnabled(),
             config.getPathfindingCacheTtlTicks(),
@@ -278,7 +289,8 @@ public class Yasui extends JavaPlugin {
             config.getAcquirePoiCacheTtlTicks(),
             config.getAcquirePoiCacheTtlJitterTicks(),
             config.getAcquirePoiCacheMaxEntries(),
-            config.isAcquirePoiCacheEmptyResults()
+            config.isAcquirePoiCacheEmptyResults(),
+            config.isAcquirePoiCachePredicateAware()
         );
 
         // Restart hopper optimizer (or disable if not enabled)
