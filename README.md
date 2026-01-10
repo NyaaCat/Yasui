@@ -99,13 +99,6 @@ optimizations:
     ttl-ticks: 3
     ttl-jitter-ticks: 1
 
-  async-player-save:
-    enabled: false
-    worker-threads: 2
-    async-stats: false
-    async-advancements: false
-    wait-on-shutdown: true
-    shutdown-timeout-seconds: 30
 ```
 
 ## Commands

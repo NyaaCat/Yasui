@@ -48,14 +48,6 @@ public class YasuiConfig {
     private int pathfindingCacheTtlTicks;
     private int pathfindingCacheTtlJitterTicks;
 
-    // Async player save settings
-    private boolean asyncPlayerSaveEnabled;
-    private int asyncPlayerSaveWorkerThreads;
-    private boolean asyncPlayerSaveStatsEnabled;
-    private boolean asyncPlayerSaveAdvancementsEnabled;
-    private boolean asyncPlayerSaveWaitOnShutdown;
-    private int asyncPlayerSaveShutdownTimeoutSeconds;
-
     public YasuiConfig(Yasui plugin) {
         this.plugin = plugin;
         loadConfig();
@@ -91,13 +83,6 @@ public class YasuiConfig {
         pathfindingCacheEnabled = true;
         pathfindingCacheTtlTicks = 3;
         pathfindingCacheTtlJitterTicks = 1;
-
-        asyncPlayerSaveEnabled = false;
-        asyncPlayerSaveWorkerThreads = 2;
-        asyncPlayerSaveStatsEnabled = false;
-        asyncPlayerSaveAdvancementsEnabled = false;
-        asyncPlayerSaveWaitOnShutdown = true;
-        asyncPlayerSaveShutdownTimeoutSeconds = 30;
 
         ConfigurationSection hopperSection = plugin.getConfig().getConfigurationSection("optimizations.hopper");
         if (hopperSection != null) {
@@ -162,15 +147,6 @@ public class YasuiConfig {
             pathfindingCacheTtlJitterTicks = Math.max(0, pathSection.getInt("ttl-jitter-ticks", 1));
         }
 
-        ConfigurationSection asyncSaveSection = plugin.getConfig().getConfigurationSection("optimizations.async-player-save");
-        if (asyncSaveSection != null) {
-            asyncPlayerSaveEnabled = asyncSaveSection.getBoolean("enabled", false);
-            asyncPlayerSaveWorkerThreads = Math.max(1, asyncSaveSection.getInt("worker-threads", 2));
-            asyncPlayerSaveStatsEnabled = asyncSaveSection.getBoolean("async-stats", false);
-            asyncPlayerSaveAdvancementsEnabled = asyncSaveSection.getBoolean("async-advancements", false);
-            asyncPlayerSaveWaitOnShutdown = asyncSaveSection.getBoolean("wait-on-shutdown", true);
-            asyncPlayerSaveShutdownTimeoutSeconds = Math.max(0, asyncSaveSection.getInt("shutdown-timeout-seconds", 30));
-        }
     }
 
     // Hopper getters
@@ -289,29 +265,6 @@ public class YasuiConfig {
         return pathfindingCacheTtlJitterTicks;
     }
 
-    public boolean isAsyncPlayerSaveEnabled() {
-        return asyncPlayerSaveEnabled;
-    }
-
-    public int getAsyncPlayerSaveWorkerThreads() {
-        return asyncPlayerSaveWorkerThreads;
-    }
-
-    public boolean isAsyncPlayerSaveStatsEnabled() {
-        return asyncPlayerSaveStatsEnabled;
-    }
-
-    public boolean isAsyncPlayerSaveAdvancementsEnabled() {
-        return asyncPlayerSaveAdvancementsEnabled;
-    }
-
-    public boolean isAsyncPlayerSaveWaitOnShutdown() {
-        return asyncPlayerSaveWaitOnShutdown;
-    }
-
-    public int getAsyncPlayerSaveShutdownTimeoutSeconds() {
-        return asyncPlayerSaveShutdownTimeoutSeconds;
-    }
 
     // Configuration records
     public record POIRule(EntityType type, boolean named, DistanceRule distanceRule, boolean optimize) {

@@ -7,7 +7,6 @@ import cat.nyaa.yasui.optimizer.EntitySpreadTicker;
 import cat.nyaa.yasui.optimizer.PathfindingCacheTracker;
 import cat.nyaa.yasui.optimizer.PoiCompetitorCacheTracker;
 import cat.nyaa.yasui.optimizer.PoiSearchCacheTracker;
-import cat.nyaa.yasui.nms.AsyncPlayerSaveNmsHook;
 import cat.nyaa.yasui.nms.HopperNmsHook;
 import cat.nyaa.yasui.nms.PathfindingNmsHook;
 import cat.nyaa.yasui.nms.PoiCompetitorNmsHook;
@@ -97,22 +96,6 @@ public class Yasui extends JavaPlugin {
                 }
             }
         }
-        boolean asyncSaveEnabled = config.isAsyncPlayerSaveEnabled()
-            || config.isAsyncPlayerSaveStatsEnabled()
-            || config.isAsyncPlayerSaveAdvancementsEnabled();
-        if (asyncSaveEnabled) {
-            boolean hookActive = AsyncPlayerSaveNmsHook.install(this);
-            if (hookActive) {
-                getLogger().info("Async player save hook active");
-            } else {
-                String error = AsyncPlayerSaveNmsHook.getErrorMessage();
-                if (error != null) {
-                    getLogger().warning("Async player save hook failed: " + error);
-                } else {
-                    getLogger().warning("Async player save hook failed");
-                }
-            }
-        }
         HopperNmsHook.configure(
             config.isHopperFullCacheEnabled(),
             config.getHopperFullCacheTtlTicks(),
@@ -138,14 +121,6 @@ public class Yasui extends JavaPlugin {
             config.getPoiCompetitorCacheTtlJitterTicks(),
             config.getPoiCompetitorCacheMaxEntries(),
             config.isPoiCompetitorCacheEmptyResults()
-        );
-        AsyncPlayerSaveNmsHook.configure(
-            config.isAsyncPlayerSaveEnabled(),
-            config.getAsyncPlayerSaveWorkerThreads(),
-            config.isAsyncPlayerSaveStatsEnabled(),
-            config.isAsyncPlayerSaveAdvancementsEnabled(),
-            config.isAsyncPlayerSaveWaitOnShutdown(),
-            config.getAsyncPlayerSaveShutdownTimeoutSeconds()
         );
         PoiCompetitorNmsHook.configure(
             competitorCacheEnabled,
@@ -228,9 +203,6 @@ public class Yasui extends JavaPlugin {
         if (poiCompetitorCacheTracker != null) {
             poiCompetitorCacheTracker.shutdown();
         }
-        if (config != null) {
-            AsyncPlayerSaveNmsHook.shutdown(config.isAsyncPlayerSaveWaitOnShutdown());
-        }
 
         getLogger().info("Yasui optimization plugin disabled");
     }
@@ -301,22 +273,6 @@ public class Yasui extends JavaPlugin {
                 }
             }
         }
-        boolean asyncSaveEnabled = config.isAsyncPlayerSaveEnabled()
-            || config.isAsyncPlayerSaveStatsEnabled()
-            || config.isAsyncPlayerSaveAdvancementsEnabled();
-        if (asyncSaveEnabled && !AsyncPlayerSaveNmsHook.isActive()) {
-            boolean hookActive = AsyncPlayerSaveNmsHook.install(this);
-            if (hookActive) {
-                getLogger().info("Async player save hook active");
-            } else {
-                String error = AsyncPlayerSaveNmsHook.getErrorMessage();
-                if (error != null) {
-                    getLogger().warning("Async player save hook failed: " + error);
-                } else {
-                    getLogger().warning("Async player save hook failed");
-                }
-            }
-        }
         HopperNmsHook.configure(
             config.isHopperFullCacheEnabled(),
             config.getHopperFullCacheTtlTicks(),
@@ -335,14 +291,6 @@ public class Yasui extends JavaPlugin {
             config.getAcquirePoiCacheMaxEntries(),
             config.isAcquirePoiCacheEmptyResults(),
             config.isAcquirePoiCachePredicateAware()
-        );
-        AsyncPlayerSaveNmsHook.configure(
-            config.isAsyncPlayerSaveEnabled(),
-            config.getAsyncPlayerSaveWorkerThreads(),
-            config.isAsyncPlayerSaveStatsEnabled(),
-            config.isAsyncPlayerSaveAdvancementsEnabled(),
-            config.isAsyncPlayerSaveWaitOnShutdown(),
-            config.getAsyncPlayerSaveShutdownTimeoutSeconds()
         );
 
         // Restart hopper optimizer (or disable if not enabled)
