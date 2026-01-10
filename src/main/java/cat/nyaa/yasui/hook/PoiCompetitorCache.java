@@ -16,6 +16,8 @@ import java.util.concurrent.atomic.LongAdder;
 public final class PoiCompetitorCache {
     private static final Map<Object, LruCache<Long, CacheEntry>> CACHE =
         Collections.synchronizedMap(new WeakHashMap<>());
+    private static final Map<Object, MemoryEntry> MEMORY_CACHE =
+        Collections.synchronizedMap(new WeakHashMap<>());
     private static final LongAdder cacheHits = new LongAdder();
     private static final LongAdder cacheMisses = new LongAdder();
     private static final LongAdder cacheStores = new LongAdder();
@@ -85,6 +87,38 @@ public final class PoiCompetitorCache {
         return result;
     }
 
+    /**
+     * Cached Brain.getMemory for PoiCompetitorScan.
+     *
+     * Cache is scoped to the current tick to minimize behavior differences.
+     *
+     * @param brain NMS Brain
+     * @param memoryType NMS MemoryModuleType
+     * @return Optional memory value
+     */
+    public static Optional<?> getMemoryCached(Object brain, Object memoryType) {
+        hookActive = true;
+        if (brain == null || memoryType == null) {
+            return Optional.empty();
+        }
+        if (!NmsReflect.init(brain)) {
+            return asOptional(NmsReflect.getBrainMemory(brain, memoryType));
+        }
+        if (!enabled) {
+            return asOptional(NmsReflect.getBrainMemory(brain, memoryType));
+        }
+
+        int tick = NmsReflect.getCurrentTick();
+        MemoryEntry entry = MEMORY_CACHE.get(brain);
+        if (entry != null && entry.isValid(tick, memoryType)) {
+            return entry.value();
+        }
+
+        Optional<?> result = asOptional(NmsReflect.getBrainMemory(brain, memoryType));
+        MEMORY_CACHE.put(brain, new MemoryEntry(tick, memoryType, result));
+        return result;
+    }
+
     public static long[] drainStats() {
         return new long[] {
             cacheHits.sumThenReset(),
@@ -127,6 +161,12 @@ public final class PoiCompetitorCache {
     private record CacheEntry(int expiryTick, Optional<?> value) {
         private boolean isValid(int currentTick) {
             return currentTick <= this.expiryTick;
+        }
+    }
+
+    private record MemoryEntry(int tick, Object memoryType, Optional<?> value) {
+        private boolean isValid(int currentTick, Object currentMemoryType) {
+            return this.tick == currentTick && this.memoryType == currentMemoryType;
         }
     }
 

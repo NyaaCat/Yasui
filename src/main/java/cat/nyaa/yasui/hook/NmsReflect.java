@@ -23,6 +23,9 @@ public final class NmsReflect {
     // MinecraftServer
     private static volatile MethodHandle currentTickGetter;
 
+    // Brain
+    private static volatile MethodHandle brainGetMemory;
+
     // Container
     private static volatile Class<?> containerClass;
     private static volatile MethodHandle getContainerSize;
@@ -94,6 +97,12 @@ public final class NmsReflect {
         Field tickField = minecraftServerClass.getField("currentTick");
         currentTickGetter = lookup.unreflectGetter(tickField);
 
+        // Brain
+        Class<?> brainClass = Class.forName("net.minecraft.world.entity.ai.Brain", true, nmsClassLoader);
+        Class<?> memoryModuleTypeClass = Class.forName("net.minecraft.world.entity.ai.memory.MemoryModuleType", true, nmsClassLoader);
+        brainGetMemory = lookup.findVirtual(brainClass, "getMemory",
+            MethodType.methodType(Optional.class, memoryModuleTypeClass));
+
         // Container
         containerClass = Class.forName("net.minecraft.world.Container", true, nmsClassLoader);
         getContainerSize = lookup.findVirtual(containerClass, "getContainerSize", MethodType.methodType(int.class));
@@ -152,6 +161,17 @@ public final class NmsReflect {
             return (int) currentTickGetter.invokeExact();
         } catch (Throwable t) {
             return 0;
+        }
+    }
+
+    public static Object getBrainMemory(Object brain, Object memoryType) {
+        if (!initialized || initFailed) {
+            return Optional.empty();
+        }
+        try {
+            return brainGetMemory.invoke(brain, memoryType);
+        } catch (Throwable t) {
+            return Optional.empty();
         }
     }
 

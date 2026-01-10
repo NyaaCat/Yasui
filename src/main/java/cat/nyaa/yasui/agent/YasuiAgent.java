@@ -46,6 +46,10 @@ public final class YasuiAgent {
     private static final String POI_MANAGER_GET_TYPE = "getType";
     private static final String POI_MANAGER_GET_TYPE_DESC = "(Lnet/minecraft/core/BlockPos;)Ljava/util/Optional;";
     private static final String POI_COMPETITOR_HOOK_DESC = "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/util/Optional;";
+    private static final String BRAIN_OWNER = "net/minecraft/world/entity/ai/Brain";
+    private static final String BRAIN_GET_MEMORY = "getMemory";
+    private static final String BRAIN_GET_MEMORY_DESC = "(Lnet/minecraft/world/entity/ai/memory/MemoryModuleType;)Ljava/util/Optional;";
+    private static final String POI_COMPETITOR_MEMORY_HOOK_DESC = "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/util/Optional;";
     private static final String PLAYER_DATA_STORAGE_CLASS = "net/minecraft/world/level/storage/PlayerDataStorage";
     private static final String PLAYER_DATA_STORAGE_METHOD = "save";
     private static final String PLAYER_DATA_STORAGE_DESC = "(Lnet/minecraft/world/entity/player/Player;)V";
@@ -455,6 +459,19 @@ public final class YasuiAgent {
                                         "cat/nyaa/yasui/hook/PoiCompetitorCache",
                                         "getTypeCached",
                                         POI_COMPETITOR_HOOK_DESC,
+                                        false
+                                    );
+                                    return;
+                                }
+                                if (BRAIN_OWNER.equals(owner)
+                                    && BRAIN_GET_MEMORY.equals(name)
+                                    && BRAIN_GET_MEMORY_DESC.equals(desc)) {
+                                    changed[0] = true;
+                                    super.visitMethodInsn(
+                                        Opcodes.INVOKESTATIC,
+                                        "cat/nyaa/yasui/hook/PoiCompetitorCache",
+                                        "getMemoryCached",
+                                        POI_COMPETITOR_MEMORY_HOOK_DESC,
                                         false
                                     );
                                     return;
