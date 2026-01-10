@@ -46,3 +46,12 @@ optimizations:
     enabled: true
     ttl-ticks: 2
     ttl-jitter-ticks: 3
+
+  # Async player save (NBT compression/write off main thread)
+  async-player-save:
+    enabled: false
+    worker-threads: 2
+    async-stats: false
+    async-advancements: false
+    wait-on-shutdown: true
+    shutdown-timeout-seconds: 30

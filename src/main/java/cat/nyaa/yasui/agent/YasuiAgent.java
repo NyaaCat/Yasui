@@ -46,6 +46,23 @@ public final class YasuiAgent {
     private static final String POI_MANAGER_GET_TYPE = "getType";
     private static final String POI_MANAGER_GET_TYPE_DESC = "(Lnet/minecraft/core/BlockPos;)Ljava/util/Optional;";
     private static final String POI_COMPETITOR_HOOK_DESC = "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/util/Optional;";
+    private static final String PLAYER_DATA_STORAGE_CLASS = "net/minecraft/world/level/storage/PlayerDataStorage";
+    private static final String PLAYER_DATA_STORAGE_METHOD = "save";
+    private static final String PLAYER_DATA_STORAGE_DESC = "(Lnet/minecraft/world/entity/player/Player;)V";
+    private static final String PLAYER_LIST_CLASS = "net/minecraft/server/players/PlayerList";
+    private static final String PLAYER_LIST_SAVE_METHOD = "save";
+    private static final String PLAYER_LIST_SAVE_DESC = "(Lnet/minecraft/server/level/ServerPlayer;)V";
+    private static final String NBT_IO_OWNER = "net/minecraft/nbt/NbtIo";
+    private static final String NBT_IO_WRITE = "writeCompressed";
+    private static final String NBT_IO_WRITE_DESC = "(Lnet/minecraft/nbt/CompoundTag;Ljava/nio/file/Path;)V";
+    private static final String UTIL_OWNER = "net/minecraft/Util";
+    private static final String UTIL_SAFE_REPLACE = "safeReplaceFile";
+    private static final String UTIL_SAFE_REPLACE_DESC = "(Ljava/nio/file/Path;Ljava/nio/file/Path;Ljava/nio/file/Path;)V";
+    private static final String ASYNC_SAVE_OWNER = "cat/nyaa/yasui/hook/AsyncPlayerSave";
+    private static final String ASYNC_SAVE_WRITE_DESC = "(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)V";
+    private static final String ASYNC_SAVE_REPLACE_DESC = "(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)V";
+    private static final String ASYNC_SAVE_STATS_DESC = "(Ljava/lang/Object;)V";
+    private static final String ASYNC_SAVE_ADV_DESC = "(Ljava/lang/Object;)V";
     private static final String HOOK_CLASS_PREFIX = "cat/nyaa/yasui/hook/";
     private static final List<JarFile> bootstrapJars = new ArrayList<>();
 
@@ -67,6 +84,8 @@ public final class YasuiAgent {
             retransform(inst, PATHNAV_CLASS);
             retransform(inst, ACQUIRE_POI_CLASS);
             retransform(inst, POI_COMPETITOR_CLASS);
+            retransform(inst, PLAYER_DATA_STORAGE_CLASS);
+            retransform(inst, PLAYER_LIST_CLASS);
 
             if (transformer.hopperTransformed()) {
                 markHookActive("cat.nyaa.yasui.hook.HopperFullCache", "markHookActive");
@@ -83,6 +102,9 @@ public final class YasuiAgent {
             if (transformer.poiCompetitorTransformed()) {
                 markHookActive("cat.nyaa.yasui.hook.PoiCompetitorCache", "markHookActive");
                 log("PoiCompetitorScan cache hook installed");
+            }
+            if (transformer.playerDataStorageTransformed() || transformer.playerListTransformed()) {
+                log("Async player save hook installed");
             }
         } catch (Throwable t) {
             log("Hook install failed: " + t.getClass().getSimpleName() + " " + t.getMessage());
@@ -182,6 +204,16 @@ public final class YasuiAgent {
         private volatile boolean pathNavTransformed = false;
         private volatile boolean poiSearchTransformed = false;
         private volatile boolean poiCompetitorTransformed = false;
+        private volatile boolean playerDataStorageTransformed = false;
+        private volatile boolean playerListTransformed = false;
+
+        boolean playerDataStorageTransformed() {
+            return playerDataStorageTransformed;
+        }
+
+        boolean playerListTransformed() {
+            return playerListTransformed;
+        }
 
         @Override
         public byte[] transform(Module module, ClassLoader loader, String className,
@@ -198,6 +230,12 @@ public final class YasuiAgent {
             }
             if (POI_COMPETITOR_CLASS.equals(className)) {
                 return transformPoiCompetitorScan(classfileBuffer, loader);
+            }
+            if (PLAYER_DATA_STORAGE_CLASS.equals(className)) {
+                return transformPlayerDataStorage(classfileBuffer, loader);
+            }
+            if (PLAYER_LIST_CLASS.equals(className)) {
+                return transformPlayerList(classfileBuffer, loader);
             }
             return null;
         }
@@ -438,6 +476,137 @@ public final class YasuiAgent {
                 return changed[0] ? writer.toByteArray() : null;
             } catch (Throwable t) {
                 log("PoiCompetitorScan transformer failed: " + t.getClass().getSimpleName() + " " + t.getMessage());
+                return null;
+            }
+        }
+
+        private byte[] transformPlayerDataStorage(byte[] classfileBuffer, ClassLoader loader) {
+            try {
+                ClassReader reader = new ClassReader(classfileBuffer);
+                ClassWriter writer = newClassWriter(reader, loader);
+                boolean[] changed = new boolean[] {false};
+                ClassVisitor visitor = new ClassVisitor(Opcodes.ASM9, writer) {
+                    @Override
+                    public MethodVisitor visitMethod(int access, String name, String descriptor,
+                                                     String signature, String[] exceptions) {
+                        MethodVisitor mv = super.visitMethod(access, name, descriptor, signature, exceptions);
+                        if (!PLAYER_DATA_STORAGE_METHOD.equals(name) || !PLAYER_DATA_STORAGE_DESC.equals(descriptor)) {
+                            return mv;
+                        }
+                        return new MethodVisitor(Opcodes.ASM9, mv) {
+                            @Override
+                            public void visitMethodInsn(int opcode, String owner, String name, String desc, boolean isInterface) {
+                                if (opcode == Opcodes.INVOKESTATIC
+                                    && NBT_IO_OWNER.equals(owner)
+                                    && NBT_IO_WRITE.equals(name)
+                                    && NBT_IO_WRITE_DESC.equals(desc)) {
+                                    changed[0] = true;
+                                    super.visitVarInsn(Opcodes.ALOAD, 1);
+                                    super.visitMethodInsn(
+                                        Opcodes.INVOKESTATIC,
+                                        ASYNC_SAVE_OWNER,
+                                        "writeCompressed",
+                                        ASYNC_SAVE_WRITE_DESC,
+                                        false
+                                    );
+                                    return;
+                                }
+                                if (opcode == Opcodes.INVOKESTATIC
+                                    && UTIL_OWNER.equals(owner)
+                                    && UTIL_SAFE_REPLACE.equals(name)
+                                    && UTIL_SAFE_REPLACE_DESC.equals(desc)) {
+                                    changed[0] = true;
+                                    super.visitMethodInsn(
+                                        Opcodes.INVOKESTATIC,
+                                        ASYNC_SAVE_OWNER,
+                                        "safeReplaceFile",
+                                        ASYNC_SAVE_REPLACE_DESC,
+                                        false
+                                    );
+                                    return;
+                                }
+                                super.visitMethodInsn(opcode, owner, name, desc, isInterface);
+                            }
+                        };
+                    }
+
+                    @Override
+                    public void visitEnd() {
+                        if (changed[0]) {
+                            playerDataStorageTransformed = true;
+                        }
+                        super.visitEnd();
+                    }
+                };
+                reader.accept(visitor, 0);
+                return changed[0] ? writer.toByteArray() : null;
+            } catch (Throwable t) {
+                log("PlayerDataStorage transformer failed: " + t.getClass().getSimpleName() + " " + t.getMessage());
+                return null;
+            }
+        }
+
+        private byte[] transformPlayerList(byte[] classfileBuffer, ClassLoader loader) {
+            try {
+                ClassReader reader = new ClassReader(classfileBuffer);
+                ClassWriter writer = newClassWriter(reader, loader);
+                boolean[] changed = new boolean[] {false};
+                ClassVisitor visitor = new ClassVisitor(Opcodes.ASM9, writer) {
+                    @Override
+                    public MethodVisitor visitMethod(int access, String name, String descriptor,
+                                                     String signature, String[] exceptions) {
+                        MethodVisitor mv = super.visitMethod(access, name, descriptor, signature, exceptions);
+                        if (!PLAYER_LIST_SAVE_METHOD.equals(name) || !PLAYER_LIST_SAVE_DESC.equals(descriptor)) {
+                            return mv;
+                        }
+                        return new MethodVisitor(Opcodes.ASM9, mv) {
+                            @Override
+                            public void visitMethodInsn(int opcode, String owner, String name, String desc, boolean isInterface) {
+                                if (opcode == Opcodes.INVOKEVIRTUAL
+                                    && "net/minecraft/stats/ServerStatsCounter".equals(owner)
+                                    && "save".equals(name)
+                                    && "()V".equals(desc)) {
+                                    changed[0] = true;
+                                    super.visitMethodInsn(
+                                        Opcodes.INVOKESTATIC,
+                                        ASYNC_SAVE_OWNER,
+                                        "saveStats",
+                                        ASYNC_SAVE_STATS_DESC,
+                                        false
+                                    );
+                                    return;
+                                }
+                                if (opcode == Opcodes.INVOKEVIRTUAL
+                                    && "net/minecraft/server/PlayerAdvancements".equals(owner)
+                                    && "save".equals(name)
+                                    && "()V".equals(desc)) {
+                                    changed[0] = true;
+                                    super.visitMethodInsn(
+                                        Opcodes.INVOKESTATIC,
+                                        ASYNC_SAVE_OWNER,
+                                        "saveAdvancements",
+                                        ASYNC_SAVE_ADV_DESC,
+                                        false
+                                    );
+                                    return;
+                                }
+                                super.visitMethodInsn(opcode, owner, name, desc, isInterface);
+                            }
+                        };
+                    }
+
+                    @Override
+                    public void visitEnd() {
+                        if (changed[0]) {
+                            playerListTransformed = true;
+                        }
+                        super.visitEnd();
+                    }
+                };
+                reader.accept(visitor, 0);
+                return changed[0] ? writer.toByteArray() : null;
+            } catch (Throwable t) {
+                log("PlayerList transformer failed: " + t.getClass().getSimpleName() + " " + t.getMessage());
                 return null;
             }
         }
