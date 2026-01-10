@@ -34,6 +34,7 @@ public final class AsyncPlayerSave {
     private static volatile ExecutorService executor;
     private static final Set<CompletableFuture<Void>> pending = ConcurrentHashMap.newKeySet();
     private static final ConcurrentHashMap<String, Long> latestSeq = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<String, CompletableFuture<Void>> pendingSaves = new ConcurrentHashMap<>();
     private static final AtomicLong seqCounter = new AtomicLong();
 
     private static volatile MethodHandle nbtWriteHandle;
@@ -89,6 +90,8 @@ public final class AsyncPlayerSave {
         exec.shutdown();
         executor = null;
         pending.clear();
+        pendingSaves.clear();
+        latestSeq.clear();
     }
 
     public static void writeCompressed(Object tag, Object path, Object player) {
@@ -106,6 +109,9 @@ public final class AsyncPlayerSave {
         }
         long seq = seqCounter.incrementAndGet();
         latestSeq.put(uuid, seq);
+        CompletableFuture<Void> saveFuture = new CompletableFuture<>();
+        pendingSaves.put(uuid, saveFuture);
+        saveFuture.whenComplete((result, throwable) -> pendingSaves.remove(uuid, saveFuture));
         submit(() -> {
             if (!isLatest(uuid, seq)) {
                 deleteTemp(tempPath);
@@ -126,7 +132,7 @@ public final class AsyncPlayerSave {
             Path current = parent.resolve(uuid + ".dat");
             Path backup = parent.resolve(uuid + ".dat_old");
             safeReplaceSync(current, tempPath, backup);
-        });
+        }, saveFuture);
     }
 
     public static void safeReplaceFile(Object current, Object latest, Object oldBackup) {
@@ -134,6 +140,29 @@ public final class AsyncPlayerSave {
             return;
         }
         safeReplaceSync(current, latest, oldBackup);
+    }
+
+    public static void awaitPendingSave(Object uuid) {
+        if (!playerSaveEnabled) {
+            return;
+        }
+        if (!(uuid instanceof String id)) {
+            return;
+        }
+        while (true) {
+            CompletableFuture<Void> future = pendingSaves.get(id);
+            if (future == null) {
+                return;
+            }
+            try {
+                future.join();
+            } catch (RuntimeException ignored) {
+            }
+            CompletableFuture<Void> current = pendingSaves.get(id);
+            if (current == null || current == future) {
+                return;
+            }
+        }
     }
 
     public static void saveStats(Object statsCounter) {
@@ -195,14 +224,31 @@ public final class AsyncPlayerSave {
         );
     }
 
-    private static void submit(Runnable task) {
+    private static CompletableFuture<Void> submit(Runnable task) {
+        CompletableFuture<Void> future = new CompletableFuture<>();
+        submit(task, future);
+        return future;
+    }
+
+    private static void submit(Runnable task, CompletableFuture<Void> future) {
         ExecutorService exec = executor;
-        if (exec == null) {
-            task.run();
-            return;
-        }
-        CompletableFuture<Void> future = CompletableFuture.runAsync(task, exec);
         pending.add(future);
+        Runnable wrapped = () -> {
+            try {
+                task.run();
+            } finally {
+                future.complete(null);
+            }
+        };
+        if (exec == null) {
+            wrapped.run();
+        } else {
+            try {
+                exec.execute(wrapped);
+            } catch (RuntimeException ignored) {
+                wrapped.run();
+            }
+        }
         future.whenComplete((result, throwable) -> pending.remove(future));
     }
 

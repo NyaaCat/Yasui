@@ -53,6 +53,8 @@ public final class YasuiAgent {
     private static final String PLAYER_DATA_STORAGE_CLASS = "net/minecraft/world/level/storage/PlayerDataStorage";
     private static final String PLAYER_DATA_STORAGE_METHOD = "save";
     private static final String PLAYER_DATA_STORAGE_DESC = "(Lnet/minecraft/world/entity/player/Player;)V";
+    private static final String PLAYER_DATA_STORAGE_LOAD_METHOD = "load";
+    private static final String PLAYER_DATA_STORAGE_LOAD_DESC = "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Ljava/util/Optional;";
     private static final String PLAYER_LIST_CLASS = "net/minecraft/server/players/PlayerList";
     private static final String PLAYER_LIST_SAVE_METHOD = "save";
     private static final String PLAYER_LIST_SAVE_DESC = "(Lnet/minecraft/server/level/ServerPlayer;)V";
@@ -65,6 +67,7 @@ public final class YasuiAgent {
     private static final String ASYNC_SAVE_OWNER = "cat/nyaa/yasui/hook/AsyncPlayerSave";
     private static final String ASYNC_SAVE_WRITE_DESC = "(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)V";
     private static final String ASYNC_SAVE_REPLACE_DESC = "(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)V";
+    private static final String ASYNC_SAVE_AWAIT_DESC = "(Ljava/lang/Object;)V";
     private static final String ASYNC_SAVE_STATS_DESC = "(Ljava/lang/Object;)V";
     private static final String ASYNC_SAVE_ADV_DESC = "(Ljava/lang/Object;)V";
     private static final String HOOK_CLASS_PREFIX = "cat/nyaa/yasui/hook/";
@@ -507,44 +510,61 @@ public final class YasuiAgent {
                     public MethodVisitor visitMethod(int access, String name, String descriptor,
                                                      String signature, String[] exceptions) {
                         MethodVisitor mv = super.visitMethod(access, name, descriptor, signature, exceptions);
-                        if (!PLAYER_DATA_STORAGE_METHOD.equals(name) || !PLAYER_DATA_STORAGE_DESC.equals(descriptor)) {
-                            return mv;
+                        if (PLAYER_DATA_STORAGE_METHOD.equals(name) && PLAYER_DATA_STORAGE_DESC.equals(descriptor)) {
+                            return new MethodVisitor(Opcodes.ASM9, mv) {
+                                @Override
+                                public void visitMethodInsn(int opcode, String owner, String name, String desc, boolean isInterface) {
+                                    if (opcode == Opcodes.INVOKESTATIC
+                                        && NBT_IO_OWNER.equals(owner)
+                                        && NBT_IO_WRITE.equals(name)
+                                        && NBT_IO_WRITE_DESC.equals(desc)) {
+                                        changed[0] = true;
+                                        super.visitVarInsn(Opcodes.ALOAD, 1);
+                                        super.visitMethodInsn(
+                                            Opcodes.INVOKESTATIC,
+                                            ASYNC_SAVE_OWNER,
+                                            "writeCompressed",
+                                            ASYNC_SAVE_WRITE_DESC,
+                                            false
+                                        );
+                                        return;
+                                    }
+                                    if (opcode == Opcodes.INVOKESTATIC
+                                        && UTIL_OWNER.equals(owner)
+                                        && UTIL_SAFE_REPLACE.equals(name)
+                                        && UTIL_SAFE_REPLACE_DESC.equals(desc)) {
+                                        changed[0] = true;
+                                        super.visitMethodInsn(
+                                            Opcodes.INVOKESTATIC,
+                                            ASYNC_SAVE_OWNER,
+                                            "safeReplaceFile",
+                                            ASYNC_SAVE_REPLACE_DESC,
+                                            false
+                                        );
+                                        return;
+                                    }
+                                    super.visitMethodInsn(opcode, owner, name, desc, isInterface);
+                                }
+                            };
                         }
-                        return new MethodVisitor(Opcodes.ASM9, mv) {
-                            @Override
-                            public void visitMethodInsn(int opcode, String owner, String name, String desc, boolean isInterface) {
-                                if (opcode == Opcodes.INVOKESTATIC
-                                    && NBT_IO_OWNER.equals(owner)
-                                    && NBT_IO_WRITE.equals(name)
-                                    && NBT_IO_WRITE_DESC.equals(desc)) {
+                        if (PLAYER_DATA_STORAGE_LOAD_METHOD.equals(name) && PLAYER_DATA_STORAGE_LOAD_DESC.equals(descriptor)) {
+                            return new MethodVisitor(Opcodes.ASM9, mv) {
+                                @Override
+                                public void visitCode() {
+                                    super.visitCode();
                                     changed[0] = true;
-                                    super.visitVarInsn(Opcodes.ALOAD, 1);
+                                    super.visitVarInsn(Opcodes.ALOAD, 2);
                                     super.visitMethodInsn(
                                         Opcodes.INVOKESTATIC,
                                         ASYNC_SAVE_OWNER,
-                                        "writeCompressed",
-                                        ASYNC_SAVE_WRITE_DESC,
+                                        "awaitPendingSave",
+                                        ASYNC_SAVE_AWAIT_DESC,
                                         false
                                     );
-                                    return;
                                 }
-                                if (opcode == Opcodes.INVOKESTATIC
-                                    && UTIL_OWNER.equals(owner)
-                                    && UTIL_SAFE_REPLACE.equals(name)
-                                    && UTIL_SAFE_REPLACE_DESC.equals(desc)) {
-                                    changed[0] = true;
-                                    super.visitMethodInsn(
-                                        Opcodes.INVOKESTATIC,
-                                        ASYNC_SAVE_OWNER,
-                                        "safeReplaceFile",
-                                        ASYNC_SAVE_REPLACE_DESC,
-                                        false
-                                    );
-                                    return;
-                                }
-                                super.visitMethodInsn(opcode, owner, name, desc, isInterface);
-                            }
-                        };
+                            };
+                        }
+                        return mv;
                     }
 
                     @Override
