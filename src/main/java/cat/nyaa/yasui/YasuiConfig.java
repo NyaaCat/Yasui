@@ -31,6 +31,8 @@ public class YasuiConfig {
     private int acquirePoiCacheMaxEntries;
     private boolean acquirePoiCacheEmptyResults;
     private boolean acquirePoiCachePredicateAware;
+    private int acquirePoiCacheSourceBucketSize;
+    private boolean acquirePoiCacheFallbackOnInsufficient;
     private boolean poiCompetitorCacheEnabled;
     private int poiCompetitorCacheTtlTicks;
     private int poiCompetitorCacheTtlJitterTicks;
@@ -47,6 +49,10 @@ public class YasuiConfig {
     private boolean pathfindingCacheEnabled;
     private int pathfindingCacheTtlTicks;
     private int pathfindingCacheTtlJitterTicks;
+    private int pathfindingCacheMaxEntriesPerNav;
+    private int pathfindingCacheMobMoveThreshold;
+    private int pathfindingCacheTargetMoveThreshold;
+    private int pathfindingCacheNegativeTtlTicks;
 
     public YasuiConfig(Yasui plugin) {
         this.plugin = plugin;
@@ -69,6 +75,8 @@ public class YasuiConfig {
         acquirePoiCacheMaxEntries = 20000;
         acquirePoiCacheEmptyResults = false;
         acquirePoiCachePredicateAware = false;
+        acquirePoiCacheSourceBucketSize = 2;
+        acquirePoiCacheFallbackOnInsufficient = false;
         poiCompetitorCacheEnabled = true;
         poiCompetitorCacheTtlTicks = 2;
         poiCompetitorCacheTtlJitterTicks = 1;
@@ -83,6 +91,10 @@ public class YasuiConfig {
         pathfindingCacheEnabled = true;
         pathfindingCacheTtlTicks = 3;
         pathfindingCacheTtlJitterTicks = 1;
+        pathfindingCacheMaxEntriesPerNav = 4;
+        pathfindingCacheMobMoveThreshold = 0;
+        pathfindingCacheTargetMoveThreshold = 1;
+        pathfindingCacheNegativeTtlTicks = 0;
 
         ConfigurationSection hopperSection = plugin.getConfig().getConfigurationSection("optimizations.hopper");
         if (hopperSection != null) {
@@ -106,6 +118,8 @@ public class YasuiConfig {
                 acquirePoiCacheMaxEntries = Math.max(0, acquireSection.getInt("max-entries", 20000));
                 acquirePoiCacheEmptyResults = acquireSection.getBoolean("cache-empty-results", false);
                 acquirePoiCachePredicateAware = acquireSection.getBoolean("predicate-aware", false);
+                acquirePoiCacheSourceBucketSize = Math.max(1, acquireSection.getInt("source-bucket-size", 2));
+                acquirePoiCacheFallbackOnInsufficient = acquireSection.getBoolean("fallback-on-insufficient", false);
             }
             ConfigurationSection competitorSection = poiSection.getConfigurationSection("competitor-scan-cache");
             if (competitorSection != null) {
@@ -145,6 +159,10 @@ public class YasuiConfig {
             pathfindingCacheEnabled = pathSection.getBoolean("enabled", true);
             pathfindingCacheTtlTicks = Math.max(0, pathSection.getInt("ttl-ticks", 3));
             pathfindingCacheTtlJitterTicks = Math.max(0, pathSection.getInt("ttl-jitter-ticks", 1));
+            pathfindingCacheMaxEntriesPerNav = Math.max(1, pathSection.getInt("max-entries-per-nav", 4));
+            pathfindingCacheMobMoveThreshold = Math.max(0, pathSection.getInt("mob-move-threshold", 0));
+            pathfindingCacheTargetMoveThreshold = Math.max(0, pathSection.getInt("target-move-threshold", 1));
+            pathfindingCacheNegativeTtlTicks = Math.max(0, pathSection.getInt("negative-ttl-ticks", 0));
         }
 
     }
@@ -207,6 +225,14 @@ public class YasuiConfig {
         return acquirePoiCachePredicateAware;
     }
 
+    public int getAcquirePoiCacheSourceBucketSize() {
+        return acquirePoiCacheSourceBucketSize;
+    }
+
+    public boolean isAcquirePoiCacheFallbackOnInsufficient() {
+        return acquirePoiCacheFallbackOnInsufficient;
+    }
+
     public boolean isPoiCompetitorCacheEnabled() {
         return poiCompetitorCacheEnabled;
     }
@@ -263,6 +289,22 @@ public class YasuiConfig {
 
     public int getPathfindingCacheTtlJitterTicks() {
         return pathfindingCacheTtlJitterTicks;
+    }
+
+    public int getPathfindingCacheMaxEntriesPerNav() {
+        return pathfindingCacheMaxEntriesPerNav;
+    }
+
+    public int getPathfindingCacheMobMoveThreshold() {
+        return pathfindingCacheMobMoveThreshold;
+    }
+
+    public int getPathfindingCacheTargetMoveThreshold() {
+        return pathfindingCacheTargetMoveThreshold;
+    }
+
+    public int getPathfindingCacheNegativeTtlTicks() {
+        return pathfindingCacheNegativeTtlTicks;
     }
 
 

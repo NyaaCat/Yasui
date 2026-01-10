@@ -29,8 +29,12 @@ public final class PathfindingNmsHook {
         return errorMessage;
     }
 
-    public static void configure(boolean enabled, int ttlTicks, int ttlJitterTicks) {
-        PathfindingCacheBridge.configure(enabled, ttlTicks, ttlJitterTicks);
+    public static void configure(boolean enabled, int ttlTicks, int ttlJitterTicks, int maxEntriesPerNav,
+                                 int mobMoveThreshold, int targetMoveThreshold, int negativeTtlTicks) {
+        PathfindingCacheBridge.configure(
+            enabled, ttlTicks, ttlJitterTicks, maxEntriesPerNav, mobMoveThreshold, targetMoveThreshold,
+            negativeTtlTicks
+        );
     }
 
     public static long[] drainStats() {

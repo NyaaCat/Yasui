@@ -30,6 +30,8 @@ public final class PoiSearchCache {
     private static volatile int maxEntries = 20000;
     private static volatile boolean cacheEmptyResults = false;
     private static volatile boolean predicateAware = false;
+    private static volatile int sourceBucketSize = 2;
+    private static volatile boolean fallbackOnInsufficient = false;
     private static volatile boolean hookActive = false;
     private static final MethodHandle NULL_PAIR_SECOND = MethodHandles.dropArguments(
         MethodHandles.constant(Object.class, null), 0, Object.class);
@@ -47,14 +49,17 @@ public final class PoiSearchCache {
 
     private PoiSearchCache() {}
 
-    public static void configure(boolean enabled, int ttlTicks, int ttlJitterTicks, int maxEntries, boolean cacheEmptyResults,
-                                 boolean predicateAware) {
+    public static void configure(boolean enabled, int ttlTicks, int ttlJitterTicks, int maxEntries,
+                                 boolean cacheEmptyResults, boolean predicateAware, int sourceBucketSize,
+                                 boolean fallbackOnInsufficient) {
         PoiSearchCache.enabled = enabled;
         PoiSearchCache.ttlTicks = Math.max(0, ttlTicks);
         PoiSearchCache.ttlJitterTicks = Math.max(0, ttlJitterTicks);
         PoiSearchCache.maxEntries = maxEntries;
         PoiSearchCache.cacheEmptyResults = cacheEmptyResults;
         PoiSearchCache.predicateAware = predicateAware;
+        PoiSearchCache.sourceBucketSize = Math.max(1, sourceBucketSize);
+        PoiSearchCache.fallbackOnInsufficient = fallbackOnInsufficient;
     }
 
     public static boolean isHookActive() {
@@ -107,14 +112,17 @@ public final class PoiSearchCache {
         }
 
         int maxResults = Math.max(0, max);
+        long sourceKey = NmsReflect.blockPosAsLong(sourcePosition);
+        long bucketKey = bucketSourceKey(sourceKey);
         LruCache<CacheKey, CacheEntry> managerCache = getManagerCache(poiManager);
         CacheKey key = new CacheKey(
-            NmsReflect.blockPosAsLong(sourcePosition),
+            bucketKey,
             range,
             Double.doubleToLongBits(maxDistanceSquared),
             occupancy,
             load,
             villagePlaceType,
+            sourceBucketSize,
             predicateAware ? maxResults : 0,
             predicateAware
         );
@@ -123,9 +131,18 @@ public final class PoiSearchCache {
         CacheEntry entry = managerCache.get(key);
         if (entry != null) {
             if (entry.isValid(tick)) {
-                cacheHits.increment();
-                fillResults(entry.results(), positionPredicate, maxResults, ret);
-                return;
+                if (!fallbackOnInsufficient || maxResults == 0) {
+                    cacheHits.increment();
+                    fillResults(entry.results(), positionPredicate, maxResults, ret, sourceKey, range, maxDistanceSquared);
+                    return;
+                }
+                List cachedResults = new ArrayList();
+                fillResults(entry.results(), positionPredicate, maxResults, cachedResults, sourceKey, range, maxDistanceSquared);
+                if (cachedResults.size() >= maxResults) {
+                    cacheHits.increment();
+                    ret.addAll(cachedResults);
+                    return;
+                }
             }
             managerCache.remove(key);
         }
@@ -138,7 +155,7 @@ public final class PoiSearchCache {
             poiManager, villagePlaceType, searchPredicate, sourcePosition,
             range, maxDistanceSquared, occupancy, load, searchMax, results);
         Predicate fillPredicate = (predicateAware && positionPredicate != null) ? null : positionPredicate;
-        fillResults(results, fillPredicate, maxResults, ret);
+        fillResults(results, fillPredicate, maxResults, ret, sourceKey, range, maxDistanceSquared);
 
         if (!results.isEmpty() || cacheEmptyResults) {
             int expiryTick = tick + ttlTicks + computeJitter(key.hashCode(), ttlJitterTicks);
@@ -177,6 +194,7 @@ public final class PoiSearchCache {
                             Object occupancy,
                             boolean load,
                             Object typePredicate,
+                            int bucketSize,
                             int max,
                             boolean predicateAware) {}
 
@@ -190,7 +208,10 @@ public final class PoiSearchCache {
     private static void fillResults(List candidates,
                                     Predicate positionPredicate,
                                     int max,
-                                    List ret) {
+                                    List ret,
+                                    long sourcePosKey,
+                                    int range,
+                                    double maxDistanceSquared) {
         if (candidates.isEmpty()) {
             return;
         }
@@ -202,7 +223,14 @@ public final class PoiSearchCache {
             // candidate is Pair<Holder<PoiType>, BlockPos>
             // Use reflection to get the second element (BlockPos)
             Object blockPos = getPairSecond(candidate);
-            if (positionPredicate != null && blockPos != null && !positionPredicate.test(blockPos)) {
+            if (blockPos == null) {
+                continue;
+            }
+            long candidateKey = NmsReflect.blockPosAsLong(blockPos);
+            if (!isWithinRange(sourcePosKey, candidateKey, range, maxDistanceSquared)) {
+                continue;
+            }
+            if (positionPredicate != null && !positionPredicate.test(blockPos)) {
                 continue;
             }
             ret.add(candidate);
@@ -226,6 +254,46 @@ public final class PoiSearchCache {
             return 0;
         }
         return Math.floorMod(seed, jitterTicks + 1);
+    }
+
+    private static long bucketSourceKey(long sourcePosKey) {
+        int bucket = sourceBucketSize;
+        if (bucket <= 1) {
+            return sourcePosKey;
+        }
+        int x = unpackX(sourcePosKey);
+        int y = unpackY(sourcePosKey);
+        int z = unpackZ(sourcePosKey);
+        int bx = Math.floorDiv(x, bucket) * bucket;
+        int bz = Math.floorDiv(z, bucket) * bucket;
+        return packBlockPos(bx, y, bz);
+    }
+
+    private static boolean isWithinRange(long sourcePosKey, long candidatePosKey, int range, double maxDistanceSquared) {
+        int dx = unpackX(candidatePosKey) - unpackX(sourcePosKey);
+        int dy = unpackY(candidatePosKey) - unpackY(sourcePosKey);
+        int dz = unpackZ(candidatePosKey) - unpackZ(sourcePosKey);
+        if (Math.abs(dx) > range || Math.abs(dy) > range || Math.abs(dz) > range) {
+            return false;
+        }
+        long distanceSq = (long) dx * dx + (long) dy * dy + (long) dz * dz;
+        return distanceSq <= maxDistanceSquared;
+    }
+
+    private static int unpackX(long packed) {
+        return (int) (packed >> 38);
+    }
+
+    private static int unpackY(long packed) {
+        return (int) (packed << 52 >> 52);
+    }
+
+    private static int unpackZ(long packed) {
+        return (int) (packed << 26 >> 38);
+    }
+
+    private static long packBlockPos(int x, int y, int z) {
+        return ((x & 67108863L) << 38) | ((y & 4095L)) | ((z & 67108863L) << 12);
     }
 
     private static final class LruCache<K, V> {

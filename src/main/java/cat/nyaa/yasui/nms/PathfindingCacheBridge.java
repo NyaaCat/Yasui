@@ -14,12 +14,16 @@ final class PathfindingCacheBridge {
 
     private PathfindingCacheBridge() {}
 
-    static void configure(boolean enabled, int ttlTicks, int ttlJitterTicks) {
+    static void configure(boolean enabled, int ttlTicks, int ttlJitterTicks, int maxEntriesPerNav,
+                          int mobMoveThreshold, int targetMoveThreshold, int negativeTtlTicks) {
         if (!resolve()) {
             return;
         }
         try {
-            configureHandle.invokeWithArguments(enabled, ttlTicks, ttlJitterTicks);
+            configureHandle.invokeWithArguments(
+                enabled, ttlTicks, ttlJitterTicks, maxEntriesPerNav, mobMoveThreshold, targetMoveThreshold,
+                negativeTtlTicks
+            );
         } catch (Throwable ignored) {
         }
     }
@@ -65,7 +69,8 @@ final class PathfindingCacheBridge {
                 cacheClass = Class.forName(CLASS_NAME, true, system);
                 MethodHandles.Lookup lookup = MethodHandles.publicLookup();
                 configureHandle = lookup.findStatic(cacheClass, "configure",
-                    MethodType.methodType(void.class, boolean.class, int.class, int.class));
+                    MethodType.methodType(void.class, boolean.class, int.class, int.class, int.class, int.class,
+                        int.class, int.class));
                 drainStatsHandle = lookup.findStatic(cacheClass, "drainStats",
                     MethodType.methodType(long[].class));
                 hookActiveHandle = lookup.findStatic(cacheClass, "isHookActive",

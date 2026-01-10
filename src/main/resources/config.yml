@@ -26,6 +26,10 @@ optimizations:
       cache-empty-results: false
       # Use position predicate in search (faster misses, can change retry behavior).
       predicate-aware: false
+      # Bucket X/Z source positions to improve cache hits (1 = exact position).
+      source-bucket-size: 2
+      # If cached results are insufficient, optionally fall back to a full search.
+      fallback-on-insufficient: false
     competitor-scan-cache:
       enabled: true
       ttl-ticks: 10
@@ -46,3 +50,11 @@ optimizations:
     enabled: true
     ttl-ticks: 2
     ttl-jitter-ticks: 3
+    # Per-navigation LRU size (keeps recent path results per mob).
+    max-entries-per-nav: 4
+    # Invalidate cached paths when mob moves beyond this block distance.
+    mob-move-threshold: 0
+    # Invalidate cached paths when target moves beyond this block distance.
+    target-move-threshold: 1
+    # Cache failed path results for a short time (0 = disabled).
+    negative-ttl-ticks: 0

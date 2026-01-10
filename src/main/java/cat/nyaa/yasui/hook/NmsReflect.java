@@ -52,8 +52,12 @@ public final class NmsReflect {
     // Path
     private static volatile MethodHandle pathCopy;
 
+    // PathNavigation
+    private static volatile MethodHandle pathNavGetMob;
+
     // Entity
     private static volatile MethodHandle entityGetId;
+    private static volatile MethodHandle entityBlockPosition;
 
     // BlockPos
     private static volatile MethodHandle blockPosAsLong;
@@ -134,6 +138,16 @@ public final class NmsReflect {
         Class<?> pathClass = Class.forName("net.minecraft.world.level.pathfinder.Path", true, nmsClassLoader);
         pathCopy = lookup.findVirtual(pathClass, "copy", MethodType.methodType(pathClass));
 
+        // PathNavigation
+        try {
+            Class<?> pathNavigationClass = Class.forName("net.minecraft.world.entity.ai.navigation.PathNavigation", true, nmsClassLoader);
+            Field mobField = pathNavigationClass.getDeclaredField("mob");
+            mobField.setAccessible(true);
+            pathNavGetMob = lookup.unreflectGetter(mobField);
+        } catch (Throwable ignored) {
+            pathNavGetMob = null;
+        }
+
         // Entity
         Class<?> entityClass = Class.forName("net.minecraft.world.entity.Entity", true, nmsClassLoader);
         entityGetId = lookup.findVirtual(entityClass, "getId", MethodType.methodType(int.class));
@@ -141,6 +155,11 @@ public final class NmsReflect {
         // BlockPos
         Class<?> blockPosClass = Class.forName("net.minecraft.core.BlockPos", true, nmsClassLoader);
         blockPosAsLong = lookup.findVirtual(blockPosClass, "asLong", MethodType.methodType(long.class));
+        try {
+            entityBlockPosition = lookup.findVirtual(entityClass, "blockPosition", MethodType.methodType(blockPosClass));
+        } catch (Throwable ignored) {
+            entityBlockPosition = null;
+        }
 
         // PoiAccess (Paper-specific)
         Class<?> poiAccessClass = Class.forName("io.papermc.paper.util.PoiAccess", true, nmsClassLoader);
@@ -272,6 +291,28 @@ public final class NmsReflect {
             return (int) entityGetId.invoke(entity);
         } catch (Throwable t) {
             return 0;
+        }
+    }
+
+    public static Object getNavigationMob(Object navigation) {
+        if (navigation == null || pathNavGetMob == null) {
+            return null;
+        }
+        try {
+            return pathNavGetMob.invoke(navigation);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    public static Object getEntityBlockPos(Object entity) {
+        if (entity == null || entityBlockPosition == null) {
+            return null;
+        }
+        try {
+            return entityBlockPosition.invoke(entity);
+        } catch (Throwable t) {
+            return null;
         }
     }
 

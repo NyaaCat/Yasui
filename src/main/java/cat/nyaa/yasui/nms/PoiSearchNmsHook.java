@@ -30,9 +30,12 @@ public final class PoiSearchNmsHook {
     }
 
     public static void configure(boolean enabled, int ttlTicks, int ttlJitterTicks, int maxEntries,
-                                 boolean cacheEmptyResults, boolean predicateAware) {
-        PoiSearchCacheBridge.configure(enabled, ttlTicks, ttlJitterTicks, maxEntries, cacheEmptyResults,
-            predicateAware);
+                                 boolean cacheEmptyResults, boolean predicateAware, int sourceBucketSize,
+                                 boolean fallbackOnInsufficient) {
+        PoiSearchCacheBridge.configure(
+            enabled, ttlTicks, ttlJitterTicks, maxEntries, cacheEmptyResults, predicateAware, sourceBucketSize,
+            fallbackOnInsufficient
+        );
     }
 
     public static long[] drainStats() {

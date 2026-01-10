@@ -105,7 +105,11 @@ public class Yasui extends JavaPlugin {
         PathfindingNmsHook.configure(
             config.isPathfindingCacheEnabled(),
             config.getPathfindingCacheTtlTicks(),
-            config.getPathfindingCacheTtlJitterTicks()
+            config.getPathfindingCacheTtlJitterTicks(),
+            config.getPathfindingCacheMaxEntriesPerNav(),
+            config.getPathfindingCacheMobMoveThreshold(),
+            config.getPathfindingCacheTargetMoveThreshold(),
+            config.getPathfindingCacheNegativeTtlTicks()
         );
         PoiSearchNmsHook.configure(
             acquirePoiEnabled,
@@ -113,7 +117,9 @@ public class Yasui extends JavaPlugin {
             config.getAcquirePoiCacheTtlJitterTicks(),
             config.getAcquirePoiCacheMaxEntries(),
             config.isAcquirePoiCacheEmptyResults(),
-            config.isAcquirePoiCachePredicateAware()
+            config.isAcquirePoiCachePredicateAware(),
+            config.getAcquirePoiCacheSourceBucketSize(),
+            config.isAcquirePoiCacheFallbackOnInsufficient()
         );
         PoiCompetitorNmsHook.configure(
             competitorCacheEnabled,
@@ -282,7 +288,11 @@ public class Yasui extends JavaPlugin {
         PathfindingNmsHook.configure(
             config.isPathfindingCacheEnabled(),
             config.getPathfindingCacheTtlTicks(),
-            config.getPathfindingCacheTtlJitterTicks()
+            config.getPathfindingCacheTtlJitterTicks(),
+            config.getPathfindingCacheMaxEntriesPerNav(),
+            config.getPathfindingCacheMobMoveThreshold(),
+            config.getPathfindingCacheTargetMoveThreshold(),
+            config.getPathfindingCacheNegativeTtlTicks()
         );
         PoiSearchNmsHook.configure(
             acquirePoiEnabled,
@@ -290,7 +300,9 @@ public class Yasui extends JavaPlugin {
             config.getAcquirePoiCacheTtlJitterTicks(),
             config.getAcquirePoiCacheMaxEntries(),
             config.isAcquirePoiCacheEmptyResults(),
-            config.isAcquirePoiCachePredicateAware()
+            config.isAcquirePoiCachePredicateAware(),
+            config.getAcquirePoiCacheSourceBucketSize(),
+            config.isAcquirePoiCacheFallbackOnInsufficient()
         );
 
         // Restart hopper optimizer (or disable if not enabled)
