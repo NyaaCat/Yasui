@@ -211,7 +211,8 @@ Hot Chunk Tracker: Enabled
   Hot Chunks: 6 (tracked: 18)
   Max Heat: 0.92 (min heat: 0.15)
   Mob Threshold: 16 (scan 40t, radius 1)
-  Top Hot Chunks: world (12,34) heat=0.92 mobs=6 area=44
+  Top Hot Chunks:
+    - world c(12,34) b(192,544) heat=0.92 mobs=6 area=44
   Hot Boosts: Pathfinding On | AcquirePoi On | Competitor On
   Villager PDC: Enabled
   Villager Static: Enabled (stable 100t, scan 200t)

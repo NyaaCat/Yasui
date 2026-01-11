@@ -350,12 +350,14 @@ public class HotChunkTracker {
 
     public record HotChunkInfo(String worldName, int chunkX, int chunkZ, float heat, int mobCount, int areaMobCount) {
         public String format(int areaRadius) {
+            int blockX = chunkX << 4;
+            int blockZ = chunkZ << 4;
             if (areaRadius <= 0) {
-                return String.format(Locale.ROOT, "%s (%d,%d) heat=%.2f mobs=%d",
-                    worldName, chunkX, chunkZ, heat, mobCount);
+                return String.format(Locale.ROOT, "%s c(%d,%d) b(%d,%d) heat=%.2f mobs=%d",
+                    worldName, chunkX, chunkZ, blockX, blockZ, heat, mobCount);
             }
-            return String.format(Locale.ROOT, "%s (%d,%d) heat=%.2f mobs=%d area=%d",
-                worldName, chunkX, chunkZ, heat, mobCount, areaMobCount);
+            return String.format(Locale.ROOT, "%s c(%d,%d) b(%d,%d) heat=%.2f mobs=%d area=%d",
+                worldName, chunkX, chunkZ, blockX, blockZ, heat, mobCount, areaMobCount);
         }
     }
 

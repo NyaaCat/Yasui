@@ -133,7 +133,8 @@ public class YasuiCommand implements CommandExecutor, TabCompleter {
             sender.sendMessage("  §7Mob Threshold: §f" + stats.mobThreshold()
                 + " §7(scan " + stats.scanIntervalTicks() + "t, radius " + stats.areaRadius() + ")");
             if (!stats.topChunks().isEmpty()) {
-                sender.sendMessage("  §7Top Hot Chunks: §f" + formatTopChunks(stats.topChunks(), stats.areaRadius()));
+                sender.sendMessage("  §7Top Hot Chunks:");
+                sendTopChunks(sender, stats.topChunks(), stats.areaRadius());
             }
             sender.sendMessage("  §7Hot Boosts: §fPathfinding "
                 + (config.isHotChunkPathfindingBoostEnabled() ? "On" : "Off")
@@ -186,15 +187,10 @@ public class YasuiCommand implements CommandExecutor, TabCompleter {
         return String.format(Locale.ROOT, "%.2f", heat);
     }
 
-    private String formatTopChunks(List<HotChunkTracker.HotChunkInfo> chunks, int areaRadius) {
-        StringBuilder builder = new StringBuilder();
-        for (int i = 0; i < chunks.size(); i++) {
-            if (i > 0) {
-                builder.append(" | ");
-            }
-            builder.append(chunks.get(i).format(areaRadius));
+    private void sendTopChunks(CommandSender sender, List<HotChunkTracker.HotChunkInfo> chunks, int areaRadius) {
+        for (HotChunkTracker.HotChunkInfo chunk : chunks) {
+            sender.sendMessage("    §7- §f" + chunk.format(areaRadius));
         }
-        return builder.toString();
     }
 
     @Override
