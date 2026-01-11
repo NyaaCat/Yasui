@@ -6,6 +6,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.entity.Entity;
+import org.bukkit.entity.Mob;
 import org.bukkit.entity.Player;
 import org.bukkit.event.Listener;
 import org.bukkit.scheduler.BukkitTask;
@@ -30,6 +31,8 @@ public class EntitySpreadTicker implements Listener {
     private final Map<UUID, DistanceCategory> distanceCache = new ConcurrentHashMap<>();
     private final Map<UUID, Double> distanceSquaredCache = new ConcurrentHashMap<>();
     private final AtomicBoolean scanRunning = new AtomicBoolean(false);
+    private volatile List<MobChunkSnapshot> lastMobChunkSnapshots = List.of();
+    private volatile long lastSnapshotTimeMs = 0L;
     private BukkitTask distanceScanTask;
 
     /**
@@ -82,6 +85,7 @@ public class EntitySpreadTicker implements Listener {
 
         double nearDistanceSquared = config.getNearDistance() * config.getNearDistance();
         List<EntitySnapshot> entitySnapshots = new ArrayList<>();
+        List<MobChunkSnapshot> mobChunkSnapshots = new ArrayList<>();
         Map<UUID, List<PlayerSnapshot>> playerSnapshots = new HashMap<>();
 
         for (World world : plugin.getServer().getWorlds()) {
@@ -98,8 +102,18 @@ public class EntitySpreadTicker implements Listener {
                 }
                 Location loc = entity.getLocation();
                 entitySnapshots.add(new EntitySnapshot(entity.getUniqueId(), world.getUID(), loc.getX(), loc.getY(), loc.getZ()));
+                if (entity instanceof Mob) {
+                    mobChunkSnapshots.add(new MobChunkSnapshot(
+                        world.getUID(),
+                        loc.getBlockX() >> 4,
+                        loc.getBlockZ() >> 4
+                    ));
+                }
             }
         }
+
+        lastMobChunkSnapshots = List.copyOf(mobChunkSnapshots);
+        lastSnapshotTimeMs = System.currentTimeMillis();
 
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             Map<UUID, DistanceCategory> updated = new HashMap<>(entitySnapshots.size());
@@ -155,6 +169,14 @@ public class EntitySpreadTicker implements Listener {
         return distanceSquaredCache.getOrDefault(entityUUID, Double.POSITIVE_INFINITY);
     }
 
+    public List<MobChunkSnapshot> getLastMobChunkSnapshots() {
+        return lastMobChunkSnapshots;
+    }
+
+    public long getLastSnapshotTimeMs() {
+        return lastSnapshotTimeMs;
+    }
+
     /**
      * Get statistics for monitoring
      */
@@ -172,6 +194,7 @@ public class EntitySpreadTicker implements Listener {
 
     private record EntitySnapshot(UUID uuid, UUID worldId, double x, double y, double z) {}
     private record PlayerSnapshot(double x, double y, double z) {}
+    public record MobChunkSnapshot(UUID worldId, int chunkX, int chunkZ) {}
 
     public record Stats(long nearEntities, long distantEntities, int trackedEntities) {}
 }

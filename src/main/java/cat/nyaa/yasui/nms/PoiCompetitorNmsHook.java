@@ -33,6 +33,10 @@ public final class PoiCompetitorNmsHook {
         PoiCompetitorCacheBridge.configure(enabled, ttlTicks, ttlJitterTicks, maxEntries, cacheEmptyResults);
     }
 
+    public static void configureHotChunks(boolean enabled, int ttlTicks, int ttlJitterTicks) {
+        PoiCompetitorCacheBridge.configureHotChunks(enabled, ttlTicks, ttlJitterTicks);
+    }
+
     public static long[] drainStats() {
         return PoiCompetitorCacheBridge.drainStats();
     }

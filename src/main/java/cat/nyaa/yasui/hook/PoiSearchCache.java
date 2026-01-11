@@ -32,6 +32,9 @@ public final class PoiSearchCache {
     private static volatile boolean predicateAware = false;
     private static volatile int sourceBucketSize = 2;
     private static volatile boolean fallbackOnInsufficient = false;
+    private static volatile boolean hotChunksEnabled = false;
+    private static volatile int hotTtlTicks = 100;
+    private static volatile int hotTtlJitterTicks = 0;
     private static volatile boolean hookActive = false;
     private static final MethodHandle NULL_PAIR_SECOND = MethodHandles.dropArguments(
         MethodHandles.constant(Object.class, null), 0, Object.class);
@@ -60,6 +63,12 @@ public final class PoiSearchCache {
         PoiSearchCache.predicateAware = predicateAware;
         PoiSearchCache.sourceBucketSize = Math.max(1, sourceBucketSize);
         PoiSearchCache.fallbackOnInsufficient = fallbackOnInsufficient;
+    }
+
+    public static void configureHotChunks(boolean enabled, int ttlTicks, int ttlJitterTicks) {
+        PoiSearchCache.hotChunksEnabled = enabled;
+        PoiSearchCache.hotTtlTicks = Math.max(0, ttlTicks);
+        PoiSearchCache.hotTtlJitterTicks = Math.max(0, ttlJitterTicks);
     }
 
     public static boolean isHookActive() {
@@ -104,7 +113,7 @@ public final class PoiSearchCache {
                 range, maxDistanceSquared, occupancy, load, max, ret);
             return;
         }
-        if (!enabled || ttlTicks == 0 || poiManager == null || sourcePosition == null) {
+        if (!enabled || poiManager == null || sourcePosition == null) {
             NmsReflect.findNearestPoiPositions(
                 poiManager, villagePlaceType, positionPredicate, sourcePosition,
                 range, maxDistanceSquared, occupancy, load, max, ret);
@@ -113,6 +122,21 @@ public final class PoiSearchCache {
 
         int maxResults = Math.max(0, max);
         long sourceKey = NmsReflect.blockPosAsLong(sourcePosition);
+        int effectiveTtl = ttlTicks;
+        int effectiveJitter = ttlJitterTicks;
+        if (hotChunksEnabled) {
+            float heat = HotChunkMap.getHeat(poiManager, HotChunkUtil.chunkKeyFromBlockPos(sourceKey));
+            if (heat > 0f) {
+                effectiveTtl = scaleInt(ttlTicks, hotTtlTicks, heat);
+                effectiveJitter = scaleInt(ttlJitterTicks, hotTtlJitterTicks, heat);
+            }
+        }
+        if (effectiveTtl == 0) {
+            NmsReflect.findNearestPoiPositions(
+                poiManager, villagePlaceType, positionPredicate, sourcePosition,
+                range, maxDistanceSquared, occupancy, load, max, ret);
+            return;
+        }
         long bucketKey = bucketSourceKey(sourceKey);
         LruCache<CacheKey, CacheEntry> managerCache = getManagerCache(poiManager);
         CacheKey key = new CacheKey(
@@ -158,7 +182,7 @@ public final class PoiSearchCache {
         fillResults(results, fillPredicate, maxResults, ret, sourceKey, range, maxDistanceSquared);
 
         if (!results.isEmpty() || cacheEmptyResults) {
-            int expiryTick = tick + ttlTicks + computeJitter(key.hashCode(), ttlJitterTicks);
+            int expiryTick = tick + effectiveTtl + computeJitter(key.hashCode(), effectiveJitter);
             managerCache.put(key, new CacheEntry(expiryTick, results));
             cacheStores.increment();
         }
@@ -254,6 +278,18 @@ public final class PoiSearchCache {
             return 0;
         }
         return Math.floorMod(seed, jitterTicks + 1);
+    }
+
+    private static int scaleInt(int base, int hot, float heat) {
+        if (heat <= 0f) {
+            return base;
+        }
+        int target = Math.max(base, hot);
+        int delta = target - base;
+        if (delta == 0) {
+            return base;
+        }
+        return base + Math.round(delta * heat);
     }
 
     private static long bucketSourceKey(long sourcePosKey) {

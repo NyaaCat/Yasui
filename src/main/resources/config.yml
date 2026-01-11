@@ -53,8 +53,54 @@ optimizations:
     # Per-navigation LRU size (keeps recent path results per mob).
     max-entries-per-nav: 4
     # Invalidate cached paths when mob moves beyond this block distance.
-    mob-move-threshold: 0
+    mob-move-threshold: 1
     # Invalidate cached paths when target moves beyond this block distance.
     target-move-threshold: 1
     # Cache failed path results for a short time (0 = disabled).
-    negative-ttl-ticks: 0
+    negative-ttl-ticks: 1
+
+  # Hot chunk detection and cache boosts (gradual decay)
+  hot-chunks:
+    enabled: true
+    # Scan interval for chunk heat updates (in ticks)
+    scan-interval: 40
+    # Mark chunks hot when mob count approaches this threshold
+    mob-threshold: 40
+    # Count nearby chunks as a single area (0 = per-chunk only, 1 = 3x3 area)
+    area-radius: 1
+    # Reuse entity-spread snapshots to avoid extra scans
+    use-entity-spread-snapshots: true
+    # Max snapshot age before fallback scan (ms, 0 = always accept)
+    snapshot-max-age-ms: 10000
+    # Heat decay per scan (0-1), lower = faster cooldown
+    heat-decay: 0.85
+    # Minimum heat to keep a chunk tracked
+    min-heat: 0.15
+    # Persist villager POI cache in hot chunks to avoid load hitches
+    villager-pdc:
+      enabled: true
+    # Static villager handling for trade farms (hot chunks only)
+    villager-static:
+      enabled: true
+      # Consider a villager static if it hasn't moved for this long
+      stable-ticks: 100
+      # Movement threshold (blocks) to reset static timer
+      move-threshold: 0.25
+      # Skip scans for static villagers until this interval elapses
+      scan-interval-ticks: 200
+    # Cache boosts applied in hot chunks (linearly scaled by heat)
+    pathfinding-cache:
+      enabled: true
+      ttl-ticks: 8
+      ttl-jitter-ticks: 8
+      mob-move-threshold: 1
+      target-move-threshold: 2
+      negative-ttl-ticks: 1
+    acquire-poi-cache:
+      enabled: true
+      ttl-ticks: 200
+      ttl-jitter-ticks: 200
+    competitor-scan-cache:
+      enabled: true
+      ttl-ticks: 100
+      ttl-jitter-ticks: 100

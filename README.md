@@ -31,6 +31,7 @@ Reduces POI search overhead by caching job site locations and AcquirePoi searche
 - AcquirePoi search cache (NMS hook, short TTL)
 - PoiCompetitorScan POI type cache (NMS hook, short TTL)
 - Validates POI block existence before restoration
+- Optional hot-chunk PDC persistence and static-villager backoff for trade farms
 
 Note: The AcquirePoi and PoiCompetitorScan hooks use JVM attach. If attach is disabled, the caches will be inactive.
 
@@ -41,6 +42,16 @@ Categorizes entities by distance to nearest player for quick near/distant checks
 - NEAR (<32 blocks) or DISTANT (>32 blocks) classification
 - Periodic distance recalculation
 - No tick freezing - all entities continue normal behavior
+
+### Hot Chunk Detection & Adaptive Caches
+
+Detects hot areas by mob density and scales cache behavior without changing vanilla AI logic.
+
+- Hot chunks are 16x16 by default, with optional `area-radius` aggregation (e.g., radius 1 = 3x3 chunks)
+- Heat is a [0,1] value that decays each scan and spikes based on mob density
+- In hot chunks, pathfinding/AcquirePoi/PoiCompetitor cache TTLs and thresholds scale linearly by heat
+- Villagers in hot chunks can persist POI cache via PDC and skip scans if static
+- Reuses Entity Distance Cache snapshots to avoid extra main-thread scans (optional)
 
 ### Pathfinding Cache
 
@@ -82,6 +93,8 @@ optimizations:
       max-entries: 20000
       cache-empty-results: false
       predicate-aware: false
+      source-bucket-size: 2
+      fallback-on-insufficient: false
     competitor-scan-cache:
       enabled: true
       ttl-ticks: 2
@@ -98,8 +111,60 @@ optimizations:
     enabled: true
     ttl-ticks: 3
     ttl-jitter-ticks: 1
+    max-entries-per-nav: 4
+    mob-move-threshold: 0
+    target-move-threshold: 1
+    negative-ttl-ticks: 0
+
+  hot-chunks:
+    enabled: true
+    scan-interval: 40
+    mob-threshold: 16
+    area-radius: 1
+    use-entity-spread-snapshots: true
+    snapshot-max-age-ms: 10000
+    heat-decay: 0.85
+    min-heat: 0.15
+    villager-pdc:
+      enabled: true
+    villager-static:
+      enabled: true
+      stable-ticks: 100
+      move-threshold: 0.1
+      scan-interval-ticks: 200
+    pathfinding-cache:
+      enabled: true
+      ttl-ticks: 8
+      ttl-jitter-ticks: 3
+      mob-move-threshold: 1
+      target-move-threshold: 2
+      negative-ttl-ticks: 0
+    acquire-poi-cache:
+      enabled: true
+      ttl-ticks: 200
+      ttl-jitter-ticks: 20
+    competitor-scan-cache:
+      enabled: true
+      ttl-ticks: 20
+      ttl-jitter-ticks: 10
 
 ```
+
+### Hot Chunk Heat Model
+
+```
+pressure = min(1.0, mobCount / mobThreshold)
+heat = heat * heatDecay
+heat = max(heat, pressure)
+```
+
+Linear scaling for hot-chunk caches:
+
+```
+effective = base + round((hot - base) * heat)
+```
+
+With `area-radius > 0`, `mobCount` is the sum across the (2r+1)x(2r+1) chunk area.
 
 ## Commands
 
@@ -141,6 +206,15 @@ Pathfinding Cache: Enabled
   Cache Hits/Misses (1h): 418/93
   Cache Stores (1h): 347
   NMS Path Cache Hook: Active
+
+Hot Chunk Tracker: Enabled
+  Hot Chunks: 6 (tracked: 18)
+  Max Heat: 0.92 (min heat: 0.15)
+  Mob Threshold: 16 (scan 40t, radius 1)
+  Top Hot Chunks: world (12,34) heat=0.92 mobs=6 area=44
+  Hot Boosts: Pathfinding On | AcquirePoi On | Competitor On
+  Villager PDC: Enabled
+  Villager Static: Enabled (stable 100t, scan 200t)
 ```
 
 ## Building
@@ -157,7 +231,8 @@ Pathfinding Cache: Enabled
 
 - Uses NMS hooks (JVM attach) for hopper, pathfinding, and AcquirePoi caching
 - Caches are TTL-based and use weak maps where appropriate
-- Entity distance calculations run async; world snapshots happen on main thread
+- Hot chunk counts/area aggregation run async; world snapshots happen on main thread
+- Hot chunk cache boosts scale linearly by heat; area-radius aggregates adjacent chunks
 
 ## License
 

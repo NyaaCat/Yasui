@@ -54,6 +54,33 @@ public class YasuiConfig {
     private int pathfindingCacheTargetMoveThreshold;
     private int pathfindingCacheNegativeTtlTicks;
 
+    // Hot chunk settings
+    private boolean hotChunksEnabled;
+    private int hotChunkScanInterval;
+    private int hotChunkMobThreshold;
+    private int hotChunkAreaRadius;
+    private boolean hotChunkUseSpreadSnapshots;
+    private long hotChunkSnapshotMaxAgeMs;
+    private double hotChunkHeatDecay;
+    private double hotChunkMinHeat;
+    private boolean hotChunkVillagerPdcEnabled;
+    private boolean hotChunkVillagerStaticEnabled;
+    private int hotChunkVillagerStaticStableTicks;
+    private double hotChunkVillagerStaticMoveThreshold;
+    private int hotChunkVillagerStaticScanIntervalTicks;
+    private boolean hotChunkPathfindingBoostEnabled;
+    private int hotChunkPathfindingTtlTicks;
+    private int hotChunkPathfindingTtlJitterTicks;
+    private int hotChunkPathfindingMobMoveThreshold;
+    private int hotChunkPathfindingTargetMoveThreshold;
+    private int hotChunkPathfindingNegativeTtlTicks;
+    private boolean hotChunkAcquirePoiBoostEnabled;
+    private int hotChunkAcquirePoiTtlTicks;
+    private int hotChunkAcquirePoiTtlJitterTicks;
+    private boolean hotChunkPoiCompetitorBoostEnabled;
+    private int hotChunkPoiCompetitorTtlTicks;
+    private int hotChunkPoiCompetitorTtlJitterTicks;
+
     public YasuiConfig(Yasui plugin) {
         this.plugin = plugin;
         loadConfig();
@@ -95,6 +122,32 @@ public class YasuiConfig {
         pathfindingCacheMobMoveThreshold = 0;
         pathfindingCacheTargetMoveThreshold = 1;
         pathfindingCacheNegativeTtlTicks = 0;
+
+        hotChunksEnabled = true;
+        hotChunkScanInterval = 40;
+        hotChunkMobThreshold = 16;
+        hotChunkAreaRadius = 1;
+        hotChunkUseSpreadSnapshots = true;
+        hotChunkSnapshotMaxAgeMs = 10000L;
+        hotChunkHeatDecay = 0.85;
+        hotChunkMinHeat = 0.15;
+        hotChunkVillagerPdcEnabled = true;
+        hotChunkVillagerStaticEnabled = true;
+        hotChunkVillagerStaticStableTicks = 100;
+        hotChunkVillagerStaticMoveThreshold = 0.1;
+        hotChunkVillagerStaticScanIntervalTicks = 200;
+        hotChunkPathfindingBoostEnabled = true;
+        hotChunkPathfindingTtlTicks = 8;
+        hotChunkPathfindingTtlJitterTicks = 3;
+        hotChunkPathfindingMobMoveThreshold = 1;
+        hotChunkPathfindingTargetMoveThreshold = 2;
+        hotChunkPathfindingNegativeTtlTicks = 0;
+        hotChunkAcquirePoiBoostEnabled = true;
+        hotChunkAcquirePoiTtlTicks = 200;
+        hotChunkAcquirePoiTtlJitterTicks = 20;
+        hotChunkPoiCompetitorBoostEnabled = true;
+        hotChunkPoiCompetitorTtlTicks = 20;
+        hotChunkPoiCompetitorTtlJitterTicks = 10;
 
         ConfigurationSection hopperSection = plugin.getConfig().getConfigurationSection("optimizations.hopper");
         if (hopperSection != null) {
@@ -163,6 +216,54 @@ public class YasuiConfig {
             pathfindingCacheMobMoveThreshold = Math.max(0, pathSection.getInt("mob-move-threshold", 0));
             pathfindingCacheTargetMoveThreshold = Math.max(0, pathSection.getInt("target-move-threshold", 1));
             pathfindingCacheNegativeTtlTicks = Math.max(0, pathSection.getInt("negative-ttl-ticks", 0));
+        }
+
+        ConfigurationSection hotSection = plugin.getConfig().getConfigurationSection("optimizations.hot-chunks");
+        if (hotSection != null) {
+            hotChunksEnabled = hotSection.getBoolean("enabled", true);
+            hotChunkScanInterval = Math.max(1, hotSection.getInt("scan-interval", 40));
+            hotChunkMobThreshold = Math.max(1, hotSection.getInt("mob-threshold", 16));
+            hotChunkAreaRadius = Math.max(0, hotSection.getInt("area-radius", 1));
+            hotChunkUseSpreadSnapshots = hotSection.getBoolean("use-entity-spread-snapshots", true);
+            hotChunkSnapshotMaxAgeMs = Math.max(0L, hotSection.getLong("snapshot-max-age-ms", 10000L));
+            hotChunkHeatDecay = clampDouble(hotSection.getDouble("heat-decay", 0.85), 0.0, 1.0);
+            hotChunkMinHeat = clampDouble(hotSection.getDouble("min-heat", 0.15), 0.0, 1.0);
+
+            ConfigurationSection pdcSection = hotSection.getConfigurationSection("villager-pdc");
+            if (pdcSection != null) {
+                hotChunkVillagerPdcEnabled = pdcSection.getBoolean("enabled", true);
+            }
+            ConfigurationSection villagerStaticSection = hotSection.getConfigurationSection("villager-static");
+            if (villagerStaticSection != null) {
+                hotChunkVillagerStaticEnabled = villagerStaticSection.getBoolean("enabled", true);
+                hotChunkVillagerStaticStableTicks = Math.max(0, villagerStaticSection.getInt("stable-ticks", 100));
+                hotChunkVillagerStaticMoveThreshold = Math.max(0.0, villagerStaticSection.getDouble("move-threshold", 0.1));
+                hotChunkVillagerStaticScanIntervalTicks = Math.max(1, villagerStaticSection.getInt("scan-interval-ticks", 200));
+            }
+
+            ConfigurationSection pathBoostSection = hotSection.getConfigurationSection("pathfinding-cache");
+            if (pathBoostSection != null) {
+                hotChunkPathfindingBoostEnabled = pathBoostSection.getBoolean("enabled", true);
+                hotChunkPathfindingTtlTicks = Math.max(0, pathBoostSection.getInt("ttl-ticks", 8));
+                hotChunkPathfindingTtlJitterTicks = Math.max(0, pathBoostSection.getInt("ttl-jitter-ticks", 3));
+                hotChunkPathfindingMobMoveThreshold = Math.max(0, pathBoostSection.getInt("mob-move-threshold", 1));
+                hotChunkPathfindingTargetMoveThreshold = Math.max(0, pathBoostSection.getInt("target-move-threshold", 2));
+                hotChunkPathfindingNegativeTtlTicks = Math.max(0, pathBoostSection.getInt("negative-ttl-ticks", 0));
+            }
+
+            ConfigurationSection acquireBoostSection = hotSection.getConfigurationSection("acquire-poi-cache");
+            if (acquireBoostSection != null) {
+                hotChunkAcquirePoiBoostEnabled = acquireBoostSection.getBoolean("enabled", true);
+                hotChunkAcquirePoiTtlTicks = Math.max(0, acquireBoostSection.getInt("ttl-ticks", 200));
+                hotChunkAcquirePoiTtlJitterTicks = Math.max(0, acquireBoostSection.getInt("ttl-jitter-ticks", 20));
+            }
+
+            ConfigurationSection competitorBoostSection = hotSection.getConfigurationSection("competitor-scan-cache");
+            if (competitorBoostSection != null) {
+                hotChunkPoiCompetitorBoostEnabled = competitorBoostSection.getBoolean("enabled", true);
+                hotChunkPoiCompetitorTtlTicks = Math.max(0, competitorBoostSection.getInt("ttl-ticks", 20));
+                hotChunkPoiCompetitorTtlJitterTicks = Math.max(0, competitorBoostSection.getInt("ttl-jitter-ticks", 10));
+            }
         }
 
     }
@@ -307,6 +408,106 @@ public class YasuiConfig {
         return pathfindingCacheNegativeTtlTicks;
     }
 
+    public boolean isHotChunksEnabled() {
+        return hotChunksEnabled;
+    }
+
+    public int getHotChunkScanInterval() {
+        return hotChunkScanInterval;
+    }
+
+    public int getHotChunkMobThreshold() {
+        return hotChunkMobThreshold;
+    }
+
+    public int getHotChunkAreaRadius() {
+        return hotChunkAreaRadius;
+    }
+
+    public boolean isHotChunkUseSpreadSnapshots() {
+        return hotChunkUseSpreadSnapshots;
+    }
+
+    public long getHotChunkSnapshotMaxAgeMs() {
+        return hotChunkSnapshotMaxAgeMs;
+    }
+
+    public double getHotChunkHeatDecay() {
+        return hotChunkHeatDecay;
+    }
+
+    public double getHotChunkMinHeat() {
+        return hotChunkMinHeat;
+    }
+
+    public boolean isHotChunkVillagerPdcEnabled() {
+        return hotChunkVillagerPdcEnabled;
+    }
+
+    public boolean isHotChunkVillagerStaticEnabled() {
+        return hotChunkVillagerStaticEnabled;
+    }
+
+    public int getHotChunkVillagerStaticStableTicks() {
+        return hotChunkVillagerStaticStableTicks;
+    }
+
+    public double getHotChunkVillagerStaticMoveThreshold() {
+        return hotChunkVillagerStaticMoveThreshold;
+    }
+
+    public int getHotChunkVillagerStaticScanIntervalTicks() {
+        return hotChunkVillagerStaticScanIntervalTicks;
+    }
+
+    public boolean isHotChunkPathfindingBoostEnabled() {
+        return hotChunkPathfindingBoostEnabled;
+    }
+
+    public int getHotChunkPathfindingTtlTicks() {
+        return hotChunkPathfindingTtlTicks;
+    }
+
+    public int getHotChunkPathfindingTtlJitterTicks() {
+        return hotChunkPathfindingTtlJitterTicks;
+    }
+
+    public int getHotChunkPathfindingMobMoveThreshold() {
+        return hotChunkPathfindingMobMoveThreshold;
+    }
+
+    public int getHotChunkPathfindingTargetMoveThreshold() {
+        return hotChunkPathfindingTargetMoveThreshold;
+    }
+
+    public int getHotChunkPathfindingNegativeTtlTicks() {
+        return hotChunkPathfindingNegativeTtlTicks;
+    }
+
+    public boolean isHotChunkAcquirePoiBoostEnabled() {
+        return hotChunkAcquirePoiBoostEnabled;
+    }
+
+    public int getHotChunkAcquirePoiTtlTicks() {
+        return hotChunkAcquirePoiTtlTicks;
+    }
+
+    public int getHotChunkAcquirePoiTtlJitterTicks() {
+        return hotChunkAcquirePoiTtlJitterTicks;
+    }
+
+    public boolean isHotChunkPoiCompetitorBoostEnabled() {
+        return hotChunkPoiCompetitorBoostEnabled;
+    }
+
+    public int getHotChunkPoiCompetitorTtlTicks() {
+        return hotChunkPoiCompetitorTtlTicks;
+    }
+
+    public int getHotChunkPoiCompetitorTtlJitterTicks() {
+        return hotChunkPoiCompetitorTtlJitterTicks;
+    }
+
 
     // Configuration records
     public record POIRule(EntityType type, boolean named, DistanceRule distanceRule, boolean optimize) {
@@ -393,5 +594,9 @@ public class YasuiConfig {
             return bool;
         }
         return Boolean.parseBoolean(value.toString());
+    }
+
+    private static double clampDouble(double value, double min, double max) {
+        return Math.max(min, Math.min(max, value));
     }
 }

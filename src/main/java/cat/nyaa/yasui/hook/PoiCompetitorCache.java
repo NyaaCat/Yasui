@@ -26,6 +26,9 @@ public final class PoiCompetitorCache {
     private static volatile int ttlJitterTicks = 0;
     private static volatile int maxEntries = 10000;
     private static volatile boolean cacheEmptyResults = false;
+    private static volatile boolean hotChunksEnabled = false;
+    private static volatile int hotTtlTicks = 2;
+    private static volatile int hotTtlJitterTicks = 0;
     private static volatile boolean hookActive = false;
 
     private PoiCompetitorCache() {}
@@ -36,6 +39,12 @@ public final class PoiCompetitorCache {
         PoiCompetitorCache.ttlJitterTicks = Math.max(0, ttlJitterTicks);
         PoiCompetitorCache.maxEntries = maxEntries;
         PoiCompetitorCache.cacheEmptyResults = cacheEmptyResults;
+    }
+
+    public static void configureHotChunks(boolean enabled, int ttlTicks, int ttlJitterTicks) {
+        PoiCompetitorCache.hotChunksEnabled = enabled;
+        PoiCompetitorCache.hotTtlTicks = Math.max(0, ttlTicks);
+        PoiCompetitorCache.hotTtlJitterTicks = Math.max(0, ttlJitterTicks);
     }
 
     public static boolean isHookActive() {
@@ -61,12 +70,24 @@ public final class PoiCompetitorCache {
         if (!NmsReflect.init(poiManager)) {
             return asOptional(NmsReflect.getPoiType(poiManager, blockPos));
         }
-        if (!enabled || ttlTicks == 0) {
+        if (!enabled) {
             return asOptional(NmsReflect.getPoiType(poiManager, blockPos));
         }
 
         LruCache<Long, CacheEntry> managerCache = getManagerCache(poiManager);
         long key = NmsReflect.blockPosAsLong(blockPos);
+        int effectiveTtl = ttlTicks;
+        int effectiveJitter = ttlJitterTicks;
+        if (hotChunksEnabled) {
+            float heat = HotChunkMap.getHeat(poiManager, HotChunkUtil.chunkKeyFromBlockPos(key));
+            if (heat > 0f) {
+                effectiveTtl = scaleInt(ttlTicks, hotTtlTicks, heat);
+                effectiveJitter = scaleInt(ttlJitterTicks, hotTtlJitterTicks, heat);
+            }
+        }
+        if (effectiveTtl == 0) {
+            return asOptional(NmsReflect.getPoiType(poiManager, blockPos));
+        }
         int tick = NmsReflect.getCurrentTick();
         CacheEntry entry = managerCache.get(key);
         if (entry != null) {
@@ -80,7 +101,7 @@ public final class PoiCompetitorCache {
         cacheMisses.increment();
         Optional<?> result = asOptional(NmsReflect.getPoiType(poiManager, blockPos));
         if (result.isPresent() || cacheEmptyResults) {
-            int expiryTick = tick + ttlTicks + computeJitter(key, ttlJitterTicks);
+            int expiryTick = tick + effectiveTtl + computeJitter(key, effectiveJitter);
             managerCache.put(key, new CacheEntry(expiryTick, result));
             cacheStores.increment();
         }
@@ -156,6 +177,18 @@ public final class PoiCompetitorCache {
         }
         int hash = (int) (seed ^ (seed >>> 32));
         return Math.floorMod(hash, jitterTicks + 1);
+    }
+
+    private static int scaleInt(int base, int hot, float heat) {
+        if (heat <= 0f) {
+            return base;
+        }
+        int target = Math.max(base, hot);
+        int delta = target - base;
+        if (delta == 0) {
+            return base;
+        }
+        return base + Math.round(delta * heat);
     }
 
     private record CacheEntry(int expiryTick, Optional<?> value) {

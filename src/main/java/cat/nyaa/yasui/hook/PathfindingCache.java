@@ -26,6 +26,12 @@ public final class PathfindingCache {
     private static volatile int mobMoveThreshold = 0;
     private static volatile int targetMoveThreshold = 1;
     private static volatile int negativeTtlTicks = 0;
+    private static volatile boolean hotChunksEnabled = false;
+    private static volatile int hotTtlTicks = 1;
+    private static volatile int hotTtlJitterTicks = 0;
+    private static volatile int hotMobMoveThreshold = 0;
+    private static volatile int hotTargetMoveThreshold = 1;
+    private static volatile int hotNegativeTtlTicks = 0;
     private static volatile boolean hookActive = false;
 
     private PathfindingCache() {}
@@ -39,6 +45,16 @@ public final class PathfindingCache {
         PathfindingCache.mobMoveThreshold = Math.max(0, mobMoveThreshold);
         PathfindingCache.targetMoveThreshold = Math.max(0, targetMoveThreshold);
         PathfindingCache.negativeTtlTicks = Math.max(0, negativeTtlTicks);
+    }
+
+    public static void configureHotChunks(boolean enabled, int ttlTicks, int ttlJitterTicks,
+                                          int mobMoveThreshold, int targetMoveThreshold, int negativeTtlTicks) {
+        PathfindingCache.hotChunksEnabled = enabled;
+        PathfindingCache.hotTtlTicks = Math.max(0, ttlTicks);
+        PathfindingCache.hotTtlJitterTicks = Math.max(0, ttlJitterTicks);
+        PathfindingCache.hotMobMoveThreshold = Math.max(0, mobMoveThreshold);
+        PathfindingCache.hotTargetMoveThreshold = Math.max(0, targetMoveThreshold);
+        PathfindingCache.hotNegativeTtlTicks = Math.max(0, negativeTtlTicks);
     }
 
     public static boolean isHookActive() {
@@ -95,7 +111,14 @@ public final class PathfindingCache {
             return null;
         }
         long mobPosKey = NmsReflect.blockPosAsLong(mobPos);
-        if (!isWithinThreshold(entry.mobPosKey(), mobPosKey, mobMoveThreshold)) {
+        int effectiveMobThreshold = mobMoveThreshold;
+        int effectiveTargetThreshold = targetMoveThreshold;
+        float heat = getHotChunkHeat(mob, mobPosKey);
+        if (heat > 0f) {
+            effectiveMobThreshold = scaleInt(mobMoveThreshold, hotMobMoveThreshold, heat);
+            effectiveTargetThreshold = scaleInt(targetMoveThreshold, hotTargetMoveThreshold, heat);
+        }
+        if (!isWithinThreshold(entry.mobPosKey(), mobPosKey, effectiveMobThreshold)) {
             navCache.remove(key);
             cacheMisses.increment();
             return null;
@@ -107,7 +130,7 @@ public final class PathfindingCache {
                 return null;
             }
             long targetPosKey = NmsReflect.blockPosAsLong(targetPos);
-            if (!isWithinThreshold(entry.targetPosKey(), targetPosKey, targetMoveThreshold)) {
+            if (!isWithinThreshold(entry.targetPosKey(), targetPosKey, effectiveTargetThreshold)) {
                 navCache.remove(key);
                 cacheMisses.increment();
                 return null;
@@ -144,11 +167,6 @@ public final class PathfindingCache {
         if (!enabled || navigation == null || targets == null) {
             return path;
         }
-        boolean cachePositive = ttlTicks > 0 && path != null;
-        boolean cacheNegative = negativeTtlTicks > 0 && path == null;
-        if (!cachePositive && !cacheNegative) {
-            return path;
-        }
         if (!NmsReflect.init(navigation)) {
             return path;
         }
@@ -158,6 +176,20 @@ public final class PathfindingCache {
             return path;
         }
         long mobPosKey = NmsReflect.blockPosAsLong(mobPos);
+        float heat = getHotChunkHeat(mob, mobPosKey);
+        int effectiveTtl = ttlTicks;
+        int effectiveJitter = ttlJitterTicks;
+        int effectiveNegativeTtl = negativeTtlTicks;
+        if (heat > 0f) {
+            effectiveTtl = scaleInt(ttlTicks, hotTtlTicks, heat);
+            effectiveJitter = scaleInt(ttlJitterTicks, hotTtlJitterTicks, heat);
+            effectiveNegativeTtl = scaleInt(negativeTtlTicks, hotNegativeTtlTicks, heat);
+        }
+        boolean cachePositive = effectiveTtl > 0 && path != null;
+        boolean cacheNegative = effectiveNegativeTtl > 0 && path == null;
+        if (!cachePositive && !cacheNegative) {
+            return path;
+        }
         boolean hasTargetPos = target != null;
         long targetPosKey = 0L;
         if (hasTargetPos) {
@@ -169,8 +201,8 @@ public final class PathfindingCache {
         }
         int tick = NmsReflect.getCurrentTick();
         long key = computeKey(targets, target, regionOffset, offsetUpward, accuracy, followRange);
-        int ttl = cachePositive ? ttlTicks : negativeTtlTicks;
-        int expiryTick = tick + ttl + computeJitter(key, ttlJitterTicks);
+        int ttl = cachePositive ? effectiveTtl : effectiveNegativeTtl;
+        int expiryTick = tick + ttl + computeJitter(key, effectiveJitter);
         Object pathCopy = null;
         if (cachePositive) {
             pathCopy = NmsReflect.copyPath(path);
@@ -240,6 +272,30 @@ public final class PathfindingCache {
         int dy = Math.abs(unpackY(posKey) - unpackY(otherPosKey));
         int dz = Math.abs(unpackZ(posKey) - unpackZ(otherPosKey));
         return dx <= threshold && dy <= threshold && dz <= threshold;
+    }
+
+    private static float getHotChunkHeat(Object mob, long mobPosKey) {
+        if (!hotChunksEnabled || mob == null) {
+            return 0f;
+        }
+        Object level = NmsReflect.getEntityLevel(mob);
+        if (level == null) {
+            return 0f;
+        }
+        long chunkKey = HotChunkUtil.chunkKeyFromBlockPos(mobPosKey);
+        return HotChunkMap.getHeat(level, chunkKey);
+    }
+
+    private static int scaleInt(int base, int hot, float heat) {
+        if (heat <= 0f) {
+            return base;
+        }
+        int target = Math.max(base, hot);
+        int delta = target - base;
+        if (delta == 0) {
+            return base;
+        }
+        return base + Math.round(delta * heat);
     }
 
     private static int unpackX(long packed) {

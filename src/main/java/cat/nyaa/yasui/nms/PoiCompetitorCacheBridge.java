@@ -9,6 +9,7 @@ final class PoiCompetitorCacheBridge {
     private static volatile boolean resolved = false;
     private static volatile Class<?> cacheClass;
     private static volatile MethodHandle configureHandle;
+    private static volatile MethodHandle configureHotHandle;
     private static volatile MethodHandle drainStatsHandle;
     private static volatile MethodHandle cacheSizeHandle;
     private static volatile MethodHandle hookActiveHandle;
@@ -21,6 +22,16 @@ final class PoiCompetitorCacheBridge {
         }
         try {
             configureHandle.invokeWithArguments(enabled, ttlTicks, ttlJitterTicks, maxEntries, cacheEmptyResults);
+        } catch (Throwable ignored) {
+        }
+    }
+
+    static void configureHotChunks(boolean enabled, int ttlTicks, int ttlJitterTicks) {
+        if (!resolve()) {
+            return;
+        }
+        try {
+            configureHotHandle.invokeWithArguments(enabled, ttlTicks, ttlJitterTicks);
         } catch (Throwable ignored) {
         }
     }
@@ -81,6 +92,8 @@ final class PoiCompetitorCacheBridge {
                 MethodHandles.Lookup lookup = MethodHandles.publicLookup();
                 configureHandle = lookup.findStatic(cacheClass, "configure",
                     MethodType.methodType(void.class, boolean.class, int.class, int.class, int.class, boolean.class));
+                configureHotHandle = lookup.findStatic(cacheClass, "configureHotChunks",
+                    MethodType.methodType(void.class, boolean.class, int.class, int.class));
                 drainStatsHandle = lookup.findStatic(cacheClass, "drainStats",
                     MethodType.methodType(long[].class));
                 cacheSizeHandle = lookup.findStatic(cacheClass, "getCacheSize",

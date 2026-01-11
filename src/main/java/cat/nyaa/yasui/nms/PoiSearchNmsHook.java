@@ -38,6 +38,10 @@ public final class PoiSearchNmsHook {
         );
     }
 
+    public static void configureHotChunks(boolean enabled, int ttlTicks, int ttlJitterTicks) {
+        PoiSearchCacheBridge.configureHotChunks(enabled, ttlTicks, ttlJitterTicks);
+    }
+
     public static long[] drainStats() {
         return PoiSearchCacheBridge.drainStats();
     }

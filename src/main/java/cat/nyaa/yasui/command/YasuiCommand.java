@@ -3,6 +3,7 @@ package cat.nyaa.yasui.command;
 import cat.nyaa.yasui.Yasui;
 import cat.nyaa.yasui.optimizer.EntitySpreadTicker;
 import cat.nyaa.yasui.optimizer.HopperOptimizer;
+import cat.nyaa.yasui.optimizer.HotChunkTracker;
 import cat.nyaa.yasui.optimizer.PathfindingCacheTracker;
 import cat.nyaa.yasui.optimizer.PoiCompetitorCacheTracker;
 import cat.nyaa.yasui.optimizer.PoiSearchCacheTracker;
@@ -19,6 +20,7 @@ import org.bukkit.command.TabCompleter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Command handler for Yasui plugin
@@ -121,6 +123,31 @@ public class YasuiCommand implements CommandExecutor, TabCompleter {
         } else {
             sender.sendMessage("§cPathfinding Cache: §fDisabled");
         }
+
+        if (plugin.getHotChunkTracker() != null) {
+            HotChunkTracker.Stats stats = plugin.getHotChunkTracker().getStats();
+            var config = plugin.getYasuiConfig();
+            sender.sendMessage("§aHot Chunk Tracker: §fEnabled");
+            sender.sendMessage("  §7Hot Chunks: §f" + stats.hotChunks() + " §7(tracked: " + stats.trackedChunks() + ")");
+            sender.sendMessage("  §7Max Heat: §f" + formatHeat(stats.maxHeat()) + " §7(min heat: " + formatHeat(stats.minHeat()) + ")");
+            sender.sendMessage("  §7Mob Threshold: §f" + stats.mobThreshold()
+                + " §7(scan " + stats.scanIntervalTicks() + "t, radius " + stats.areaRadius() + ")");
+            if (!stats.topChunks().isEmpty()) {
+                sender.sendMessage("  §7Top Hot Chunks: §f" + formatTopChunks(stats.topChunks(), stats.areaRadius()));
+            }
+            sender.sendMessage("  §7Hot Boosts: §fPathfinding "
+                + (config.isHotChunkPathfindingBoostEnabled() ? "On" : "Off")
+                + "§7 | AcquirePoi "
+                + (config.isHotChunkAcquirePoiBoostEnabled() ? "On" : "Off")
+                + "§7 | Competitor "
+                + (config.isHotChunkPoiCompetitorBoostEnabled() ? "On" : "Off"));
+            sender.sendMessage("  §7Villager PDC: §f" + (config.isHotChunkVillagerPdcEnabled() ? "Enabled" : "Disabled"));
+            sender.sendMessage("  §7Villager Static: §f" + (config.isHotChunkVillagerStaticEnabled() ? "Enabled" : "Disabled")
+                + " §7(stable " + config.getHotChunkVillagerStaticStableTicks() + "t, scan "
+                + config.getHotChunkVillagerStaticScanIntervalTicks() + "t)");
+        } else {
+            sender.sendMessage("§cHot Chunk Tracker: §fDisabled");
+        }
     }
 
     private void handleReload(CommandSender sender) {
@@ -153,6 +180,21 @@ public class YasuiCommand implements CommandExecutor, TabCompleter {
         sender.sendMessage("§e/yasui status §7- Show optimization status and statistics");
         sender.sendMessage("§e/yasui reload §7- Reload configuration");
         sender.sendMessage("§e/yasui info §7- Show plugin information");
+    }
+
+    private String formatHeat(float heat) {
+        return String.format(Locale.ROOT, "%.2f", heat);
+    }
+
+    private String formatTopChunks(List<HotChunkTracker.HotChunkInfo> chunks, int areaRadius) {
+        StringBuilder builder = new StringBuilder();
+        for (int i = 0; i < chunks.size(); i++) {
+            if (i > 0) {
+                builder.append(" | ");
+            }
+            builder.append(chunks.get(i).format(areaRadius));
+        }
+        return builder.toString();
     }
 
     @Override

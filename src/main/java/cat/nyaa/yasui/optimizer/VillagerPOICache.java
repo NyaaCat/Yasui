@@ -13,18 +13,23 @@ import net.minecraft.world.entity.npc.Villager;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
 import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.craftbukkit.CraftWorld;
 import org.bukkit.craftbukkit.entity.CraftVillager;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.EntityType;
+import org.bukkit.entity.Mob;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.block.BlockPlaceEvent;
+import org.bukkit.event.world.EntitiesLoadEvent;
+import org.bukkit.persistence.PersistentDataContainer;
+import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.scheduler.BukkitTask;
 
 import java.util.ArrayList;
@@ -53,12 +58,16 @@ public class VillagerPOICache implements Listener {
     private final YasuiConfig config;
     private final Map<UUID, POICache> cache = new ConcurrentHashMap<>();
     private final Map<UUID, Long> lastMemoryRestore = new ConcurrentHashMap<>();
+    private final Map<UUID, StaticState> staticStates = new ConcurrentHashMap<>();
     private final long[] rollingRestoreAttempts = new long[60];
     private final long[] rollingRestoreApplied = new long[60];
     private final long[] rollingRestoreCandidates = new long[60];
     private int rollingRestoreIndex = 0;
     private long rollingRestoreBucketStart = alignToMinute(System.currentTimeMillis());
     private long lastCleanupTime = System.currentTimeMillis();
+    private final NamespacedKey pdcPoiWorldKey;
+    private final NamespacedKey pdcPoiPosKey;
+    private final NamespacedKey pdcPoiTypeKey;
 
     private final Set<Material> poiBlocks = Set.of(
         Material.COMPOSTER,
@@ -84,6 +93,9 @@ public class VillagerPOICache implements Listener {
     public VillagerPOICache(Yasui plugin, YasuiConfig config) {
         this.plugin = plugin;
         this.config = config;
+        this.pdcPoiWorldKey = new NamespacedKey(plugin, "poi_world");
+        this.pdcPoiPosKey = new NamespacedKey(plugin, "poi_pos");
+        this.pdcPoiTypeKey = new NamespacedKey(plugin, "poi_type");
     }
 
     /**
@@ -141,47 +153,47 @@ public class VillagerPOICache implements Listener {
                 }
 
                 org.bukkit.entity.Villager bukkitVillager = (org.bukkit.entity.Villager) entity;
-                UUID uuid = bukkitVillager.getUniqueId();
+                optimizeVillager(bukkitVillager, nearestDistance, false);
+            }
+        }
+    }
 
-                try {
-                    CraftVillager craftVillager = (CraftVillager) bukkitVillager;
-                    Villager nmsVillager = craftVillager.getHandle();
-                    ServerLevel serverLevel = ((CraftWorld) world).getHandle();
-
-                    Optional<GlobalPos> existingJobSite = nmsVillager.getBrain()
-                        .getMemory(MemoryModuleType.JOB_SITE);
-                    Optional<GlobalPos> existingPotential = Optional.empty();
-                    if (existingJobSite.isEmpty()) {
-                        existingPotential = nmsVillager.getBrain()
-                            .getMemory(MemoryModuleType.POTENTIAL_JOB_SITE);
-                    }
-                    Optional<GlobalPos> existingMemory = existingJobSite.isPresent()
-                        ? existingJobSite
-                        : existingPotential;
-
-                    if (existingMemory.isPresent()) {
-                        GlobalPos globalPos = existingMemory.get();
-                        BlockPos pos = globalPos.pos();
-                        Location loc = new Location(
-                            world,
-                            pos.getX(),
-                            pos.getY(),
-                            pos.getZ()
-                        );
-
-                        Block block = loc.getBlock();
-                        if (isPOIBlock(block.getType())) {
-                            cachePOI(uuid, loc);
-                        } else {
-                            removePOI(uuid);
-                        }
-                    } else if (config.isRestoreJobSiteEnabled()) {
-                        tryRestoreJobSite(bukkitVillager, nmsVillager, serverLevel, nearestDistance);
-                    }
-                } catch (Exception e) {
-                    removePOI(uuid);
+    @EventHandler
+    public void onEntitiesLoad(EntitiesLoadEvent event) {
+        if (!config.isHotChunksEnabled() || !config.isHotChunkVillagerPdcEnabled()) {
+            return;
+        }
+        boolean hotChunk = false;
+        HotChunkTracker tracker = plugin.getHotChunkTracker();
+        if (tracker != null) {
+            hotChunk = tracker.isChunkHot(event.getWorld(), event.getChunk().getX(), event.getChunk().getZ());
+        }
+        if (!hotChunk) {
+            int mobCount = 0;
+            for (Entity entity : event.getEntities()) {
+                if (entity instanceof Mob) {
+                    mobCount++;
                 }
             }
+            if (mobCount < config.getHotChunkMobThreshold()) {
+                return;
+            }
+        }
+
+        List<Location> playerLocations = new ArrayList<>();
+        for (Player player : event.getWorld().getPlayers()) {
+            playerLocations.add(player.getLocation());
+        }
+
+        for (Entity entity : event.getEntities()) {
+            if (!(entity instanceof org.bukkit.entity.Villager villager)) {
+                continue;
+            }
+            double nearestDistance = getNearestPlayerDistance(villager, playerLocations);
+            if (!shouldOptimize(villager, nearestDistance)) {
+                continue;
+            }
+            optimizeVillager(villager, nearestDistance, true);
         }
     }
 
@@ -194,12 +206,64 @@ public class VillagerPOICache implements Listener {
         lastCleanupTime = now;
     }
 
+    private void optimizeVillager(org.bukkit.entity.Villager bukkitVillager, double nearestDistance, boolean hotHint) {
+        UUID uuid = bukkitVillager.getUniqueId();
+        World world = bukkitVillager.getWorld();
+        if (world == null) {
+            return;
+        }
+        if (shouldSkipStatic(bukkitVillager, hotHint)) {
+            return;
+        }
+        try {
+            CraftVillager craftVillager = (CraftVillager) bukkitVillager;
+            Villager nmsVillager = craftVillager.getHandle();
+            ServerLevel serverLevel = ((CraftWorld) world).getHandle();
+
+            Optional<GlobalPos> existingJobSite = nmsVillager.getBrain()
+                .getMemory(MemoryModuleType.JOB_SITE);
+            Optional<GlobalPos> existingPotential = Optional.empty();
+            if (existingJobSite.isEmpty()) {
+                existingPotential = nmsVillager.getBrain()
+                    .getMemory(MemoryModuleType.POTENTIAL_JOB_SITE);
+            }
+            Optional<GlobalPos> existingMemory = existingJobSite.isPresent()
+                ? existingJobSite
+                : existingPotential;
+
+            if (existingMemory.isPresent()) {
+                GlobalPos globalPos = existingMemory.get();
+                BlockPos pos = globalPos.pos();
+                Location loc = new Location(
+                    world,
+                    pos.getX(),
+                    pos.getY(),
+                    pos.getZ()
+                );
+
+                Block block = loc.getBlock();
+                if (isPOIBlock(block.getType())) {
+                    cachePOI(uuid, loc, bukkitVillager, hotHint);
+                } else {
+                    removePOI(uuid);
+                    clearPoiPdc(bukkitVillager);
+                }
+            } else if (config.isRestoreJobSiteEnabled()) {
+                loadPoiFromPdc(bukkitVillager, hotHint);
+                tryRestoreJobSite(bukkitVillager, nmsVillager, serverLevel, nearestDistance);
+            }
+        } catch (Exception e) {
+            removePOI(uuid);
+        }
+    }
+
     /**
      * Clear all cached POI data
      */
     public void clearAll() {
         cache.clear();
         lastMemoryRestore.clear();
+        staticStates.clear();
         clearRollingRestoreBuckets();
     }
 
@@ -225,9 +289,159 @@ public class VillagerPOICache implements Listener {
      * Cache a POI location for a villager
      */
     public void cachePOI(UUID villagerUUID, Location poiLocation) {
+        cachePOI(villagerUUID, poiLocation, null, false);
+    }
+
+    private void cachePOI(UUID villagerUUID, Location poiLocation, org.bukkit.entity.Villager villager, boolean hotHint) {
         Block block = poiLocation.getBlock();
         int hashCode = getPoiBlockKey(block.getType()).hashCode();
         cache.put(villagerUUID, new POICache(poiLocation, hashCode, System.currentTimeMillis()));
+        if (villager != null && shouldUsePdc(villager, hotHint)) {
+            persistPoiPdc(villager, poiLocation);
+        }
+    }
+
+    private boolean shouldSkipStatic(org.bukkit.entity.Villager villager, boolean hotHint) {
+        if (hotHint) {
+            return false;
+        }
+        if (!config.isHotChunksEnabled() || !config.isHotChunkVillagerStaticEnabled() || !config.isHotChunkVillagerPdcEnabled()) {
+            staticStates.remove(villager.getUniqueId());
+            return false;
+        }
+        UUID uuid = villager.getUniqueId();
+        Location location = villager.getLocation();
+        World world = location.getWorld();
+        HotChunkTracker tracker = plugin.getHotChunkTracker();
+        if (world == null || tracker == null || !tracker.isChunkHot(world, location.getBlockX() >> 4, location.getBlockZ() >> 4)) {
+            staticStates.remove(uuid);
+            return false;
+        }
+        if (!cache.containsKey(uuid) && !hasPoiPdc(villager)) {
+            return false;
+        }
+
+        long now = System.currentTimeMillis();
+        StaticState state = staticStates.computeIfAbsent(uuid, id -> new StaticState());
+        double dx = location.getX() - state.lastX;
+        double dy = location.getY() - state.lastY;
+        double dz = location.getZ() - state.lastZ;
+        double moveThreshold = config.getHotChunkVillagerStaticMoveThreshold();
+        if (!state.initialized) {
+            state.lastMoveMs = now;
+            state.initialized = true;
+        } else if ((dx * dx + dy * dy + dz * dz) > (moveThreshold * moveThreshold)) {
+            state.lastMoveMs = now;
+        }
+        state.lastX = location.getX();
+        state.lastY = location.getY();
+        state.lastZ = location.getZ();
+
+        long stableMs = config.getHotChunkVillagerStaticStableTicks() * 50L;
+        long scanIntervalMs = config.getHotChunkVillagerStaticScanIntervalTicks() * 50L;
+        boolean isStatic = stableMs <= 0L || (now - state.lastMoveMs) >= stableMs;
+        if (isStatic && scanIntervalMs > 0L && (now - state.lastScanMs) < scanIntervalMs) {
+            return true;
+        }
+        state.lastScanMs = now;
+        return false;
+    }
+
+    private void loadPoiFromPdc(org.bukkit.entity.Villager villager, boolean hotHint) {
+        if (!shouldUsePdc(villager, hotHint)) {
+            return;
+        }
+        UUID uuid = villager.getUniqueId();
+        if (cache.containsKey(uuid)) {
+            return;
+        }
+        POICache cached = readPoiFromPdc(villager);
+        if (cached != null) {
+            cache.put(uuid, cached);
+        }
+    }
+
+    private POICache readPoiFromPdc(org.bukkit.entity.Villager villager) {
+        PersistentDataContainer pdc = villager.getPersistentDataContainer();
+        String worldId = pdc.get(pdcPoiWorldKey, PersistentDataType.STRING);
+        Long packedPos = pdc.get(pdcPoiPosKey, PersistentDataType.LONG);
+        String typeName = pdc.get(pdcPoiTypeKey, PersistentDataType.STRING);
+        if (worldId == null || packedPos == null || typeName == null) {
+            return null;
+        }
+
+        World world = villager.getWorld();
+        if (world == null || !worldId.equals(world.getUID().toString())) {
+            clearPoiPdc(villager);
+            return null;
+        }
+
+        BlockPos pos = BlockPos.of(packedPos);
+        Location loc = new Location(world, pos.getX(), pos.getY(), pos.getZ());
+        Block block = loc.getBlock();
+        Material actualType = block.getType();
+        Material expectedType = Material.matchMaterial(typeName);
+        if (expectedType == null || !isPOIBlock(actualType)) {
+            clearPoiPdc(villager);
+            return null;
+        }
+        if (getPoiBlockKey(actualType) != expectedType) {
+            clearPoiPdc(villager);
+            return null;
+        }
+
+        int hashCode = getPoiBlockKey(actualType).hashCode();
+        return new POICache(loc, hashCode, System.currentTimeMillis());
+    }
+
+    private void persistPoiPdc(org.bukkit.entity.Villager villager, Location poiLocation) {
+        World world = poiLocation.getWorld();
+        if (world == null) {
+            return;
+        }
+        Block block = poiLocation.getBlock();
+        Material type = getPoiBlockKey(block.getType());
+        PersistentDataContainer pdc = villager.getPersistentDataContainer();
+        pdc.set(pdcPoiWorldKey, PersistentDataType.STRING, world.getUID().toString());
+        pdc.set(pdcPoiPosKey, PersistentDataType.LONG, new BlockPos(
+            poiLocation.getBlockX(),
+            poiLocation.getBlockY(),
+            poiLocation.getBlockZ()
+        ).asLong());
+        pdc.set(pdcPoiTypeKey, PersistentDataType.STRING, type.name());
+    }
+
+    private void clearPoiPdc(org.bukkit.entity.Villager villager) {
+        PersistentDataContainer pdc = villager.getPersistentDataContainer();
+        pdc.remove(pdcPoiWorldKey);
+        pdc.remove(pdcPoiPosKey);
+        pdc.remove(pdcPoiTypeKey);
+    }
+
+    private boolean hasPoiPdc(org.bukkit.entity.Villager villager) {
+        PersistentDataContainer pdc = villager.getPersistentDataContainer();
+        return pdc.has(pdcPoiWorldKey, PersistentDataType.STRING)
+            && pdc.has(pdcPoiPosKey, PersistentDataType.LONG)
+            && pdc.has(pdcPoiTypeKey, PersistentDataType.STRING);
+    }
+
+    private boolean shouldUsePdc(org.bukkit.entity.Villager villager, boolean hotHint) {
+        if (!config.isHotChunksEnabled() || !config.isHotChunkVillagerPdcEnabled()) {
+            return false;
+        }
+        if (hotHint) {
+            return true;
+        }
+        HotChunkTracker tracker = plugin.getHotChunkTracker();
+        if (tracker == null) {
+            return false;
+        }
+        Location location = villager.getLocation();
+        World world = location.getWorld();
+        if (world == null) {
+            return false;
+        }
+        return tracker.isChunkHot(world, location.getBlockX() >> 4, location.getBlockZ() >> 4);
     }
 
     /**
@@ -300,6 +514,11 @@ public class VillagerPOICache implements Listener {
             POICache poiCache = entry.getValue();
             if (poiCache.location().equals(location)) {
                 lastMemoryRestore.remove(entry.getKey());
+                staticStates.remove(entry.getKey());
+                Entity entity = Bukkit.getEntity(entry.getKey());
+                if (entity instanceof org.bukkit.entity.Villager villager) {
+                    clearPoiPdc(villager);
+                }
                 return true;
             }
             return false;
@@ -312,6 +531,7 @@ public class VillagerPOICache implements Listener {
     public void removePOI(UUID villagerUUID) {
         cache.remove(villagerUUID);
         lastMemoryRestore.remove(villagerUUID);
+        staticStates.remove(villagerUUID);
     }
 
     /**
@@ -347,6 +567,7 @@ public class VillagerPOICache implements Listener {
     private boolean removeIfExpired(Map.Entry<UUID, POICache> entry, long now, long maxAge) {
         if ((now - entry.getValue().timestamp()) > maxAge) {
             lastMemoryRestore.remove(entry.getKey());
+            staticStates.remove(entry.getKey());
             return true;
         }
         return false;
@@ -482,10 +703,9 @@ public class VillagerPOICache implements Listener {
         EntitySpreadTicker spread = plugin.getEntitySpread();
         if (spread != null) {
             double distanceSquared = spread.getNearestPlayerDistanceSquared(entity.getUniqueId());
-            if (!Double.isFinite(distanceSquared)) {
-                return Double.MAX_VALUE;
+            if (Double.isFinite(distanceSquared)) {
+                return Math.sqrt(distanceSquared);
             }
-            return Math.sqrt(distanceSquared);
         }
 
         if (playerLocations.isEmpty()) {
@@ -506,4 +726,13 @@ public class VillagerPOICache implements Listener {
     }
 
     public record RollingRestoreStats(long attempts, long applied, long candidates) {}
+
+    private static final class StaticState {
+        private boolean initialized = false;
+        private double lastX;
+        private double lastY;
+        private double lastZ;
+        private long lastMoveMs;
+        private long lastScanMs;
+    }
 }

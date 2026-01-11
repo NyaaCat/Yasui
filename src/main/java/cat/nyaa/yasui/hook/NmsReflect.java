@@ -58,6 +58,7 @@ public final class NmsReflect {
     // Entity
     private static volatile MethodHandle entityGetId;
     private static volatile MethodHandle entityBlockPosition;
+    private static volatile MethodHandle entityGetLevel;
 
     // BlockPos
     private static volatile MethodHandle blockPosAsLong;
@@ -151,6 +152,12 @@ public final class NmsReflect {
         // Entity
         Class<?> entityClass = Class.forName("net.minecraft.world.entity.Entity", true, nmsClassLoader);
         entityGetId = lookup.findVirtual(entityClass, "getId", MethodType.methodType(int.class));
+        try {
+            Class<?> levelClass = Class.forName("net.minecraft.world.level.Level", true, nmsClassLoader);
+            entityGetLevel = lookup.findVirtual(entityClass, "level", MethodType.methodType(levelClass));
+        } catch (Throwable ignored) {
+            entityGetLevel = null;
+        }
 
         // BlockPos
         Class<?> blockPosClass = Class.forName("net.minecraft.core.BlockPos", true, nmsClassLoader);
@@ -311,6 +318,17 @@ public final class NmsReflect {
         }
         try {
             return entityBlockPosition.invoke(entity);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    public static Object getEntityLevel(Object entity) {
+        if (entity == null || entityGetLevel == null) {
+            return null;
+        }
+        try {
+            return entityGetLevel.invoke(entity);
         } catch (Throwable t) {
             return null;
         }

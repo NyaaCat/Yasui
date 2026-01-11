@@ -37,6 +37,13 @@ public final class PathfindingNmsHook {
         );
     }
 
+    public static void configureHotChunks(boolean enabled, int ttlTicks, int ttlJitterTicks,
+                                          int mobMoveThreshold, int targetMoveThreshold, int negativeTtlTicks) {
+        PathfindingCacheBridge.configureHotChunks(
+            enabled, ttlTicks, ttlJitterTicks, mobMoveThreshold, targetMoveThreshold, negativeTtlTicks
+        );
+    }
+
     public static long[] drainStats() {
         return PathfindingCacheBridge.drainStats();
     }

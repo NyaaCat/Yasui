@@ -9,6 +9,7 @@ final class PathfindingCacheBridge {
     private static volatile boolean resolved = false;
     private static volatile Class<?> cacheClass;
     private static volatile MethodHandle configureHandle;
+    private static volatile MethodHandle configureHotHandle;
     private static volatile MethodHandle drainStatsHandle;
     private static volatile MethodHandle hookActiveHandle;
 
@@ -23,6 +24,19 @@ final class PathfindingCacheBridge {
             configureHandle.invokeWithArguments(
                 enabled, ttlTicks, ttlJitterTicks, maxEntriesPerNav, mobMoveThreshold, targetMoveThreshold,
                 negativeTtlTicks
+            );
+        } catch (Throwable ignored) {
+        }
+    }
+
+    static void configureHotChunks(boolean enabled, int ttlTicks, int ttlJitterTicks,
+                                   int mobMoveThreshold, int targetMoveThreshold, int negativeTtlTicks) {
+        if (!resolve()) {
+            return;
+        }
+        try {
+            configureHotHandle.invokeWithArguments(
+                enabled, ttlTicks, ttlJitterTicks, mobMoveThreshold, targetMoveThreshold, negativeTtlTicks
             );
         } catch (Throwable ignored) {
         }
@@ -71,6 +85,9 @@ final class PathfindingCacheBridge {
                 configureHandle = lookup.findStatic(cacheClass, "configure",
                     MethodType.methodType(void.class, boolean.class, int.class, int.class, int.class, int.class,
                         int.class, int.class));
+                configureHotHandle = lookup.findStatic(cacheClass, "configureHotChunks",
+                    MethodType.methodType(void.class, boolean.class, int.class, int.class, int.class, int.class,
+                        int.class));
                 drainStatsHandle = lookup.findStatic(cacheClass, "drainStats",
                     MethodType.methodType(long[].class));
                 hookActiveHandle = lookup.findStatic(cacheClass, "isHookActive",

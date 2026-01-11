@@ -2,6 +2,7 @@ package cat.nyaa.yasui;
 
 import cat.nyaa.yasui.command.YasuiCommand;
 import cat.nyaa.yasui.optimizer.HopperOptimizer;
+import cat.nyaa.yasui.optimizer.HotChunkTracker;
 import cat.nyaa.yasui.optimizer.VillagerPOICache;
 import cat.nyaa.yasui.optimizer.EntitySpreadTicker;
 import cat.nyaa.yasui.optimizer.PathfindingCacheTracker;
@@ -33,11 +34,13 @@ public class Yasui extends JavaPlugin {
     private PathfindingCacheTracker pathfindingCacheTracker;
     private PoiSearchCacheTracker poiSearchCacheTracker;
     private PoiCompetitorCacheTracker poiCompetitorCacheTracker;
+    private HotChunkTracker hotChunkTracker;
 
     @Override
     public void onEnable() {
         // Save default config if not exists
         saveDefaultConfig();
+        ensureConfigDefaults();
 
         // Load configuration
         config = new YasuiConfig(this);
@@ -128,13 +131,7 @@ public class Yasui extends JavaPlugin {
             config.getPoiCompetitorCacheMaxEntries(),
             config.isPoiCompetitorCacheEmptyResults()
         );
-        PoiCompetitorNmsHook.configure(
-            competitorCacheEnabled,
-            config.getPoiCompetitorCacheTtlTicks(),
-            config.getPoiCompetitorCacheTtlJitterTicks(),
-            config.getPoiCompetitorCacheMaxEntries(),
-            config.isPoiCompetitorCacheEmptyResults()
-        );
+        configureHotChunkCaches();
 
         // Initialize optimizers
         if (config.isHopperEnabled()) {
@@ -176,6 +173,12 @@ public class Yasui extends JavaPlugin {
             getLogger().info("PoiCompetitor cache enabled");
         }
 
+        if (config.isHotChunksEnabled()) {
+            hotChunkTracker = new HotChunkTracker(this, config);
+            hotChunkTracker.start();
+            getLogger().info("Hot chunk tracker enabled");
+        }
+
         // Register command
         getCommand("yasui").setExecutor(new YasuiCommand(this));
 
@@ -210,6 +213,10 @@ public class Yasui extends JavaPlugin {
             poiCompetitorCacheTracker.shutdown();
         }
 
+        if (hotChunkTracker != null) {
+            hotChunkTracker.shutdown();
+        }
+
         getLogger().info("Yasui optimization plugin disabled");
     }
 
@@ -221,6 +228,7 @@ public class Yasui extends JavaPlugin {
 
         // Reload config file
         reloadConfig();
+        ensureConfigDefaults();
 
         // Reload config object
         config = new YasuiConfig(this);
@@ -304,6 +312,14 @@ public class Yasui extends JavaPlugin {
             config.getAcquirePoiCacheSourceBucketSize(),
             config.isAcquirePoiCacheFallbackOnInsufficient()
         );
+        PoiCompetitorNmsHook.configure(
+            competitorCacheEnabled,
+            config.getPoiCompetitorCacheTtlTicks(),
+            config.getPoiCompetitorCacheTtlJitterTicks(),
+            config.getPoiCompetitorCacheMaxEntries(),
+            config.isPoiCompetitorCacheEmptyResults()
+        );
+        configureHotChunkCaches();
 
         // Restart hopper optimizer (or disable if not enabled)
         if (hopperOptimizer != null) {
@@ -386,6 +402,18 @@ public class Yasui extends JavaPlugin {
             getLogger().info("PoiCompetitor cache disabled");
         }
 
+        if (hotChunkTracker != null) {
+            hotChunkTracker.shutdown();
+            hotChunkTracker = null;
+        }
+        if (config.isHotChunksEnabled()) {
+            hotChunkTracker = new HotChunkTracker(this, config);
+            hotChunkTracker.start();
+            getLogger().info("Hot chunk tracker reloaded");
+        } else {
+            getLogger().info("Hot chunk tracker disabled");
+        }
+
         getLogger().info("Configuration reload complete!");
     }
 
@@ -415,6 +443,44 @@ public class Yasui extends JavaPlugin {
 
     public PoiCompetitorCacheTracker getPoiCompetitorCacheTracker() {
         return poiCompetitorCacheTracker;
+    }
+
+    public HotChunkTracker getHotChunkTracker() {
+        return hotChunkTracker;
+    }
+
+    private void ensureConfigDefaults() {
+        getConfig().options().copyDefaults(true);
+        saveConfig();
+    }
+
+    private void configureHotChunkCaches() {
+        boolean hotEnabled = config.isHotChunksEnabled();
+        boolean pathBoost = hotEnabled && config.isHotChunkPathfindingBoostEnabled();
+        boolean acquireBoost = hotEnabled && config.isHotChunkAcquirePoiBoostEnabled();
+        boolean competitorBoost = hotEnabled && config.isHotChunkPoiCompetitorBoostEnabled();
+
+        int pathHotTtl = Math.max(config.getPathfindingCacheTtlTicks(), config.getHotChunkPathfindingTtlTicks());
+        int pathHotJitter = Math.max(config.getPathfindingCacheTtlJitterTicks(), config.getHotChunkPathfindingTtlJitterTicks());
+        int pathHotMobThreshold = Math.max(config.getPathfindingCacheMobMoveThreshold(), config.getHotChunkPathfindingMobMoveThreshold());
+        int pathHotTargetThreshold = Math.max(config.getPathfindingCacheTargetMoveThreshold(), config.getHotChunkPathfindingTargetMoveThreshold());
+        int pathHotNegativeTtl = Math.max(config.getPathfindingCacheNegativeTtlTicks(), config.getHotChunkPathfindingNegativeTtlTicks());
+        PathfindingNmsHook.configureHotChunks(
+            pathBoost,
+            pathHotTtl,
+            pathHotJitter,
+            pathHotMobThreshold,
+            pathHotTargetThreshold,
+            pathHotNegativeTtl
+        );
+
+        int acquireHotTtl = Math.max(config.getAcquirePoiCacheTtlTicks(), config.getHotChunkAcquirePoiTtlTicks());
+        int acquireHotJitter = Math.max(config.getAcquirePoiCacheTtlJitterTicks(), config.getHotChunkAcquirePoiTtlJitterTicks());
+        PoiSearchNmsHook.configureHotChunks(acquireBoost, acquireHotTtl, acquireHotJitter);
+
+        int competitorHotTtl = Math.max(config.getPoiCompetitorCacheTtlTicks(), config.getHotChunkPoiCompetitorTtlTicks());
+        int competitorHotJitter = Math.max(config.getPoiCompetitorCacheTtlJitterTicks(), config.getHotChunkPoiCompetitorTtlJitterTicks());
+        PoiCompetitorNmsHook.configureHotChunks(competitorBoost, competitorHotTtl, competitorHotJitter);
     }
 
 }
