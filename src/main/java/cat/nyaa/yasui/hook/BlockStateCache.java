@@ -23,6 +23,8 @@ public final class BlockStateCache {
     private static volatile int maxEntries = 20000;
     private static volatile boolean hookActive = false;
     private static volatile boolean exactInvalidationActive = false;
+    private static volatile boolean hotChunksEnabled = false;
+    private static volatile int hotTtlTicks = 1;
 
     private BlockStateCache() {}
 
@@ -30,6 +32,11 @@ public final class BlockStateCache {
         BlockStateCache.enabled = enabled;
         BlockStateCache.ttlTicks = Math.max(0, ttlTicks);
         BlockStateCache.maxEntries = Math.max(0, maxEntries);
+    }
+
+    public static void configureHotChunks(boolean enabled, int hotTtlTicks) {
+        BlockStateCache.hotChunksEnabled = enabled;
+        BlockStateCache.hotTtlTicks = Math.max(0, hotTtlTicks);
     }
 
     public static boolean isHookActive() {
@@ -84,8 +91,9 @@ public final class BlockStateCache {
         if (!isSameChunk(posKey, chunk)) {
             return NmsReflect.getBlockStateIfLoadedAndInBounds(level, pos);
         }
-        boolean cacheEnabled = ttlTicks > 0 && maxEntries > 0;
-        if (!cacheEnabled) {
+        boolean cacheEnabled = maxEntries > 0 && (ttlTicks > 0 || (hotChunksEnabled && hotTtlTicks > 0));
+        int effectiveTtl = cacheEnabled ? getEffectiveTtl(level, posKey) : 0;
+        if (effectiveTtl <= 0 || maxEntries <= 0) {
             Object state = NmsReflect.getBlockState(chunk, pos);
             return state != null ? state : NmsReflect.getBlockStateIfLoadedAndInBounds(level, pos);
         }
@@ -106,7 +114,7 @@ public final class BlockStateCache {
         if (state == null) {
             return NmsReflect.getBlockStateIfLoadedAndInBounds(level, pos);
         }
-        levelCache.put(posKey, new CacheEntry(state, tick + ttlTicks, epoch));
+        levelCache.put(posKey, new CacheEntry(state, tick + effectiveTtl, epoch));
         cacheStores.increment();
         return state;
     }
@@ -144,10 +152,14 @@ public final class BlockStateCache {
         if (!NmsReflect.init(level)) {
             return null;
         }
-        if (!enabled || ttlTicks <= 0 || maxEntries <= 0) {
+        if (!enabled || maxEntries <= 0) {
             return NmsReflect.getBlockState(level, pos);
         }
         long posKey = NmsReflect.blockPosAsLong(pos);
+        int effectiveTtl = getEffectiveTtl(level, posKey);
+        if (effectiveTtl <= 0) {
+            return NmsReflect.getBlockState(level, pos);
+        }
         LruCache<Long, CacheEntry> levelCache = getLevelCache(level);
         CacheEntry entry = levelCache.get(posKey);
         int tick = NmsReflect.getCurrentTick();
@@ -165,7 +177,7 @@ public final class BlockStateCache {
         if (state == null) {
             return null;
         }
-        levelCache.put(posKey, new CacheEntry(state, tick + ttlTicks, epoch));
+        levelCache.put(posKey, new CacheEntry(state, tick + effectiveTtl, epoch));
         cacheStores.increment();
         return state;
     }
@@ -178,10 +190,14 @@ public final class BlockStateCache {
         if (!NmsReflect.init(level)) {
             return null;
         }
-        if (!enabled || ttlTicks <= 0 || maxEntries <= 0) {
+        if (!enabled || maxEntries <= 0) {
             return NmsReflect.getBlockStateIfLoaded(level, pos);
         }
         long posKey = NmsReflect.blockPosAsLong(pos);
+        int effectiveTtl = getEffectiveTtl(level, posKey);
+        if (effectiveTtl <= 0) {
+            return NmsReflect.getBlockStateIfLoaded(level, pos);
+        }
         LruCache<Long, CacheEntry> levelCache = getLevelCache(level);
         CacheEntry entry = levelCache.get(posKey);
         int tick = NmsReflect.getCurrentTick();
@@ -199,7 +215,7 @@ public final class BlockStateCache {
         if (state == null) {
             return null;
         }
-        levelCache.put(posKey, new CacheEntry(state, tick + ttlTicks, epoch));
+        levelCache.put(posKey, new CacheEntry(state, tick + effectiveTtl, epoch));
         cacheStores.increment();
         return state;
     }
@@ -219,11 +235,16 @@ public final class BlockStateCache {
         if (!NmsReflect.init(cacheOwner)) {
             return null;
         }
-        if (!enabled || ttlTicks <= 0 || maxEntries <= 0) {
+        if (!enabled || maxEntries <= 0) {
             Object state = NmsReflect.getBlockState(chunk, pos);
             return state != null ? state : NmsReflect.getBlockState(cacheOwner, pos);
         }
         long posKey = NmsReflect.blockPosAsLong(pos);
+        int effectiveTtl = getEffectiveTtl(cacheOwner, posKey);
+        if (effectiveTtl <= 0) {
+            Object state = NmsReflect.getBlockState(chunk, pos);
+            return state != null ? state : NmsReflect.getBlockState(cacheOwner, pos);
+        }
         LruCache<Long, CacheEntry> levelCache = getLevelCache(cacheOwner);
         CacheEntry entry = levelCache.get(posKey);
         int tick = NmsReflect.getCurrentTick();
@@ -241,7 +262,7 @@ public final class BlockStateCache {
         if (state == null) {
             return NmsReflect.getBlockState(cacheOwner, pos);
         }
-        levelCache.put(posKey, new CacheEntry(state, tick + ttlTicks, epoch));
+        levelCache.put(posKey, new CacheEntry(state, tick + effectiveTtl, epoch));
         cacheStores.increment();
         return state;
     }
@@ -289,6 +310,35 @@ public final class BlockStateCache {
         int posChunkX = unpackX(posKey) >> 4;
         int posChunkZ = unpackZ(posKey) >> 4;
         return chunkX == posChunkX && chunkZ == posChunkZ;
+    }
+
+    private static int getEffectiveTtl(Object cacheOwner, long posKey) {
+        int baseTtl = ttlTicks;
+        if (!hotChunksEnabled || cacheOwner == null) {
+            return baseTtl;
+        }
+        float heat = getHotChunkHeat(cacheOwner, posKey);
+        return scaleInt(baseTtl, hotTtlTicks, heat);
+    }
+
+    private static float getHotChunkHeat(Object owner, long posKey) {
+        if (!hotChunksEnabled || owner == null) {
+            return 0f;
+        }
+        long chunkKey = HotChunkUtil.chunkKeyFromBlockPos(posKey);
+        return HotChunkMap.getHeat(owner, chunkKey);
+    }
+
+    private static int scaleInt(int base, int hot, float heat) {
+        if (heat <= 0f) {
+            return base;
+        }
+        int target = Math.max(base, hot);
+        int delta = target - base;
+        if (delta == 0) {
+            return base;
+        }
+        return base + Math.round(delta * heat);
     }
 
     private static int unpackX(long packed) {

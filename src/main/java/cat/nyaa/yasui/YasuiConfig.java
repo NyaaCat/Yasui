@@ -72,10 +72,13 @@ public class YasuiConfig {
     private int pathfindingCacheNegativeTtlTicks;
     private boolean chunkEpochEnabled;
 
+    // Block state cache settings
+    private boolean blockStateCacheEnabled;
+    private int blockStateCacheTtlTicks;
+    private int blockStateCacheMaxEntries;
+
     // Natural spawner settings
     private boolean naturalSpawnerEnabled;
-    private int naturalSpawnerBlockStateCacheTtlTicks;
-    private int naturalSpawnerBlockStateCacheMaxEntries;
 
     // Hot chunk settings
     private boolean hotChunksEnabled;
@@ -86,6 +89,8 @@ public class YasuiConfig {
     private long hotChunkSnapshotMaxAgeMs;
     private double hotChunkHeatDecay;
     private double hotChunkMinHeat;
+    private boolean hotChunkBlockStateCacheEnabled;
+    private int hotChunkBlockStateCacheTtlTicks;
     private boolean hotChunkVillagerPdcEnabled;
     private boolean hotChunkVillagerStaticEnabled;
     private int hotChunkVillagerStaticStableTicks;
@@ -174,9 +179,11 @@ public class YasuiConfig {
         pathfindingCacheNegativeTtlTicks = 0;
         chunkEpochEnabled = true;
 
+        blockStateCacheEnabled = true;
+        blockStateCacheTtlTicks = 20;
+        blockStateCacheMaxEntries = 20000;
+
         naturalSpawnerEnabled = true;
-        naturalSpawnerBlockStateCacheTtlTicks = 1;
-        naturalSpawnerBlockStateCacheMaxEntries = 20000;
 
         hotChunksEnabled = true;
         hotChunkScanInterval = 40;
@@ -186,6 +193,8 @@ public class YasuiConfig {
         hotChunkSnapshotMaxAgeMs = 10000L;
         hotChunkHeatDecay = 0.85;
         hotChunkMinHeat = 0.15;
+        hotChunkBlockStateCacheEnabled = true;
+        hotChunkBlockStateCacheTtlTicks = 100;
         hotChunkVillagerPdcEnabled = true;
         hotChunkVillagerStaticEnabled = true;
         hotChunkVillagerStaticStableTicks = 100;
@@ -309,8 +318,16 @@ public class YasuiConfig {
         ConfigurationSection spawnerSection = plugin.getConfig().getConfigurationSection("optimizations.natural-spawner");
         if (spawnerSection != null) {
             naturalSpawnerEnabled = spawnerSection.getBoolean("enabled", true);
-            naturalSpawnerBlockStateCacheTtlTicks = Math.max(0, spawnerSection.getInt("blockstate-cache-ttl-ticks", 1));
-            naturalSpawnerBlockStateCacheMaxEntries = Math.max(0, spawnerSection.getInt("blockstate-cache-max-entries", 20000));
+            blockStateCacheTtlTicks = Math.max(0, spawnerSection.getInt("blockstate-cache-ttl-ticks", blockStateCacheTtlTicks));
+            blockStateCacheMaxEntries = Math.max(0, spawnerSection.getInt("blockstate-cache-max-entries", blockStateCacheMaxEntries));
+            blockStateCacheEnabled = naturalSpawnerEnabled;
+        }
+
+        ConfigurationSection blockStateSection = plugin.getConfig().getConfigurationSection("optimizations.blockstate-cache");
+        if (blockStateSection != null) {
+            blockStateCacheEnabled = blockStateSection.getBoolean("enabled", blockStateCacheEnabled);
+            blockStateCacheTtlTicks = Math.max(0, blockStateSection.getInt("ttl-ticks", blockStateCacheTtlTicks));
+            blockStateCacheMaxEntries = Math.max(0, blockStateSection.getInt("max-entries", blockStateCacheMaxEntries));
         }
 
         ConfigurationSection epochSection = plugin.getConfig().getConfigurationSection("optimizations.chunk-epoch");
@@ -328,6 +345,12 @@ public class YasuiConfig {
             hotChunkSnapshotMaxAgeMs = Math.max(0L, hotSection.getLong("snapshot-max-age-ms", 10000L));
             hotChunkHeatDecay = clampDouble(hotSection.getDouble("heat-decay", 0.85), 0.0, 1.0);
             hotChunkMinHeat = clampDouble(hotSection.getDouble("min-heat", 0.15), 0.0, 1.0);
+
+            ConfigurationSection blockStateSection = hotSection.getConfigurationSection("blockstate-cache");
+            if (blockStateSection != null) {
+                hotChunkBlockStateCacheEnabled = blockStateSection.getBoolean("enabled", true);
+                hotChunkBlockStateCacheTtlTicks = Math.max(0, blockStateSection.getInt("ttl-ticks", 100));
+            }
 
             ConfigurationSection pdcSection = hotSection.getConfigurationSection("villager-pdc");
             if (pdcSection != null) {
@@ -598,16 +621,28 @@ public class YasuiConfig {
         return chunkEpochEnabled;
     }
 
+    public boolean isBlockStateCacheEnabled() {
+        return blockStateCacheEnabled;
+    }
+
+    public int getBlockStateCacheTtlTicks() {
+        return blockStateCacheTtlTicks;
+    }
+
+    public int getBlockStateCacheMaxEntries() {
+        return blockStateCacheMaxEntries;
+    }
+
     public boolean isNaturalSpawnerEnabled() {
         return naturalSpawnerEnabled;
     }
 
     public int getNaturalSpawnerBlockStateCacheTtlTicks() {
-        return naturalSpawnerBlockStateCacheTtlTicks;
+        return blockStateCacheTtlTicks;
     }
 
     public int getNaturalSpawnerBlockStateCacheMaxEntries() {
-        return naturalSpawnerBlockStateCacheMaxEntries;
+        return blockStateCacheMaxEntries;
     }
 
     public boolean isHotChunksEnabled() {
@@ -640,6 +675,14 @@ public class YasuiConfig {
 
     public double getHotChunkMinHeat() {
         return hotChunkMinHeat;
+    }
+
+    public boolean isHotChunkBlockStateCacheEnabled() {
+        return hotChunkBlockStateCacheEnabled;
+    }
+
+    public int getHotChunkBlockStateCacheTtlTicks() {
+        return hotChunkBlockStateCacheTtlTicks;
     }
 
     public boolean isHotChunkVillagerPdcEnabled() {

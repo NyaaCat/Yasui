@@ -167,9 +167,9 @@ public class Yasui extends JavaPlugin {
             config.getPathfindingCacheNegativeTtlTicks()
         );
         SpawnCheckNmsHook.configure(
-            naturalSpawnerEnabled,
-            config.getNaturalSpawnerBlockStateCacheTtlTicks(),
-            config.getNaturalSpawnerBlockStateCacheMaxEntries()
+            config.isBlockStateCacheEnabled(),
+            config.getBlockStateCacheTtlTicks(),
+            config.getBlockStateCacheMaxEntries()
         );
         PoiSearchNmsHook.configure(
             acquirePoiEnabled,
@@ -459,9 +459,9 @@ public class Yasui extends JavaPlugin {
             config.getPathfindingCacheNegativeTtlTicks()
         );
         SpawnCheckNmsHook.configure(
-            config.isNaturalSpawnerEnabled(),
-            config.getNaturalSpawnerBlockStateCacheTtlTicks(),
-            config.getNaturalSpawnerBlockStateCacheMaxEntries()
+            config.isBlockStateCacheEnabled(),
+            config.getBlockStateCacheTtlTicks(),
+            config.getBlockStateCacheMaxEntries()
         );
         PoiSearchNmsHook.configure(
             acquirePoiEnabled,
@@ -699,11 +699,15 @@ public class Yasui extends JavaPlugin {
 
     private void configureHotChunkCaches() {
         boolean hotEnabled = config.isHotChunksEnabled();
+        boolean blockStateBoost = hotEnabled && config.isHotChunkBlockStateCacheEnabled();
         boolean pathBoost = hotEnabled && config.isHotChunkPathfindingBoostEnabled();
         boolean acquireBoost = hotEnabled && config.isHotChunkAcquirePoiBoostEnabled();
         boolean competitorBoost = hotEnabled && config.isHotChunkPoiCompetitorBoostEnabled();
         boolean lookupBoost = hotEnabled && config.isHotChunkPoiLookupBoostEnabled();
         boolean typeBoost = hotEnabled && config.isHotChunkPoiTypeBoostEnabled();
+
+        int blockStateHotTtl = Math.max(config.getBlockStateCacheTtlTicks(), config.getHotChunkBlockStateCacheTtlTicks());
+        SpawnCheckNmsHook.configureHotChunks(blockStateBoost, blockStateHotTtl);
 
         int pathHotTtl = Math.max(config.getPathfindingCacheTtlTicks(), config.getHotChunkPathfindingTtlTicks());
         int pathHotJitter = Math.max(config.getPathfindingCacheTtlJitterTicks(), config.getHotChunkPathfindingTtlJitterTicks());

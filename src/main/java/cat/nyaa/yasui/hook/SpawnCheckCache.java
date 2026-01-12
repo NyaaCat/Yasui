@@ -10,6 +10,10 @@ public final class SpawnCheckCache {
         BlockStateCache.configure(enabled, ttlTicks, maxEntries);
     }
 
+    public static void configureHotChunks(boolean enabled, int hotTtlTicks) {
+        BlockStateCache.configureHotChunks(enabled, hotTtlTicks);
+    }
+
     public static boolean isHookActive() {
         return BlockStateCache.isHookActive();
     }

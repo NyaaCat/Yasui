@@ -33,6 +33,10 @@ public final class SpawnCheckNmsHook {
         SpawnCheckCacheBridge.configure(enabled, ttlTicks, maxEntries);
     }
 
+    public static void configureHotChunks(boolean enabled, int hotTtlTicks) {
+        SpawnCheckCacheBridge.configureHotChunks(enabled, hotTtlTicks);
+    }
+
     public static long[] drainStats() {
         return SpawnCheckCacheBridge.drainStats();
     }

@@ -9,6 +9,7 @@ final class SpawnCheckCacheBridge {
     private static volatile boolean resolved = false;
     private static volatile Class<?> cacheClass;
     private static volatile MethodHandle configureHandle;
+    private static volatile MethodHandle configureHotHandle;
     private static volatile MethodHandle drainStatsHandle;
     private static volatile MethodHandle cacheSizeHandle;
     private static volatile MethodHandle hookActiveHandle;
@@ -21,6 +22,16 @@ final class SpawnCheckCacheBridge {
         }
         try {
             configureHandle.invokeWithArguments(enabled, ttlTicks, maxEntries);
+        } catch (Throwable ignored) {
+        }
+    }
+
+    static void configureHotChunks(boolean enabled, int hotTtlTicks) {
+        if (!resolve()) {
+            return;
+        }
+        try {
+            configureHotHandle.invokeWithArguments(enabled, hotTtlTicks);
         } catch (Throwable ignored) {
         }
     }
@@ -81,6 +92,8 @@ final class SpawnCheckCacheBridge {
                 MethodHandles.Lookup lookup = MethodHandles.publicLookup();
                 configureHandle = lookup.findStatic(cacheClass, "configure",
                     MethodType.methodType(void.class, boolean.class, int.class, int.class));
+                configureHotHandle = lookup.findStatic(cacheClass, "configureHotChunks",
+                    MethodType.methodType(void.class, boolean.class, int.class));
                 drainStatsHandle = lookup.findStatic(cacheClass, "drainStats",
                     MethodType.methodType(long[].class));
                 cacheSizeHandle = lookup.findStatic(cacheClass, "getCacheSize",
