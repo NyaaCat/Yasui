@@ -35,6 +35,18 @@ public final class YasuiAgent {
     private static final String PATHNAV_HOOK_GET_DESC = "(Ljava/lang/Object;Ljava/util/Set;Ljava/lang/Object;IZIF)Ljava/lang/Object;";
     private static final String PATHNAV_HOOK_STORE_DESC = "(Ljava/lang/Object;Ljava/lang/Object;Ljava/util/Set;Ljava/lang/Object;IZIF)Ljava/lang/Object;";
 
+    private static final String NATURAL_SPAWNER_CLASS = "net/minecraft/world/level/NaturalSpawner";
+    private static final String NATURAL_SPAWNER_METHOD = "spawnCategoryForPosition";
+    private static final String NATURAL_SPAWNER_DESC = "(Lnet/minecraft/world/entity/MobCategory;Lnet/minecraft/server/level/ServerLevel;Lnet/minecraft/world/level/chunk/ChunkAccess;Lnet/minecraft/core/BlockPos;Lnet/minecraft/world/level/NaturalSpawner$SpawnPredicate;Lnet/minecraft/world/level/NaturalSpawner$AfterSpawnCallback;ILjava/util/function/Consumer;)V";
+    private static final String LEVEL_CLASS = "net/minecraft/world/level/Level";
+    private static final String SERVER_LEVEL_CLASS = "net/minecraft/server/level/ServerLevel";
+    private static final String LEVEL_GETBLOCKSTATE_METHOD = "getBlockStateIfLoadedAndInBounds";
+    private static final String LEVEL_GETBLOCKSTATE_DESC = "(Lnet/minecraft/core/BlockPos;)Lnet/minecraft/world/level/block/state/BlockState;";
+    private static final String LEVEL_ISLOADED_METHOD = "isLoadedAndInBounds";
+    private static final String LEVEL_ISLOADED_DESC = "(Lnet/minecraft/core/BlockPos;)Z";
+    private static final String SPAWN_BLOCKSTATE_HOOK_DESC = "(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;";
+    private static final String SPAWN_ISLOADED_HOOK_DESC = "(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Z";
+
     private static final String ACQUIRE_POI_CLASS = "net/minecraft/world/entity/ai/behavior/AcquirePoi";
     private static final String POI_ACCESS_OWNER = "io/papermc/paper/util/PoiAccess";
     private static final String POI_ACCESS_METHOD = "findNearestPoiPositions";
@@ -89,6 +101,7 @@ public final class YasuiAgent {
         try {
             retransform(inst, HOPPER_CLASS);
             retransform(inst, PATHNAV_CLASS);
+            retransform(inst, NATURAL_SPAWNER_CLASS);
             retransform(inst, ACQUIRE_POI_CLASS);
             retransform(inst, POI_COMPETITOR_CLASS);
             retransform(inst, POI_MANAGER_CLASS);
@@ -100,6 +113,10 @@ public final class YasuiAgent {
             if (transformer.pathNavTransformed()) {
                 markHookActive("cat.nyaa.yasui.hook.PathfindingCache", "markHookActive");
                 log("Pathfinding cache hook installed");
+            }
+            if (transformer.naturalSpawnerTransformed()) {
+                markHookActive("cat.nyaa.yasui.hook.SpawnCheckCache", "markHookActive");
+                log("NaturalSpawner cache hook installed");
             }
             if (transformer.poiSearchTransformed()) {
                 markHookActive("cat.nyaa.yasui.hook.PoiSearchCache", "markHookActive");
@@ -213,6 +230,7 @@ public final class YasuiAgent {
     private static final class YasuiTransformer implements ClassFileTransformer {
         private volatile boolean hopperTransformed = false;
         private volatile boolean pathNavTransformed = false;
+        private volatile boolean naturalSpawnerTransformed = false;
         private volatile boolean poiSearchTransformed = false;
         private volatile boolean poiCompetitorTransformed = false;
         private volatile boolean poiLookupTransformed = false;
@@ -227,6 +245,9 @@ public final class YasuiAgent {
             }
             if (PATHNAV_CLASS.equals(className)) {
                 return transformPathNavigation(classfileBuffer, loader);
+            }
+            if (NATURAL_SPAWNER_CLASS.equals(className)) {
+                return transformNaturalSpawner(classfileBuffer, loader);
             }
             if (ACQUIRE_POI_CLASS.equals(className)) {
                 return transformAcquirePoi(classfileBuffer, loader);
@@ -380,6 +401,74 @@ public final class YasuiAgent {
                 return writer.toByteArray();
             } catch (Throwable t) {
                 log("PathNavigation transformer failed: " + t.getClass().getSimpleName() + " " + t.getMessage());
+                return null;
+            }
+        }
+
+        private byte[] transformNaturalSpawner(byte[] classfileBuffer, ClassLoader loader) {
+            try {
+                ClassReader reader = new ClassReader(classfileBuffer);
+                ClassWriter writer = newClassWriter(reader, loader);
+                boolean[] changed = new boolean[] {false};
+                ClassVisitor visitor = new ClassVisitor(Opcodes.ASM9, writer) {
+                    @Override
+                    public MethodVisitor visitMethod(int access, String name, String descriptor,
+                                                     String signature, String[] exceptions) {
+                        MethodVisitor mv = super.visitMethod(access, name, descriptor, signature, exceptions);
+                        if (!NATURAL_SPAWNER_METHOD.equals(name) || !NATURAL_SPAWNER_DESC.equals(descriptor)) {
+                            return mv;
+                        }
+                        return new MethodVisitor(Opcodes.ASM9, mv) {
+                            @Override
+                            public void visitMethodInsn(int opcode, String owner, String name, String desc, boolean isInterface) {
+                                if (opcode == Opcodes.INVOKEVIRTUAL
+                                    && LEVEL_GETBLOCKSTATE_METHOD.equals(name)
+                                    && LEVEL_GETBLOCKSTATE_DESC.equals(desc)
+                                    && (LEVEL_CLASS.equals(owner) || SERVER_LEVEL_CLASS.equals(owner))) {
+                                    changed[0] = true;
+                                    super.visitVarInsn(Opcodes.ALOAD, 2);
+                                    super.visitMethodInsn(
+                                        Opcodes.INVOKESTATIC,
+                                        "cat/nyaa/yasui/hook/SpawnCheckCache",
+                                        "getBlockStateIfLoadedAndInBounds",
+                                        SPAWN_BLOCKSTATE_HOOK_DESC,
+                                        false
+                                    );
+                                    super.visitTypeInsn(Opcodes.CHECKCAST, "net/minecraft/world/level/block/state/BlockState");
+                                    return;
+                                }
+                                if (opcode == Opcodes.INVOKEVIRTUAL
+                                    && LEVEL_ISLOADED_METHOD.equals(name)
+                                    && LEVEL_ISLOADED_DESC.equals(desc)
+                                    && (LEVEL_CLASS.equals(owner) || SERVER_LEVEL_CLASS.equals(owner))) {
+                                    changed[0] = true;
+                                    super.visitVarInsn(Opcodes.ALOAD, 2);
+                                    super.visitMethodInsn(
+                                        Opcodes.INVOKESTATIC,
+                                        "cat/nyaa/yasui/hook/SpawnCheckCache",
+                                        "isLoadedAndInBounds",
+                                        SPAWN_ISLOADED_HOOK_DESC,
+                                        false
+                                    );
+                                    return;
+                                }
+                                super.visitMethodInsn(opcode, owner, name, desc, isInterface);
+                            }
+                        };
+                    }
+
+                    @Override
+                    public void visitEnd() {
+                        if (changed[0]) {
+                            naturalSpawnerTransformed = true;
+                        }
+                        super.visitEnd();
+                    }
+                };
+                reader.accept(visitor, 0);
+                return changed[0] ? writer.toByteArray() : null;
+            } catch (Throwable t) {
+                log("NaturalSpawner transformer failed: " + t.getClass().getSimpleName() + " " + t.getMessage());
                 return null;
             }
         }
@@ -745,6 +834,10 @@ public final class YasuiAgent {
 
         private boolean pathNavTransformed() {
             return pathNavTransformed;
+        }
+
+        private boolean naturalSpawnerTransformed() {
+            return naturalSpawnerTransformed;
         }
 
         private boolean poiSearchTransformed() {

@@ -65,6 +65,16 @@ Caches recent pathfinding results to avoid repeated `createPath()` work within a
 
 Note: This hook also uses JVM attach. If attach is disabled, the cache will be inactive.
 
+### Natural Spawner Cache
+
+Reduces `NaturalSpawner` block state lookups by reusing recent results and skipping redundant chunk checks.
+
+- NMS hook reuses spawn check block states with a short TTL
+- Avoids extra `getChunkIfLoadedImmediately` calls when the spawn chunk is already known
+- Invalidates on chunk epoch updates
+
+Note: This hook also uses JVM attach. If attach is disabled, the cache will be inactive.
+
 ## Installation
 
 ```bash
@@ -140,6 +150,11 @@ optimizations:
     mob-move-threshold: 0
     target-move-threshold: 1
     negative-ttl-ticks: 0
+
+  natural-spawner:
+    enabled: true
+    blockstate-cache-ttl-ticks: 1
+    blockstate-cache-max-entries: 20000
 
   hot-chunks:
     enabled: true

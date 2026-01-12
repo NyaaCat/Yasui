@@ -10,6 +10,7 @@ import cat.nyaa.yasui.optimizer.PoiCompetitorCacheTracker;
 import cat.nyaa.yasui.optimizer.PoiSearchCacheTracker;
 import cat.nyaa.yasui.optimizer.PoiLookupCacheTracker;
 import cat.nyaa.yasui.optimizer.PoiTypeCacheTracker;
+import cat.nyaa.yasui.optimizer.SpawnCheckCacheTracker;
 import cat.nyaa.yasui.optimizer.ChunkEpochTracker;
 import cat.nyaa.yasui.nms.HopperNmsHook;
 import cat.nyaa.yasui.nms.PathfindingNmsHook;
@@ -17,6 +18,7 @@ import cat.nyaa.yasui.nms.PoiCompetitorNmsHook;
 import cat.nyaa.yasui.nms.PoiSearchNmsHook;
 import cat.nyaa.yasui.nms.PoiLookupNmsHook;
 import cat.nyaa.yasui.nms.PoiTypeNmsHook;
+import cat.nyaa.yasui.nms.SpawnCheckNmsHook;
 import org.bukkit.event.HandlerList;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -37,6 +39,7 @@ public class Yasui extends JavaPlugin {
     private VillagerPOICache villagerCache;
     private EntitySpreadTicker entitySpread;
     private PathfindingCacheTracker pathfindingCacheTracker;
+    private SpawnCheckCacheTracker spawnCheckCacheTracker;
     private PoiSearchCacheTracker poiSearchCacheTracker;
     private PoiCompetitorCacheTracker poiCompetitorCacheTracker;
     private PoiLookupCacheTracker poiLookupCacheTracker;
@@ -56,6 +59,7 @@ public class Yasui extends JavaPlugin {
         boolean competitorCacheEnabled = config.isVillagerPOIEnabled() && config.isPoiCompetitorCacheEnabled();
         boolean poiLookupEnabled = config.isVillagerPOIEnabled() && config.isPoiLookupCacheEnabled();
         boolean poiTypeEnabled = config.isVillagerPOIEnabled() && config.isPoiTypeCacheEnabled();
+        boolean naturalSpawnerEnabled = config.isNaturalSpawnerEnabled();
         if (config.isHopperFullCacheEnabled()) {
             boolean hookActive = HopperNmsHook.install(this);
             if (hookActive) {
@@ -79,6 +83,19 @@ public class Yasui extends JavaPlugin {
                     getLogger().warning("Pathfinding cache hook failed: " + error);
                 } else {
                     getLogger().warning("Pathfinding cache hook failed");
+                }
+            }
+        }
+        if (naturalSpawnerEnabled) {
+            boolean hookActive = SpawnCheckNmsHook.install(this);
+            if (hookActive) {
+                getLogger().info("Natural spawner cache hook active");
+            } else {
+                String error = SpawnCheckNmsHook.getErrorMessage();
+                if (error != null) {
+                    getLogger().warning("Natural spawner cache hook failed: " + error);
+                } else {
+                    getLogger().warning("Natural spawner cache hook failed");
                 }
             }
         }
@@ -148,6 +165,11 @@ public class Yasui extends JavaPlugin {
             config.getPathfindingCacheMobMoveThreshold(),
             config.getPathfindingCacheTargetMoveThreshold(),
             config.getPathfindingCacheNegativeTtlTicks()
+        );
+        SpawnCheckNmsHook.configure(
+            naturalSpawnerEnabled,
+            config.getNaturalSpawnerBlockStateCacheTtlTicks(),
+            config.getNaturalSpawnerBlockStateCacheMaxEntries()
         );
         PoiSearchNmsHook.configure(
             acquirePoiEnabled,
@@ -223,6 +245,12 @@ public class Yasui extends JavaPlugin {
             getLogger().info("Pathfinding cache enabled");
         }
 
+        if (naturalSpawnerEnabled) {
+            spawnCheckCacheTracker = new SpawnCheckCacheTracker(this, config);
+            spawnCheckCacheTracker.start();
+            getLogger().info("Natural spawner cache enabled");
+        }
+
         if (acquirePoiEnabled) {
             poiSearchCacheTracker = new PoiSearchCacheTracker(this, config);
             poiSearchCacheTracker.start();
@@ -285,6 +313,9 @@ public class Yasui extends JavaPlugin {
         if (pathfindingCacheTracker != null) {
             pathfindingCacheTracker.shutdown();
         }
+        if (spawnCheckCacheTracker != null) {
+            spawnCheckCacheTracker.shutdown();
+        }
         if (poiSearchCacheTracker != null) {
             poiSearchCacheTracker.shutdown();
         }
@@ -340,6 +371,19 @@ public class Yasui extends JavaPlugin {
                     getLogger().warning("Pathfinding cache hook failed: " + error);
                 } else {
                     getLogger().warning("Pathfinding cache hook failed");
+                }
+            }
+        }
+        if (config.isNaturalSpawnerEnabled() && !SpawnCheckNmsHook.isHookActive()) {
+            boolean hookActive = SpawnCheckNmsHook.install(this);
+            if (hookActive) {
+                getLogger().info("Natural spawner cache hook active");
+            } else {
+                String error = SpawnCheckNmsHook.getErrorMessage();
+                if (error != null) {
+                    getLogger().warning("Natural spawner cache hook failed: " + error);
+                } else {
+                    getLogger().warning("Natural spawner cache hook failed");
                 }
             }
         }
@@ -413,6 +457,11 @@ public class Yasui extends JavaPlugin {
             config.getPathfindingCacheMobMoveThreshold(),
             config.getPathfindingCacheTargetMoveThreshold(),
             config.getPathfindingCacheNegativeTtlTicks()
+        );
+        SpawnCheckNmsHook.configure(
+            config.isNaturalSpawnerEnabled(),
+            config.getNaturalSpawnerBlockStateCacheTtlTicks(),
+            config.getNaturalSpawnerBlockStateCacheMaxEntries()
         );
         PoiSearchNmsHook.configure(
             acquirePoiEnabled,
@@ -524,6 +573,18 @@ public class Yasui extends JavaPlugin {
             getLogger().info("Pathfinding cache disabled");
         }
 
+        if (spawnCheckCacheTracker != null) {
+            spawnCheckCacheTracker.shutdown();
+            spawnCheckCacheTracker = null;
+        }
+        if (config.isNaturalSpawnerEnabled()) {
+            spawnCheckCacheTracker = new SpawnCheckCacheTracker(this, config);
+            spawnCheckCacheTracker.start();
+            getLogger().info("Natural spawner cache reloaded");
+        } else {
+            getLogger().info("Natural spawner cache disabled");
+        }
+
         if (poiSearchCacheTracker != null) {
             poiSearchCacheTracker.shutdown();
             poiSearchCacheTracker = null;
@@ -605,6 +666,10 @@ public class Yasui extends JavaPlugin {
 
     public PathfindingCacheTracker getPathfindingCacheTracker() {
         return pathfindingCacheTracker;
+    }
+
+    public SpawnCheckCacheTracker getSpawnCheckCacheTracker() {
+        return spawnCheckCacheTracker;
     }
 
     public PoiSearchCacheTracker getPoiSearchCacheTracker() {

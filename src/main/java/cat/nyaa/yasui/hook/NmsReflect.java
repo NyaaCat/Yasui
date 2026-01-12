@@ -64,6 +64,16 @@ public final class NmsReflect {
     // BlockPos
     private static volatile MethodHandle blockPosAsLong;
 
+    // Level / world access
+    private static volatile MethodHandle levelGetBlockStateIfLoadedAndInBounds;
+    private static volatile MethodHandle levelIsLoadedAndInBounds;
+    private static volatile MethodHandle levelGetWorldBorder;
+    private static volatile MethodHandle worldBorderIsWithinBounds;
+    private static volatile MethodHandle blockGetterGetBlockState;
+    private static volatile MethodHandle chunkAccessGetPos;
+    private static volatile Field chunkPosXField;
+    private static volatile Field chunkPosZField;
+
     // PoiAccess
     private static volatile MethodHandle poiAccessFindNearest;
     private static volatile MethodHandle poiAccessFindAny;
@@ -171,6 +181,37 @@ public final class NmsReflect {
             entityBlockPosition = lookup.findVirtual(entityClass, "blockPosition", MethodType.methodType(blockPosClass));
         } catch (Throwable ignored) {
             entityBlockPosition = null;
+        }
+
+        // Level / world access
+        try {
+            Class<?> blockStateClass = Class.forName("net.minecraft.world.level.block.state.BlockState", true, nmsClassLoader);
+            Class<?> levelClass = Class.forName("net.minecraft.world.level.Level", true, nmsClassLoader);
+            levelGetBlockStateIfLoadedAndInBounds = lookup.findVirtual(
+                levelClass, "getBlockStateIfLoadedAndInBounds", MethodType.methodType(blockStateClass, blockPosClass));
+            levelIsLoadedAndInBounds = lookup.findVirtual(
+                levelClass, "isLoadedAndInBounds", MethodType.methodType(boolean.class, blockPosClass));
+            Class<?> worldBorderClass = Class.forName("net.minecraft.world.level.border.WorldBorder", true, nmsClassLoader);
+            levelGetWorldBorder = lookup.findVirtual(levelClass, "getWorldBorder", MethodType.methodType(worldBorderClass));
+            worldBorderIsWithinBounds = lookup.findVirtual(
+                worldBorderClass, "isWithinBounds", MethodType.methodType(boolean.class, blockPosClass));
+            Class<?> blockGetterClass = Class.forName("net.minecraft.world.level.BlockGetter", true, nmsClassLoader);
+            blockGetterGetBlockState = lookup.findVirtual(
+                blockGetterClass, "getBlockState", MethodType.methodType(blockStateClass, blockPosClass));
+            Class<?> chunkAccessClass = Class.forName("net.minecraft.world.level.chunk.ChunkAccess", true, nmsClassLoader);
+            Class<?> chunkPosClass = Class.forName("net.minecraft.world.level.ChunkPos", true, nmsClassLoader);
+            chunkAccessGetPos = lookup.findVirtual(chunkAccessClass, "getPos", MethodType.methodType(chunkPosClass));
+            chunkPosXField = chunkPosClass.getField("x");
+            chunkPosZField = chunkPosClass.getField("z");
+        } catch (Throwable ignored) {
+            levelGetBlockStateIfLoadedAndInBounds = null;
+            levelIsLoadedAndInBounds = null;
+            levelGetWorldBorder = null;
+            worldBorderIsWithinBounds = null;
+            blockGetterGetBlockState = null;
+            chunkAccessGetPos = null;
+            chunkPosXField = null;
+            chunkPosZField = null;
         }
 
         // PoiAccess (Paper-specific)
@@ -372,6 +413,89 @@ public final class NmsReflect {
             return (long) blockPosAsLong.invoke(blockPos);
         } catch (Throwable t) {
             return 0L;
+        }
+    }
+
+    // Level / world access methods
+
+    public static Object getBlockStateIfLoadedAndInBounds(Object level, Object blockPos) {
+        if (!initialized || initFailed || levelGetBlockStateIfLoadedAndInBounds == null) {
+            return null;
+        }
+        try {
+            return levelGetBlockStateIfLoadedAndInBounds.invoke(level, blockPos);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    public static boolean isLoadedAndInBounds(Object level, Object blockPos) {
+        if (!initialized || initFailed || levelIsLoadedAndInBounds == null) {
+            return false;
+        }
+        try {
+            return (boolean) levelIsLoadedAndInBounds.invoke(level, blockPos);
+        } catch (Throwable t) {
+            return false;
+        }
+    }
+
+    public static Object getBlockState(Object blockGetter, Object blockPos) {
+        if (!initialized || initFailed || blockGetterGetBlockState == null) {
+            return null;
+        }
+        try {
+            return blockGetterGetBlockState.invoke(blockGetter, blockPos);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    public static Boolean isWithinWorldBorder(Object level, Object blockPos) {
+        if (!initialized || initFailed || levelGetWorldBorder == null || worldBorderIsWithinBounds == null) {
+            return null;
+        }
+        try {
+            Object worldBorder = levelGetWorldBorder.invoke(level);
+            if (worldBorder == null) {
+                return null;
+            }
+            return (boolean) worldBorderIsWithinBounds.invoke(worldBorder, blockPos);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    public static Object getChunkPos(Object chunk) {
+        if (!initialized || initFailed || chunkAccessGetPos == null) {
+            return null;
+        }
+        try {
+            return chunkAccessGetPos.invoke(chunk);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    public static Integer getChunkPosX(Object chunkPos) {
+        if (!initialized || initFailed || chunkPosXField == null || chunkPos == null) {
+            return null;
+        }
+        try {
+            return chunkPosXField.getInt(chunkPos);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    public static Integer getChunkPosZ(Object chunkPos) {
+        if (!initialized || initFailed || chunkPosZField == null || chunkPos == null) {
+            return null;
+        }
+        try {
+            return chunkPosZField.getInt(chunkPos);
+        } catch (Throwable t) {
+            return null;
         }
     }
 

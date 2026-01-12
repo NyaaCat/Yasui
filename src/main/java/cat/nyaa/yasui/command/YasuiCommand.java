@@ -10,12 +10,14 @@ import cat.nyaa.yasui.optimizer.PathfindingCacheTracker;
 import cat.nyaa.yasui.optimizer.PoiCompetitorCacheTracker;
 import cat.nyaa.yasui.optimizer.PoiSearchCacheTracker;
 import cat.nyaa.yasui.optimizer.VillagerPOICache;
+import cat.nyaa.yasui.optimizer.SpawnCheckCacheTracker;
 import cat.nyaa.yasui.nms.HopperNmsHook;
 import cat.nyaa.yasui.nms.PathfindingNmsHook;
 import cat.nyaa.yasui.nms.PoiCompetitorNmsHook;
 import cat.nyaa.yasui.nms.PoiLookupNmsHook;
 import cat.nyaa.yasui.nms.PoiSearchNmsHook;
 import cat.nyaa.yasui.nms.PoiTypeNmsHook;
+import cat.nyaa.yasui.nms.SpawnCheckNmsHook;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -146,6 +148,17 @@ public class YasuiCommand implements CommandExecutor, TabCompleter {
             sender.sendMessage("§cPathfinding Cache: §fDisabled");
         }
 
+        if (plugin.getSpawnCheckCacheTracker() != null) {
+            SpawnCheckCacheTracker.RollingStats stats = plugin.getSpawnCheckCacheTracker().getRollingStats();
+            sender.sendMessage("§aNatural Spawner Cache: §fEnabled");
+            sender.sendMessage("  §7BlockState Cache: §f" + plugin.getSpawnCheckCacheTracker().getCacheSize());
+            sender.sendMessage("  §7BlockState Hits/Misses (1h): §f" + stats.hits() + "§7/§f" + stats.misses());
+            sender.sendMessage("  §7BlockState Stores (1h): §f" + stats.stores());
+            sender.sendMessage("  §7NMS Spawn Hook: §f" + (SpawnCheckNmsHook.isHookActive() ? "Active" : "Inactive"));
+        } else {
+            sender.sendMessage("§cNatural Spawner Cache: §fDisabled");
+        }
+
         if (plugin.getHotChunkTracker() != null) {
             HotChunkTracker.Stats stats = plugin.getHotChunkTracker().getStats();
             var config = plugin.getYasuiConfig();
@@ -202,6 +215,7 @@ public class YasuiCommand implements CommandExecutor, TabCompleter {
         sender.sendMessage("  §7- PoiManager getType/exists caching");
         sender.sendMessage("  §7- Distance cache for quick near/distant checks");
         sender.sendMessage("  §7- Pathfinding result cache (short TTL)");
+        sender.sendMessage("  §7- Natural spawner block state cache (short TTL)");
         sender.sendMessage("  §7- Chunk epoch invalidation for caches");
         sender.sendMessage("");
         sender.sendMessage("§fGoal: §7Reduce server tick time while preserving vanilla behavior");

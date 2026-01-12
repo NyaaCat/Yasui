@@ -85,6 +85,12 @@ optimizations:
     # Cache failed path results for a short time (0 = disabled).
     negative-ttl-ticks: 1
 
+  # Natural spawner block state cache (spawn checks)
+  natural-spawner:
+    enabled: true
+    blockstate-cache-ttl-ticks: 1
+    blockstate-cache-max-entries: 20000
+
   # Hot chunk detection and cache boosts (gradual decay)
   hot-chunks:
     enabled: true

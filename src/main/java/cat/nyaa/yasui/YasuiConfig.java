@@ -72,6 +72,11 @@ public class YasuiConfig {
     private int pathfindingCacheNegativeTtlTicks;
     private boolean chunkEpochEnabled;
 
+    // Natural spawner settings
+    private boolean naturalSpawnerEnabled;
+    private int naturalSpawnerBlockStateCacheTtlTicks;
+    private int naturalSpawnerBlockStateCacheMaxEntries;
+
     // Hot chunk settings
     private boolean hotChunksEnabled;
     private int hotChunkScanInterval;
@@ -168,6 +173,10 @@ public class YasuiConfig {
         pathfindingCacheTargetMoveThreshold = 1;
         pathfindingCacheNegativeTtlTicks = 0;
         chunkEpochEnabled = true;
+
+        naturalSpawnerEnabled = true;
+        naturalSpawnerBlockStateCacheTtlTicks = 1;
+        naturalSpawnerBlockStateCacheMaxEntries = 20000;
 
         hotChunksEnabled = true;
         hotChunkScanInterval = 40;
@@ -295,6 +304,13 @@ public class YasuiConfig {
             pathfindingCacheMobMoveThreshold = Math.max(0, pathSection.getInt("mob-move-threshold", 0));
             pathfindingCacheTargetMoveThreshold = Math.max(0, pathSection.getInt("target-move-threshold", 1));
             pathfindingCacheNegativeTtlTicks = Math.max(0, pathSection.getInt("negative-ttl-ticks", 0));
+        }
+
+        ConfigurationSection spawnerSection = plugin.getConfig().getConfigurationSection("optimizations.natural-spawner");
+        if (spawnerSection != null) {
+            naturalSpawnerEnabled = spawnerSection.getBoolean("enabled", true);
+            naturalSpawnerBlockStateCacheTtlTicks = Math.max(0, spawnerSection.getInt("blockstate-cache-ttl-ticks", 1));
+            naturalSpawnerBlockStateCacheMaxEntries = Math.max(0, spawnerSection.getInt("blockstate-cache-max-entries", 20000));
         }
 
         ConfigurationSection epochSection = plugin.getConfig().getConfigurationSection("optimizations.chunk-epoch");
@@ -580,6 +596,18 @@ public class YasuiConfig {
 
     public boolean isChunkEpochEnabled() {
         return chunkEpochEnabled;
+    }
+
+    public boolean isNaturalSpawnerEnabled() {
+        return naturalSpawnerEnabled;
+    }
+
+    public int getNaturalSpawnerBlockStateCacheTtlTicks() {
+        return naturalSpawnerBlockStateCacheTtlTicks;
+    }
+
+    public int getNaturalSpawnerBlockStateCacheMaxEntries() {
+        return naturalSpawnerBlockStateCacheMaxEntries;
     }
 
     public boolean isHotChunksEnabled() {
