@@ -118,6 +118,23 @@ public final class PathfindingCache {
             effectiveMobThreshold = scaleInt(mobMoveThreshold, hotMobMoveThreshold, heat);
             effectiveTargetThreshold = scaleInt(targetMoveThreshold, hotTargetMoveThreshold, heat);
         }
+        Object level = NmsReflect.getEntityLevel(mob);
+        if (level != null) {
+            int mobEpoch = ChunkEpochMap.getEpoch(level, HotChunkUtil.chunkKeyFromBlockPos(mobPosKey));
+            if (mobEpoch != entry.mobEpoch()) {
+                navCache.remove(key);
+                cacheMisses.increment();
+                return null;
+            }
+            if (entry.hasTargetPos()) {
+                int targetEpoch = ChunkEpochMap.getEpoch(level, HotChunkUtil.chunkKeyFromBlockPos(entry.targetPosKey()));
+                if (targetEpoch != entry.targetEpoch()) {
+                    navCache.remove(key);
+                    cacheMisses.increment();
+                    return null;
+                }
+            }
+        }
         if (!isWithinThreshold(entry.mobPosKey(), mobPosKey, effectiveMobThreshold)) {
             navCache.remove(key);
             cacheMisses.increment();
@@ -199,6 +216,15 @@ public final class PathfindingCache {
             }
             targetPosKey = NmsReflect.blockPosAsLong(targetPos);
         }
+        Object level = NmsReflect.getEntityLevel(mob);
+        int mobEpoch = 0;
+        int targetEpoch = 0;
+        if (level != null) {
+            mobEpoch = ChunkEpochMap.getEpoch(level, HotChunkUtil.chunkKeyFromBlockPos(mobPosKey));
+            if (hasTargetPos) {
+                targetEpoch = ChunkEpochMap.getEpoch(level, HotChunkUtil.chunkKeyFromBlockPos(targetPosKey));
+            }
+        }
         int tick = NmsReflect.getCurrentTick();
         long key = computeKey(targets, target, regionOffset, offsetUpward, accuracy, followRange);
         int ttl = cachePositive ? effectiveTtl : effectiveNegativeTtl;
@@ -211,7 +237,7 @@ public final class PathfindingCache {
             }
         }
         LruCache<Long, CacheEntry> navCache = getNavigationCache(navigation);
-        navCache.put(key, new CacheEntry(key, expiryTick, pathCopy, mobPosKey, targetPosKey, hasTargetPos));
+        navCache.put(key, new CacheEntry(key, expiryTick, pathCopy, mobPosKey, targetPosKey, hasTargetPos, mobEpoch, targetEpoch));
         cacheStores.increment();
         return path;
     }
@@ -311,7 +337,7 @@ public final class PathfindingCache {
     }
 
     private record CacheEntry(long key, int expiryTick, Object path, long mobPosKey, long targetPosKey,
-                              boolean hasTargetPos) {
+                              boolean hasTargetPos, int mobEpoch, int targetEpoch) {
         private boolean isValid(int currentTick) {
             return currentTick <= this.expiryTick;
         }

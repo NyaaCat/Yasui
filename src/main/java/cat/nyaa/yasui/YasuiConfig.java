@@ -33,11 +33,28 @@ public class YasuiConfig {
     private boolean acquirePoiCachePredicateAware;
     private int acquirePoiCacheSourceBucketSize;
     private boolean acquirePoiCacheFallbackOnInsufficient;
+    private boolean acquirePoiCacheRenewOnHit;
     private boolean poiCompetitorCacheEnabled;
     private int poiCompetitorCacheTtlTicks;
     private int poiCompetitorCacheTtlJitterTicks;
     private int poiCompetitorCacheMaxEntries;
     private boolean poiCompetitorCacheEmptyResults;
+    private boolean poiCompetitorCacheRenewOnHit;
+    private boolean poiLookupCacheEnabled;
+    private int poiLookupCacheTtlTicks;
+    private int poiLookupCacheTtlJitterTicks;
+    private int poiLookupCacheMaxEntries;
+    private boolean poiLookupCacheEmptyResults;
+    private boolean poiLookupCachePredicateAware;
+    private int poiLookupCacheSourceBucketSize;
+    private boolean poiLookupCacheRenewOnHit;
+    private boolean poiTypeCacheEnabled;
+    private int poiTypeCacheTtlTicks;
+    private int poiTypeCacheTtlJitterTicks;
+    private int poiTypeCacheMaxEntries;
+    private boolean poiTypeCacheEmptyResults;
+    private boolean poiTypeCachePredicateAware;
+    private boolean poiTypeCacheRenewOnHit;
     private List<POIRule> poiRules;
 
     // Entity distance cache settings
@@ -53,6 +70,7 @@ public class YasuiConfig {
     private int pathfindingCacheMobMoveThreshold;
     private int pathfindingCacheTargetMoveThreshold;
     private int pathfindingCacheNegativeTtlTicks;
+    private boolean chunkEpochEnabled;
 
     // Hot chunk settings
     private boolean hotChunksEnabled;
@@ -63,6 +81,8 @@ public class YasuiConfig {
     private long hotChunkSnapshotMaxAgeMs;
     private double hotChunkHeatDecay;
     private double hotChunkMinHeat;
+    private int hotChunkTickGroups;
+    private int hotChunkTickGroupRescanChunks;
     private boolean hotChunkVillagerPdcEnabled;
     private boolean hotChunkVillagerStaticEnabled;
     private int hotChunkVillagerStaticStableTicks;
@@ -77,9 +97,19 @@ public class YasuiConfig {
     private boolean hotChunkAcquirePoiBoostEnabled;
     private int hotChunkAcquirePoiTtlTicks;
     private int hotChunkAcquirePoiTtlJitterTicks;
+    private boolean hotChunkAcquirePoiRenewOnHit;
     private boolean hotChunkPoiCompetitorBoostEnabled;
     private int hotChunkPoiCompetitorTtlTicks;
     private int hotChunkPoiCompetitorTtlJitterTicks;
+    private boolean hotChunkPoiCompetitorRenewOnHit;
+    private boolean hotChunkPoiLookupBoostEnabled;
+    private int hotChunkPoiLookupTtlTicks;
+    private int hotChunkPoiLookupTtlJitterTicks;
+    private boolean hotChunkPoiLookupRenewOnHit;
+    private boolean hotChunkPoiTypeBoostEnabled;
+    private int hotChunkPoiTypeTtlTicks;
+    private int hotChunkPoiTypeTtlJitterTicks;
+    private boolean hotChunkPoiTypeRenewOnHit;
 
     public YasuiConfig(Yasui plugin) {
         this.plugin = plugin;
@@ -104,11 +134,28 @@ public class YasuiConfig {
         acquirePoiCachePredicateAware = false;
         acquirePoiCacheSourceBucketSize = 2;
         acquirePoiCacheFallbackOnInsufficient = false;
+        acquirePoiCacheRenewOnHit = false;
         poiCompetitorCacheEnabled = true;
         poiCompetitorCacheTtlTicks = 2;
         poiCompetitorCacheTtlJitterTicks = 1;
         poiCompetitorCacheMaxEntries = 10000;
         poiCompetitorCacheEmptyResults = false;
+        poiCompetitorCacheRenewOnHit = false;
+        poiLookupCacheEnabled = true;
+        poiLookupCacheTtlTicks = 100;
+        poiLookupCacheTtlJitterTicks = 10;
+        poiLookupCacheMaxEntries = 20000;
+        poiLookupCacheEmptyResults = false;
+        poiLookupCachePredicateAware = true;
+        poiLookupCacheSourceBucketSize = 2;
+        poiLookupCacheRenewOnHit = false;
+        poiTypeCacheEnabled = true;
+        poiTypeCacheTtlTicks = 100;
+        poiTypeCacheTtlJitterTicks = 10;
+        poiTypeCacheMaxEntries = 20000;
+        poiTypeCacheEmptyResults = true;
+        poiTypeCachePredicateAware = true;
+        poiTypeCacheRenewOnHit = false;
         poiRules = new ArrayList<>();
 
         entitySpreadEnabled = true;
@@ -122,6 +169,7 @@ public class YasuiConfig {
         pathfindingCacheMobMoveThreshold = 0;
         pathfindingCacheTargetMoveThreshold = 1;
         pathfindingCacheNegativeTtlTicks = 0;
+        chunkEpochEnabled = true;
 
         hotChunksEnabled = true;
         hotChunkScanInterval = 40;
@@ -131,6 +179,8 @@ public class YasuiConfig {
         hotChunkSnapshotMaxAgeMs = 10000L;
         hotChunkHeatDecay = 0.85;
         hotChunkMinHeat = 0.15;
+        hotChunkTickGroups = 0;
+        hotChunkTickGroupRescanChunks = 16;
         hotChunkVillagerPdcEnabled = true;
         hotChunkVillagerStaticEnabled = true;
         hotChunkVillagerStaticStableTicks = 100;
@@ -145,9 +195,19 @@ public class YasuiConfig {
         hotChunkAcquirePoiBoostEnabled = true;
         hotChunkAcquirePoiTtlTicks = 200;
         hotChunkAcquirePoiTtlJitterTicks = 20;
+        hotChunkAcquirePoiRenewOnHit = true;
         hotChunkPoiCompetitorBoostEnabled = true;
         hotChunkPoiCompetitorTtlTicks = 20;
         hotChunkPoiCompetitorTtlJitterTicks = 10;
+        hotChunkPoiCompetitorRenewOnHit = true;
+        hotChunkPoiLookupBoostEnabled = true;
+        hotChunkPoiLookupTtlTicks = 200;
+        hotChunkPoiLookupTtlJitterTicks = 20;
+        hotChunkPoiLookupRenewOnHit = true;
+        hotChunkPoiTypeBoostEnabled = true;
+        hotChunkPoiTypeTtlTicks = 200;
+        hotChunkPoiTypeTtlJitterTicks = 20;
+        hotChunkPoiTypeRenewOnHit = true;
 
         ConfigurationSection hopperSection = plugin.getConfig().getConfigurationSection("optimizations.hopper");
         if (hopperSection != null) {
@@ -173,6 +233,7 @@ public class YasuiConfig {
                 acquirePoiCachePredicateAware = acquireSection.getBoolean("predicate-aware", false);
                 acquirePoiCacheSourceBucketSize = Math.max(1, acquireSection.getInt("source-bucket-size", 2));
                 acquirePoiCacheFallbackOnInsufficient = acquireSection.getBoolean("fallback-on-insufficient", false);
+                acquirePoiCacheRenewOnHit = acquireSection.getBoolean("renew-on-hit", false);
             }
             ConfigurationSection competitorSection = poiSection.getConfigurationSection("competitor-scan-cache");
             if (competitorSection != null) {
@@ -181,6 +242,28 @@ public class YasuiConfig {
                 poiCompetitorCacheTtlJitterTicks = Math.max(0, competitorSection.getInt("ttl-jitter-ticks", 1));
                 poiCompetitorCacheMaxEntries = Math.max(0, competitorSection.getInt("max-entries", 10000));
                 poiCompetitorCacheEmptyResults = competitorSection.getBoolean("cache-empty-results", false);
+                poiCompetitorCacheRenewOnHit = competitorSection.getBoolean("renew-on-hit", false);
+            }
+            ConfigurationSection lookupSection = poiSection.getConfigurationSection("poi-lookup-cache");
+            if (lookupSection != null) {
+                poiLookupCacheEnabled = lookupSection.getBoolean("enabled", true);
+                poiLookupCacheTtlTicks = Math.max(0, lookupSection.getInt("ttl-ticks", 100));
+                poiLookupCacheTtlJitterTicks = Math.max(0, lookupSection.getInt("ttl-jitter-ticks", 10));
+                poiLookupCacheMaxEntries = Math.max(0, lookupSection.getInt("max-entries", 20000));
+                poiLookupCacheEmptyResults = lookupSection.getBoolean("cache-empty-results", false);
+                poiLookupCachePredicateAware = lookupSection.getBoolean("predicate-aware", true);
+                poiLookupCacheSourceBucketSize = Math.max(1, lookupSection.getInt("source-bucket-size", 2));
+                poiLookupCacheRenewOnHit = lookupSection.getBoolean("renew-on-hit", false);
+            }
+            ConfigurationSection typeSection = poiSection.getConfigurationSection("poi-type-cache");
+            if (typeSection != null) {
+                poiTypeCacheEnabled = typeSection.getBoolean("enabled", true);
+                poiTypeCacheTtlTicks = Math.max(0, typeSection.getInt("ttl-ticks", 100));
+                poiTypeCacheTtlJitterTicks = Math.max(0, typeSection.getInt("ttl-jitter-ticks", 10));
+                poiTypeCacheMaxEntries = Math.max(0, typeSection.getInt("max-entries", 20000));
+                poiTypeCacheEmptyResults = typeSection.getBoolean("cache-empty-results", true);
+                poiTypeCachePredicateAware = typeSection.getBoolean("predicate-aware", true);
+                poiTypeCacheRenewOnHit = typeSection.getBoolean("renew-on-hit", false);
             }
 
             poiRules = new ArrayList<>();
@@ -218,6 +301,11 @@ public class YasuiConfig {
             pathfindingCacheNegativeTtlTicks = Math.max(0, pathSection.getInt("negative-ttl-ticks", 0));
         }
 
+        ConfigurationSection epochSection = plugin.getConfig().getConfigurationSection("optimizations.chunk-epoch");
+        if (epochSection != null) {
+            chunkEpochEnabled = epochSection.getBoolean("enabled", true);
+        }
+
         ConfigurationSection hotSection = plugin.getConfig().getConfigurationSection("optimizations.hot-chunks");
         if (hotSection != null) {
             hotChunksEnabled = hotSection.getBoolean("enabled", true);
@@ -228,6 +316,8 @@ public class YasuiConfig {
             hotChunkSnapshotMaxAgeMs = Math.max(0L, hotSection.getLong("snapshot-max-age-ms", 10000L));
             hotChunkHeatDecay = clampDouble(hotSection.getDouble("heat-decay", 0.85), 0.0, 1.0);
             hotChunkMinHeat = clampDouble(hotSection.getDouble("min-heat", 0.15), 0.0, 1.0);
+            hotChunkTickGroups = Math.max(0, hotSection.getInt("tick-groups", 0));
+            hotChunkTickGroupRescanChunks = Math.max(1, hotSection.getInt("tick-group-rescan-chunks", 16));
 
             ConfigurationSection pdcSection = hotSection.getConfigurationSection("villager-pdc");
             if (pdcSection != null) {
@@ -256,6 +346,7 @@ public class YasuiConfig {
                 hotChunkAcquirePoiBoostEnabled = acquireBoostSection.getBoolean("enabled", true);
                 hotChunkAcquirePoiTtlTicks = Math.max(0, acquireBoostSection.getInt("ttl-ticks", 200));
                 hotChunkAcquirePoiTtlJitterTicks = Math.max(0, acquireBoostSection.getInt("ttl-jitter-ticks", 20));
+                hotChunkAcquirePoiRenewOnHit = acquireBoostSection.getBoolean("renew-on-hit", true);
             }
 
             ConfigurationSection competitorBoostSection = hotSection.getConfigurationSection("competitor-scan-cache");
@@ -263,6 +354,23 @@ public class YasuiConfig {
                 hotChunkPoiCompetitorBoostEnabled = competitorBoostSection.getBoolean("enabled", true);
                 hotChunkPoiCompetitorTtlTicks = Math.max(0, competitorBoostSection.getInt("ttl-ticks", 20));
                 hotChunkPoiCompetitorTtlJitterTicks = Math.max(0, competitorBoostSection.getInt("ttl-jitter-ticks", 10));
+                hotChunkPoiCompetitorRenewOnHit = competitorBoostSection.getBoolean("renew-on-hit", true);
+            }
+
+            ConfigurationSection lookupBoostSection = hotSection.getConfigurationSection("poi-lookup-cache");
+            if (lookupBoostSection != null) {
+                hotChunkPoiLookupBoostEnabled = lookupBoostSection.getBoolean("enabled", true);
+                hotChunkPoiLookupTtlTicks = Math.max(0, lookupBoostSection.getInt("ttl-ticks", 200));
+                hotChunkPoiLookupTtlJitterTicks = Math.max(0, lookupBoostSection.getInt("ttl-jitter-ticks", 20));
+                hotChunkPoiLookupRenewOnHit = lookupBoostSection.getBoolean("renew-on-hit", true);
+            }
+
+            ConfigurationSection typeBoostSection = hotSection.getConfigurationSection("poi-type-cache");
+            if (typeBoostSection != null) {
+                hotChunkPoiTypeBoostEnabled = typeBoostSection.getBoolean("enabled", true);
+                hotChunkPoiTypeTtlTicks = Math.max(0, typeBoostSection.getInt("ttl-ticks", 200));
+                hotChunkPoiTypeTtlJitterTicks = Math.max(0, typeBoostSection.getInt("ttl-jitter-ticks", 20));
+                hotChunkPoiTypeRenewOnHit = typeBoostSection.getBoolean("renew-on-hit", true);
             }
         }
 
@@ -334,6 +442,10 @@ public class YasuiConfig {
         return acquirePoiCacheFallbackOnInsufficient;
     }
 
+    public boolean isAcquirePoiCacheRenewOnHit() {
+        return acquirePoiCacheRenewOnHit;
+    }
+
     public boolean isPoiCompetitorCacheEnabled() {
         return poiCompetitorCacheEnabled;
     }
@@ -352,6 +464,70 @@ public class YasuiConfig {
 
     public boolean isPoiCompetitorCacheEmptyResults() {
         return poiCompetitorCacheEmptyResults;
+    }
+
+    public boolean isPoiCompetitorCacheRenewOnHit() {
+        return poiCompetitorCacheRenewOnHit;
+    }
+
+    public boolean isPoiLookupCacheEnabled() {
+        return poiLookupCacheEnabled;
+    }
+
+    public int getPoiLookupCacheTtlTicks() {
+        return poiLookupCacheTtlTicks;
+    }
+
+    public int getPoiLookupCacheTtlJitterTicks() {
+        return poiLookupCacheTtlJitterTicks;
+    }
+
+    public int getPoiLookupCacheMaxEntries() {
+        return poiLookupCacheMaxEntries;
+    }
+
+    public boolean isPoiLookupCacheEmptyResults() {
+        return poiLookupCacheEmptyResults;
+    }
+
+    public boolean isPoiLookupCachePredicateAware() {
+        return poiLookupCachePredicateAware;
+    }
+
+    public int getPoiLookupCacheSourceBucketSize() {
+        return poiLookupCacheSourceBucketSize;
+    }
+
+    public boolean isPoiLookupCacheRenewOnHit() {
+        return poiLookupCacheRenewOnHit;
+    }
+
+    public boolean isPoiTypeCacheEnabled() {
+        return poiTypeCacheEnabled;
+    }
+
+    public int getPoiTypeCacheTtlTicks() {
+        return poiTypeCacheTtlTicks;
+    }
+
+    public int getPoiTypeCacheTtlJitterTicks() {
+        return poiTypeCacheTtlJitterTicks;
+    }
+
+    public int getPoiTypeCacheMaxEntries() {
+        return poiTypeCacheMaxEntries;
+    }
+
+    public boolean isPoiTypeCacheEmptyResults() {
+        return poiTypeCacheEmptyResults;
+    }
+
+    public boolean isPoiTypeCachePredicateAware() {
+        return poiTypeCachePredicateAware;
+    }
+
+    public boolean isPoiTypeCacheRenewOnHit() {
+        return poiTypeCacheRenewOnHit;
     }
 
     public boolean shouldOptimizePOI(EntityType type, boolean hasName, double nearestPlayerDistance) {
@@ -408,6 +584,10 @@ public class YasuiConfig {
         return pathfindingCacheNegativeTtlTicks;
     }
 
+    public boolean isChunkEpochEnabled() {
+        return chunkEpochEnabled;
+    }
+
     public boolean isHotChunksEnabled() {
         return hotChunksEnabled;
     }
@@ -438,6 +618,14 @@ public class YasuiConfig {
 
     public double getHotChunkMinHeat() {
         return hotChunkMinHeat;
+    }
+
+    public int getHotChunkTickGroups() {
+        return hotChunkTickGroups;
+    }
+
+    public int getHotChunkTickGroupRescanChunks() {
+        return hotChunkTickGroupRescanChunks;
     }
 
     public boolean isHotChunkVillagerPdcEnabled() {
@@ -496,6 +684,10 @@ public class YasuiConfig {
         return hotChunkAcquirePoiTtlJitterTicks;
     }
 
+    public boolean isHotChunkAcquirePoiRenewOnHit() {
+        return hotChunkAcquirePoiRenewOnHit;
+    }
+
     public boolean isHotChunkPoiCompetitorBoostEnabled() {
         return hotChunkPoiCompetitorBoostEnabled;
     }
@@ -506,6 +698,42 @@ public class YasuiConfig {
 
     public int getHotChunkPoiCompetitorTtlJitterTicks() {
         return hotChunkPoiCompetitorTtlJitterTicks;
+    }
+
+    public boolean isHotChunkPoiCompetitorRenewOnHit() {
+        return hotChunkPoiCompetitorRenewOnHit;
+    }
+
+    public boolean isHotChunkPoiLookupBoostEnabled() {
+        return hotChunkPoiLookupBoostEnabled;
+    }
+
+    public int getHotChunkPoiLookupTtlTicks() {
+        return hotChunkPoiLookupTtlTicks;
+    }
+
+    public int getHotChunkPoiLookupTtlJitterTicks() {
+        return hotChunkPoiLookupTtlJitterTicks;
+    }
+
+    public boolean isHotChunkPoiLookupRenewOnHit() {
+        return hotChunkPoiLookupRenewOnHit;
+    }
+
+    public boolean isHotChunkPoiTypeBoostEnabled() {
+        return hotChunkPoiTypeBoostEnabled;
+    }
+
+    public int getHotChunkPoiTypeTtlTicks() {
+        return hotChunkPoiTypeTtlTicks;
+    }
+
+    public int getHotChunkPoiTypeTtlJitterTicks() {
+        return hotChunkPoiTypeTtlJitterTicks;
+    }
+
+    public boolean isHotChunkPoiTypeRenewOnHit() {
+        return hotChunkPoiTypeRenewOnHit;
     }
 
 

@@ -30,6 +30,8 @@ Reduces POI search overhead by caching job site locations and AcquirePoi searche
 - Restores cached POI when villager loses job site memory
 - AcquirePoi search cache (NMS hook, short TTL)
 - PoiCompetitorScan POI type cache (NMS hook, short TTL)
+- PoiAccess lookup cache for findAny/findClosest (NMS hook, short TTL)
+- PoiManager getType/exists cache (NMS hook, short TTL)
 - Validates POI block existence before restoration
 - Optional hot-chunk PDC persistence and static-villager backoff for trade farms
 
@@ -47,11 +49,14 @@ Categorizes entities by distance to nearest player for quick near/distant checks
 
 Detects hot areas by mob density and scales cache behavior without changing vanilla AI logic.
 
-- Hot chunks are 16x16 by default, with optional `area-radius` aggregation (e.g., radius 1 = 3x3 chunks)
+- Hot chunks are 16x16 by default, with optional `area-radius` aggregation (e.g., radius 1 = 3x3 chunks) to catch larger farms
 - Heat is a [0,1] value that decays each scan and spikes based on mob density
-- In hot chunks, pathfinding/AcquirePoi/PoiCompetitor cache TTLs and thresholds scale linearly by heat
+- In hot chunks, pathfinding + POI caches (AcquirePoi/Competitor/PoiAccess/PoiType) scale linearly by heat
 - Villagers in hot chunks can persist POI cache via PDC and skip scans if static
+- Optional tick groups spread Mob AI ticks across N+1 groups (hot chunks only)
 - Reuses Entity Distance Cache snapshots to avoid extra main-thread scans (optional)
+
+Tick groups skip Mob `serverAiStep` (AI/navigation/control updates) but still allow normal movement/physics ticks.
 
 ### Pathfinding Cache
 
@@ -59,6 +64,7 @@ Caches recent pathfinding results to avoid repeated `createPath()` work within a
 
 - NMS hook caches path results per navigation instance
 - Keeps AI behavior unchanged (only reuses identical results)
+- Invalidates paths when mob/target move past thresholds or when chunk epochs change
 
 Note: This hook also uses JVM attach. If attach is disabled, the cache will be inactive.
 
@@ -95,12 +101,34 @@ optimizations:
       predicate-aware: false
       source-bucket-size: 2
       fallback-on-insufficient: false
+      renew-on-hit: false
     competitor-scan-cache:
       enabled: true
       ttl-ticks: 2
       ttl-jitter-ticks: 1
       max-entries: 10000
       cache-empty-results: false
+      renew-on-hit: false
+    poi-lookup-cache:
+      enabled: true
+      ttl-ticks: 100
+      ttl-jitter-ticks: 10
+      max-entries: 20000
+      cache-empty-results: false
+      predicate-aware: true
+      source-bucket-size: 2
+      renew-on-hit: false
+    poi-type-cache:
+      enabled: true
+      ttl-ticks: 100
+      ttl-jitter-ticks: 10
+      max-entries: 20000
+      cache-empty-results: true
+      predicate-aware: true
+      renew-on-hit: false
+
+  chunk-epoch:
+    enabled: true
 
   entity-spread:
     enabled: true
@@ -125,6 +153,8 @@ optimizations:
     snapshot-max-age-ms: 10000
     heat-decay: 0.85
     min-heat: 0.15
+    tick-groups: 0
+    tick-group-rescan-chunks: 16
     villager-pdc:
       enabled: true
     villager-static:
@@ -143,10 +173,22 @@ optimizations:
       enabled: true
       ttl-ticks: 200
       ttl-jitter-ticks: 20
+      renew-on-hit: true
     competitor-scan-cache:
       enabled: true
       ttl-ticks: 20
       ttl-jitter-ticks: 10
+      renew-on-hit: true
+    poi-lookup-cache:
+      enabled: true
+      ttl-ticks: 200
+      ttl-jitter-ticks: 20
+      renew-on-hit: true
+    poi-type-cache:
+      enabled: true
+      ttl-ticks: 200
+      ttl-jitter-ticks: 20
+      renew-on-hit: true
 
 ```
 
@@ -158,13 +200,22 @@ heat = heat * heatDecay
 heat = max(heat, pressure)
 ```
 
+`mobCount` is per-chunk when `area-radius = 0`, otherwise it is the summed count across the (2r+1)x(2r+1) area.
+Heat is clamped to [0,1] and cools down by `heat-decay` every scan.
+
 Linear scaling for hot-chunk caches:
 
 ```
 effective = base + round((hot - base) * heat)
 ```
 
-With `area-radius > 0`, `mobCount` is the sum across the (2r+1)x(2r+1) chunk area.
+This linearly interpolates between the base value and the hot value as heat rises.
+
+### Tuning Notes
+
+- Pathfinding caches are safest with short TTLs; paths are tied to the current terrain + target position.
+- For static farms, conservative `mob-move-threshold` values are 1-2 blocks (3-4 only if movement is constrained and terrain is static).
+- Large thresholds or long TTLs can keep stale paths around; chunk-epoch invalidation helps but cannot catch every dynamic change.
 
 ## Commands
 
@@ -196,6 +247,13 @@ Villager POI Cache: Enabled
   POI Competitor Cache: 72
   POI Competitor Hits/Misses (1h): 412/98
   CompetitorScan Hook: Active
+  POI Lookup Cache: 98
+  POI Lookup Hits/Misses (1h): 821/44
+  PoiAccess Hook: Active
+  POI Type Cache: 410
+  POI Type Hits/Misses (1h): 913/50
+  POI Exists Hits/Misses (1h): 402/33
+  PoiManager Hook: Active
 
 Entity Distance Cache: Enabled
   Near Entities: 45 (full vanilla)
@@ -208,12 +266,13 @@ Pathfinding Cache: Enabled
   NMS Path Cache Hook: Active
 
 Hot Chunk Tracker: Enabled
-  Hot Chunks: 6 (tracked: 18)
+  Hot Chunks: 6 (tracked: 18) / 423 Total Chunk Loaded
   Max Heat: 0.92 (min heat: 0.15)
   Mob Threshold: 16 (scan 40t, radius 1)
   Top Hot Chunks:
     - world c(12,34) b(192,544) heat=0.92 mobs=6 area=44
-  Hot Boosts: Pathfinding On | AcquirePoi On | Competitor On
+  Hot Boosts: Pathfinding On | AcquirePoi On | Competitor On | PoiLookup On | PoiType On
+  Tick Groups: 2 (tick once every 2t, hot-only)
   Villager PDC: Enabled
   Villager Static: Enabled (stable 100t, scan 200t)
 ```
@@ -231,9 +290,12 @@ Hot Chunk Tracker: Enabled
 ## Technical Notes
 
 - Uses NMS hooks (JVM attach) for hopper, pathfinding, and AcquirePoi caching
+- PoiAccess/PoiManager hooks rely on the same attach mechanism
 - Caches are TTL-based and use weak maps where appropriate
+- Chunk epoch tracker invalidates caches on block/POI changes
 - Hot chunk counts/area aggregation run async; world snapshots happen on main thread
 - Hot chunk cache boosts scale linearly by heat; area-radius aggregates adjacent chunks
+- Tick group PDC assignment is batched across ticks to minimize main-thread load
 
 ## License
 

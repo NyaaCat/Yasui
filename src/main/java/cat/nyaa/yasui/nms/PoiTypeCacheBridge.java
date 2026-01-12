@@ -4,8 +4,8 @@ import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 
-final class PoiCompetitorCacheBridge {
-    private static final String CLASS_NAME = "cat.nyaa.yasui.hook.PoiCompetitorCache";
+final class PoiTypeCacheBridge {
+    private static final String CLASS_NAME = "cat.nyaa.yasui.hook.PoiTypeCache";
     private static volatile boolean resolved = false;
     private static volatile Class<?> cacheClass;
     private static volatile MethodHandle configureHandle;
@@ -14,15 +14,17 @@ final class PoiCompetitorCacheBridge {
     private static volatile MethodHandle cacheSizeHandle;
     private static volatile MethodHandle hookActiveHandle;
 
-    private PoiCompetitorCacheBridge() {}
+    private PoiTypeCacheBridge() {}
 
-    static void configure(boolean enabled, int ttlTicks, int ttlJitterTicks, int maxEntries, boolean cacheEmptyResults,
-                          boolean renewOnHit) {
+    static void configure(boolean enabled, int ttlTicks, int ttlJitterTicks, int maxEntries,
+                          boolean cacheEmptyResults, boolean predicateAware, boolean renewOnHit) {
         if (!resolve()) {
             return;
         }
         try {
-            configureHandle.invokeWithArguments(enabled, ttlTicks, ttlJitterTicks, maxEntries, cacheEmptyResults, renewOnHit);
+            configureHandle.invokeWithArguments(
+                enabled, ttlTicks, ttlJitterTicks, maxEntries, cacheEmptyResults, predicateAware, renewOnHit
+            );
         } catch (Throwable ignored) {
         }
     }
@@ -39,16 +41,16 @@ final class PoiCompetitorCacheBridge {
 
     static long[] drainStats() {
         if (!resolve()) {
-            return new long[] {0L, 0L, 0L};
+            return new long[] {0L, 0L, 0L, 0L, 0L, 0L};
         }
         try {
             Object value = drainStatsHandle.invokeWithArguments();
-            if (value instanceof long[] stats && stats.length >= 3) {
+            if (value instanceof long[] stats && stats.length >= 6) {
                 return stats;
             }
         } catch (Throwable ignored) {
         }
-        return new long[] {0L, 0L, 0L};
+        return new long[] {0L, 0L, 0L, 0L, 0L, 0L};
     }
 
     static int getCacheSize() {
@@ -83,7 +85,7 @@ final class PoiCompetitorCacheBridge {
         if (resolved) {
             return cacheClass != null;
         }
-        synchronized (PoiCompetitorCacheBridge.class) {
+        synchronized (PoiTypeCacheBridge.class) {
             if (resolved) {
                 return cacheClass != null;
             }
@@ -92,7 +94,8 @@ final class PoiCompetitorCacheBridge {
                 cacheClass = Class.forName(CLASS_NAME, true, system);
                 MethodHandles.Lookup lookup = MethodHandles.publicLookup();
                 configureHandle = lookup.findStatic(cacheClass, "configure",
-                    MethodType.methodType(void.class, boolean.class, int.class, int.class, int.class, boolean.class, boolean.class));
+                    MethodType.methodType(void.class, boolean.class, int.class, int.class, int.class, boolean.class,
+                        boolean.class, boolean.class));
                 configureHotHandle = lookup.findStatic(cacheClass, "configureHotChunks",
                     MethodType.methodType(void.class, boolean.class, int.class, int.class, boolean.class));
                 drainStatsHandle = lookup.findStatic(cacheClass, "drainStats",

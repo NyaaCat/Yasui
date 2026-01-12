@@ -31,6 +31,13 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 public class HotChunkTracker {
     private static final int DEFAULT_TOP_CHUNKS = 3;
+    private static final Comparator<HotChunkInfo> TOP_CHUNK_ORDER = Comparator
+        .comparingDouble(HotChunkInfo::heat).reversed()
+        .thenComparingInt(HotChunkInfo::areaMobCount).reversed()
+        .thenComparingInt(HotChunkInfo::mobCount).reversed()
+        .thenComparing(HotChunkInfo::worldName)
+        .thenComparingInt(HotChunkInfo::chunkX)
+        .thenComparingInt(HotChunkInfo::chunkZ);
 
     private final Yasui plugin;
     private final YasuiConfig config;
@@ -110,7 +117,7 @@ public class HotChunkTracker {
             }
         }
 
-        topChunks.sort(Comparator.comparingDouble(HotChunkInfo::heat).reversed());
+        topChunks.sort(TOP_CHUNK_ORDER);
         return new Stats(
             trackedChunks,
             trackedChunks,
@@ -129,17 +136,14 @@ public class HotChunkTracker {
             list.add(info);
             return;
         }
-        int minIndex = 0;
-        float minHeat = list.get(0).heat();
+        int worstIndex = 0;
         for (int i = 1; i < list.size(); i++) {
-            float heat = list.get(i).heat();
-            if (heat < minHeat) {
-                minHeat = heat;
-                minIndex = i;
+            if (TOP_CHUNK_ORDER.compare(list.get(i), list.get(worstIndex)) > 0) {
+                worstIndex = i;
             }
         }
-        if (info.heat() > minHeat) {
-            list.set(minIndex, info);
+        if (TOP_CHUNK_ORDER.compare(info, list.get(worstIndex)) < 0) {
+            list.set(worstIndex, info);
         }
     }
 

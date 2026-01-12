@@ -4,8 +4,8 @@ import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 
-final class PoiCompetitorCacheBridge {
-    private static final String CLASS_NAME = "cat.nyaa.yasui.hook.PoiCompetitorCache";
+final class PoiLookupCacheBridge {
+    private static final String CLASS_NAME = "cat.nyaa.yasui.hook.PoiLookupCache";
     private static volatile boolean resolved = false;
     private static volatile Class<?> cacheClass;
     private static volatile MethodHandle configureHandle;
@@ -14,15 +14,19 @@ final class PoiCompetitorCacheBridge {
     private static volatile MethodHandle cacheSizeHandle;
     private static volatile MethodHandle hookActiveHandle;
 
-    private PoiCompetitorCacheBridge() {}
+    private PoiLookupCacheBridge() {}
 
-    static void configure(boolean enabled, int ttlTicks, int ttlJitterTicks, int maxEntries, boolean cacheEmptyResults,
+    static void configure(boolean enabled, int ttlTicks, int ttlJitterTicks, int maxEntries,
+                          boolean cacheEmptyResults, boolean predicateAware, int sourceBucketSize,
                           boolean renewOnHit) {
         if (!resolve()) {
             return;
         }
         try {
-            configureHandle.invokeWithArguments(enabled, ttlTicks, ttlJitterTicks, maxEntries, cacheEmptyResults, renewOnHit);
+            configureHandle.invokeWithArguments(
+                enabled, ttlTicks, ttlJitterTicks, maxEntries, cacheEmptyResults, predicateAware,
+                sourceBucketSize, renewOnHit
+            );
         } catch (Throwable ignored) {
         }
     }
@@ -83,7 +87,7 @@ final class PoiCompetitorCacheBridge {
         if (resolved) {
             return cacheClass != null;
         }
-        synchronized (PoiCompetitorCacheBridge.class) {
+        synchronized (PoiLookupCacheBridge.class) {
             if (resolved) {
                 return cacheClass != null;
             }
@@ -92,7 +96,8 @@ final class PoiCompetitorCacheBridge {
                 cacheClass = Class.forName(CLASS_NAME, true, system);
                 MethodHandles.Lookup lookup = MethodHandles.publicLookup();
                 configureHandle = lookup.findStatic(cacheClass, "configure",
-                    MethodType.methodType(void.class, boolean.class, int.class, int.class, int.class, boolean.class, boolean.class));
+                    MethodType.methodType(void.class, boolean.class, int.class, int.class, int.class, boolean.class,
+                        boolean.class, int.class, boolean.class));
                 configureHotHandle = lookup.findStatic(cacheClass, "configureHotChunks",
                     MethodType.methodType(void.class, boolean.class, int.class, int.class, boolean.class));
                 drainStatsHandle = lookup.findStatic(cacheClass, "drainStats",

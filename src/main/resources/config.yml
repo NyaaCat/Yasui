@@ -30,12 +30,38 @@ optimizations:
       source-bucket-size: 2
       # If cached results are insufficient, optionally fall back to a full search.
       fallback-on-insufficient: false
+      # Renew TTL on cache hits (use carefully in dynamic villages).
+      renew-on-hit: false
     competitor-scan-cache:
       enabled: true
       ttl-ticks: 10
       ttl-jitter-ticks: 10
       max-entries: 10000
       cache-empty-results: false
+      renew-on-hit: false
+    # PoiAccess lookup cache (findAny/findClosest)
+    poi-lookup-cache:
+      enabled: true
+      ttl-ticks: 100
+      ttl-jitter-ticks: 10
+      max-entries: 20000
+      cache-empty-results: false
+      predicate-aware: true
+      source-bucket-size: 2
+      renew-on-hit: false
+    # PoiManager getType/exists cache
+    poi-type-cache:
+      enabled: true
+      ttl-ticks: 100
+      ttl-jitter-ticks: 10
+      max-entries: 20000
+      cache-empty-results: true
+      predicate-aware: true
+      renew-on-hit: false
+
+  # Chunk epoch tracker to invalidate caches on block/POI changes
+  chunk-epoch:
+    enabled: true
 
   # Entity distance cache - no tick freezing; used for quick near/distant checks
   entity-spread:
@@ -65,7 +91,7 @@ optimizations:
     # Scan interval for chunk heat updates (in ticks)
     scan-interval: 40
     # Mark chunks hot when mob count approaches this threshold
-    mob-threshold: 40
+    mob-threshold: 64
     # Count nearby chunks as a single area (0 = per-chunk only, 1 = 3x3 area)
     area-radius: 1
     # Reuse entity-spread snapshots to avoid extra scans
@@ -76,6 +102,10 @@ optimizations:
     heat-decay: 0.85
     # Minimum heat to keep a chunk tracked
     min-heat: 0.15
+    # Spread AI ticks across groups in hot chunks (0 = disabled)
+    tick-groups: 0
+    # Rescan loaded chunks in batches to refresh tick group PDCs
+    tick-group-rescan-chunks: 16
     # Persist villager POI cache in hot chunks to avoid load hitches
     villager-pdc:
       enabled: true
@@ -100,7 +130,19 @@ optimizations:
       enabled: true
       ttl-ticks: 200
       ttl-jitter-ticks: 200
+      renew-on-hit: true
     competitor-scan-cache:
       enabled: true
       ttl-ticks: 100
       ttl-jitter-ticks: 100
+      renew-on-hit: true
+    poi-lookup-cache:
+      enabled: true
+      ttl-ticks: 200
+      ttl-jitter-ticks: 20
+      renew-on-hit: true
+    poi-type-cache:
+      enabled: true
+      ttl-ticks: 200
+      ttl-jitter-ticks: 20
+      renew-on-hit: true

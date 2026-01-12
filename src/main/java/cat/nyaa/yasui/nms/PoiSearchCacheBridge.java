@@ -17,25 +17,26 @@ final class PoiSearchCacheBridge {
     private PoiSearchCacheBridge() {}
 
     static void configure(boolean enabled, int ttlTicks, int ttlJitterTicks, int maxEntries, boolean cacheEmptyResults,
-                          boolean predicateAware, int sourceBucketSize, boolean fallbackOnInsufficient) {
+                          boolean predicateAware, int sourceBucketSize, boolean fallbackOnInsufficient,
+                          boolean renewOnHit) {
         if (!resolve()) {
             return;
         }
         try {
             configureHandle.invokeWithArguments(
                 enabled, ttlTicks, ttlJitterTicks, maxEntries, cacheEmptyResults, predicateAware, sourceBucketSize,
-                fallbackOnInsufficient
+                fallbackOnInsufficient, renewOnHit
             );
         } catch (Throwable ignored) {
         }
     }
 
-    static void configureHotChunks(boolean enabled, int ttlTicks, int ttlJitterTicks) {
+    static void configureHotChunks(boolean enabled, int ttlTicks, int ttlJitterTicks, boolean renewOnHit) {
         if (!resolve()) {
             return;
         }
         try {
-            configureHotHandle.invokeWithArguments(enabled, ttlTicks, ttlJitterTicks);
+            configureHotHandle.invokeWithArguments(enabled, ttlTicks, ttlJitterTicks, renewOnHit);
         } catch (Throwable ignored) {
         }
     }
@@ -96,9 +97,9 @@ final class PoiSearchCacheBridge {
                 MethodHandles.Lookup lookup = MethodHandles.publicLookup();
                 configureHandle = lookup.findStatic(cacheClass, "configure",
                     MethodType.methodType(void.class, boolean.class, int.class, int.class, int.class, boolean.class,
-                        boolean.class, int.class, boolean.class));
+                        boolean.class, int.class, boolean.class, boolean.class));
                 configureHotHandle = lookup.findStatic(cacheClass, "configureHotChunks",
-                    MethodType.methodType(void.class, boolean.class, int.class, int.class));
+                    MethodType.methodType(void.class, boolean.class, int.class, int.class, boolean.class));
                 drainStatsHandle = lookup.findStatic(cacheClass, "drainStats",
                     MethodType.methodType(long[].class));
                 cacheSizeHandle = lookup.findStatic(cacheClass, "getCacheSize",

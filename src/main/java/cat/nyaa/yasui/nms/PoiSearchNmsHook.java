@@ -31,15 +31,15 @@ public final class PoiSearchNmsHook {
 
     public static void configure(boolean enabled, int ttlTicks, int ttlJitterTicks, int maxEntries,
                                  boolean cacheEmptyResults, boolean predicateAware, int sourceBucketSize,
-                                 boolean fallbackOnInsufficient) {
+                                 boolean fallbackOnInsufficient, boolean renewOnHit) {
         PoiSearchCacheBridge.configure(
             enabled, ttlTicks, ttlJitterTicks, maxEntries, cacheEmptyResults, predicateAware, sourceBucketSize,
-            fallbackOnInsufficient
+            fallbackOnInsufficient, renewOnHit
         );
     }
 
-    public static void configureHotChunks(boolean enabled, int ttlTicks, int ttlJitterTicks) {
-        PoiSearchCacheBridge.configureHotChunks(enabled, ttlTicks, ttlJitterTicks);
+    public static void configureHotChunks(boolean enabled, int ttlTicks, int ttlJitterTicks, boolean renewOnHit) {
+        PoiSearchCacheBridge.configureHotChunks(enabled, ttlTicks, ttlJitterTicks, renewOnHit);
     }
 
     public static long[] drainStats() {

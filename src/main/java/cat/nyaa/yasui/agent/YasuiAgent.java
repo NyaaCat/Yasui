@@ -28,6 +28,11 @@ public final class YasuiAgent {
     // Hook uses Object and int ordinal to avoid classloader issues
     private static final String HOPPER_HOOK_DESC = "(Ljava/lang/Object;I)Z";
 
+    private static final String MOB_CLASS = "net/minecraft/world/entity/Mob";
+    private static final String MOB_SERVER_AI_METHOD = "serverAiStep";
+    private static final String MOB_SERVER_AI_DESC = "()V";
+    private static final String TICK_GROUP_HOOK_DESC = "(Ljava/lang/Object;)Z";
+
     private static final String PATHNAV_CLASS = "net/minecraft/world/entity/ai/navigation/PathNavigation";
     private static final String PATHNAV_METHOD = "createPath";
     private static final String PATHNAV_DESC = "(Ljava/util/Set;Lnet/minecraft/world/entity/Entity;IZIF)Lnet/minecraft/world/level/pathfinder/Path;";
@@ -45,11 +50,31 @@ public final class YasuiAgent {
     private static final String POI_MANAGER_OWNER = "net/minecraft/world/entity/ai/village/poi/PoiManager";
     private static final String POI_MANAGER_GET_TYPE = "getType";
     private static final String POI_MANAGER_GET_TYPE_DESC = "(Lnet/minecraft/core/BlockPos;)Ljava/util/Optional;";
+    private static final String POI_MANAGER_CLASS = "net/minecraft/world/entity/ai/village/poi/PoiManager";
+    private static final String POI_MANAGER_EXISTS = "exists";
+    private static final String POI_MANAGER_EXISTS_DESC = "(Lnet/minecraft/core/BlockPos;Ljava/util/function/Predicate;)Z";
+    private static final String POI_MANAGER_ADD = "add";
+    private static final String POI_MANAGER_ADD_DESC = "(Lnet/minecraft/core/BlockPos;Lnet/minecraft/core/Holder;)V";
+    private static final String POI_MANAGER_REMOVE = "remove";
+    private static final String POI_MANAGER_REMOVE_DESC = "(Lnet/minecraft/core/BlockPos;)V";
     private static final String POI_COMPETITOR_HOOK_DESC = "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/util/Optional;";
     private static final String BRAIN_OWNER = "net/minecraft/world/entity/ai/Brain";
     private static final String BRAIN_GET_MEMORY = "getMemory";
     private static final String BRAIN_GET_MEMORY_DESC = "(Lnet/minecraft/world/entity/ai/memory/MemoryModuleType;)Ljava/util/Optional;";
     private static final String POI_COMPETITOR_MEMORY_HOOK_DESC = "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/util/Optional;";
+    private static final String POI_ACCESS_FIND_ANY = "findAnyPoiPosition";
+    private static final String POI_ACCESS_FIND_ANY_DESC = "(Lnet/minecraft/world/entity/ai/village/poi/PoiManager;Ljava/util/function/Predicate;Ljava/util/function/Predicate;Lnet/minecraft/core/BlockPos;ILnet/minecraft/world/entity/ai/village/poi/PoiManager$Occupancy;Z)Lnet/minecraft/core/BlockPos;";
+    private static final String POI_ACCESS_FIND_CLOSEST = "findClosestPoiDataPosition";
+    private static final String POI_ACCESS_FIND_CLOSEST_DESC = "(Lnet/minecraft/world/entity/ai/village/poi/PoiManager;Ljava/util/function/Predicate;Ljava/util/function/Predicate;Lnet/minecraft/core/BlockPos;IDLnet/minecraft/world/entity/ai/village/poi/PoiManager$Occupancy;Z)Lnet/minecraft/core/BlockPos;";
+    private static final String POI_ACCESS_FIND_CLOSEST_WITH_TYPE = "findClosestPoiDataTypeAndPosition";
+    private static final String POI_ACCESS_FIND_CLOSEST_WITH_TYPE_DESC = "(Lnet/minecraft/world/entity/ai/village/poi/PoiManager;Ljava/util/function/Predicate;Ljava/util/function/Predicate;Lnet/minecraft/core/BlockPos;IDLnet/minecraft/world/entity/ai/village/poi/PoiManager$Occupancy;Z)Lcom/mojang/datafixers/util/Pair;";
+    private static final String POI_LOOKUP_HOOK_ANY_DESC = "(Ljava/lang/Object;Ljava/util/function/Predicate;Ljava/util/function/Predicate;Ljava/lang/Object;ILjava/lang/Object;Z)Ljava/lang/Object;";
+    private static final String POI_LOOKUP_HOOK_CLOSEST_DESC = "(Ljava/lang/Object;Ljava/util/function/Predicate;Ljava/util/function/Predicate;Ljava/lang/Object;IDLjava/lang/Object;Z)Ljava/lang/Object;";
+    private static final String POI_TYPE_HOOK_GET_DESC = "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;";
+    private static final String POI_TYPE_HOOK_STORE_DESC = "(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;";
+    private static final String POI_TYPE_EXISTS_HOOK_DESC = "(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;";
+    private static final String POI_TYPE_EXISTS_STORE_DESC = "(ZLjava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Z";
+    private static final String POI_TYPE_CHANGE_HOOK_DESC = "(Ljava/lang/Object;Ljava/lang/Object;)V";
     private static final String HOOK_CLASS_PREFIX = "cat/nyaa/yasui/hook/";
     private static final List<JarFile> bootstrapJars = new ArrayList<>();
 
@@ -68,9 +93,11 @@ public final class YasuiAgent {
         inst.addTransformer(transformer, true);
         try {
             retransform(inst, HOPPER_CLASS);
+            retransform(inst, MOB_CLASS);
             retransform(inst, PATHNAV_CLASS);
             retransform(inst, ACQUIRE_POI_CLASS);
             retransform(inst, POI_COMPETITOR_CLASS);
+            retransform(inst, POI_MANAGER_CLASS);
 
             if (transformer.hopperTransformed()) {
                 markHookActive("cat.nyaa.yasui.hook.HopperFullCache", "markHookActive");
@@ -80,6 +107,10 @@ public final class YasuiAgent {
                 markHookActive("cat.nyaa.yasui.hook.PathfindingCache", "markHookActive");
                 log("Pathfinding cache hook installed");
             }
+            if (transformer.tickGroupTransformed()) {
+                markHookActive("cat.nyaa.yasui.hook.TickGroupGate", "markHookActive");
+                log("Tick group hook installed");
+            }
             if (transformer.poiSearchTransformed()) {
                 markHookActive("cat.nyaa.yasui.hook.PoiSearchCache", "markHookActive");
                 log("AcquirePoi cache hook installed");
@@ -87,6 +118,14 @@ public final class YasuiAgent {
             if (transformer.poiCompetitorTransformed()) {
                 markHookActive("cat.nyaa.yasui.hook.PoiCompetitorCache", "markHookActive");
                 log("PoiCompetitorScan cache hook installed");
+            }
+            if (transformer.poiLookupTransformed()) {
+                markHookActive("cat.nyaa.yasui.hook.PoiLookupCache", "markHookActive");
+                log("PoiAccess lookup cache hook installed");
+            }
+            if (transformer.poiTypeTransformed()) {
+                markHookActive("cat.nyaa.yasui.hook.PoiTypeCache", "markHookActive");
+                log("PoiManager getType/exists cache hook installed");
             }
         } catch (Throwable t) {
             log("Hook install failed: " + t.getClass().getSimpleName() + " " + t.getMessage());
@@ -184,8 +223,11 @@ public final class YasuiAgent {
     private static final class YasuiTransformer implements ClassFileTransformer {
         private volatile boolean hopperTransformed = false;
         private volatile boolean pathNavTransformed = false;
+        private volatile boolean tickGroupTransformed = false;
         private volatile boolean poiSearchTransformed = false;
         private volatile boolean poiCompetitorTransformed = false;
+        private volatile boolean poiLookupTransformed = false;
+        private volatile boolean poiTypeTransformed = false;
 
         @Override
         public byte[] transform(Module module, ClassLoader loader, String className,
@@ -193,6 +235,9 @@ public final class YasuiAgent {
                                 byte[] classfileBuffer) {
             if (HOPPER_CLASS.equals(className)) {
                 return transformHopper(classfileBuffer, loader);
+            }
+            if (MOB_CLASS.equals(className)) {
+                return transformMob(classfileBuffer, loader);
             }
             if (PATHNAV_CLASS.equals(className)) {
                 return transformPathNavigation(classfileBuffer, loader);
@@ -202,6 +247,9 @@ public final class YasuiAgent {
             }
             if (POI_COMPETITOR_CLASS.equals(className)) {
                 return transformPoiCompetitorScan(classfileBuffer, loader);
+            }
+            if (POI_MANAGER_CLASS.equals(className)) {
+                return transformPoiManager(classfileBuffer, loader);
             }
             return null;
         }
@@ -350,6 +398,56 @@ public final class YasuiAgent {
             }
         }
 
+        private byte[] transformMob(byte[] classfileBuffer, ClassLoader loader) {
+            try {
+                ClassReader reader = new ClassReader(classfileBuffer);
+                ClassWriter writer = newClassWriter(reader, loader);
+                boolean[] changed = new boolean[] {false};
+                ClassVisitor visitor = new ClassVisitor(Opcodes.ASM9, writer) {
+                    @Override
+                    public MethodVisitor visitMethod(int access, String name, String descriptor,
+                                                     String signature, String[] exceptions) {
+                        MethodVisitor mv = super.visitMethod(access, name, descriptor, signature, exceptions);
+                        if (!MOB_SERVER_AI_METHOD.equals(name) || !MOB_SERVER_AI_DESC.equals(descriptor)) {
+                            return mv;
+                        }
+                        changed[0] = true;
+                        return new MethodVisitor(Opcodes.ASM9, mv) {
+                            @Override
+                            public void visitCode() {
+                                super.visitCode();
+                                Label continueLabel = new Label();
+                                super.visitVarInsn(Opcodes.ALOAD, 0);
+                                super.visitMethodInsn(
+                                    Opcodes.INVOKESTATIC,
+                                    "cat/nyaa/yasui/hook/TickGroupGate",
+                                    "shouldSkipAi",
+                                    TICK_GROUP_HOOK_DESC,
+                                    false
+                                );
+                                super.visitJumpInsn(Opcodes.IFEQ, continueLabel);
+                                super.visitInsn(Opcodes.RETURN);
+                                super.visitLabel(continueLabel);
+                            }
+                        };
+                    }
+
+                    @Override
+                    public void visitEnd() {
+                        if (changed[0]) {
+                            tickGroupTransformed = true;
+                        }
+                        super.visitEnd();
+                    }
+                };
+                reader.accept(visitor, 0);
+                return changed[0] ? writer.toByteArray() : null;
+            } catch (Throwable t) {
+                log("Mob transformer failed: " + t.getClass().getSimpleName() + " " + t.getMessage());
+                return null;
+            }
+        }
+
         private byte[] transformAcquirePoi(byte[] classfileBuffer, ClassLoader loader) {
             try {
                 ClassReader reader = new ClassReader(classfileBuffer);
@@ -459,6 +557,252 @@ public final class YasuiAgent {
             }
         }
 
+        private byte[] transformPoiManager(byte[] classfileBuffer, ClassLoader loader) {
+            try {
+                ClassReader reader = new ClassReader(classfileBuffer);
+                ClassWriter writer = newClassWriter(reader, loader);
+                boolean[] lookupChanged = new boolean[] {false};
+                boolean[] typeChanged = new boolean[] {false};
+                ClassVisitor visitor = new ClassVisitor(Opcodes.ASM9, writer) {
+                    @Override
+                    public MethodVisitor visitMethod(int access, String name, String descriptor,
+                                                     String signature, String[] exceptions) {
+                        MethodVisitor mv = super.visitMethod(access, name, descriptor, signature, exceptions);
+                        if (POI_MANAGER_GET_TYPE.equals(name) && POI_MANAGER_GET_TYPE_DESC.equals(descriptor)) {
+                            typeChanged[0] = true;
+                            return new MethodVisitor(Opcodes.ASM9, mv) {
+                                @Override
+                                public void visitCode() {
+                                    super.visitCode();
+                                    Label continueLabel = new Label();
+                                    super.visitVarInsn(Opcodes.ALOAD, 0);
+                                    super.visitVarInsn(Opcodes.ALOAD, 1);
+                                    super.visitMethodInsn(
+                                        Opcodes.INVOKESTATIC,
+                                        "cat/nyaa/yasui/hook/PoiTypeCache",
+                                        "getTypeCached",
+                                        POI_TYPE_HOOK_GET_DESC,
+                                        false
+                                    );
+                                    super.visitInsn(Opcodes.DUP);
+                                    super.visitJumpInsn(Opcodes.IFNULL, continueLabel);
+                                    super.visitTypeInsn(Opcodes.CHECKCAST, "java/util/Optional");
+                                    super.visitInsn(Opcodes.ARETURN);
+                                    super.visitLabel(continueLabel);
+                                    super.visitInsn(Opcodes.POP);
+                                }
+
+                                @Override
+                                public void visitInsn(int opcode) {
+                                    if (opcode == Opcodes.ARETURN) {
+                                        super.visitVarInsn(Opcodes.ALOAD, 0);
+                                        super.visitVarInsn(Opcodes.ALOAD, 1);
+                                        super.visitMethodInsn(
+                                            Opcodes.INVOKESTATIC,
+                                            "cat/nyaa/yasui/hook/PoiTypeCache",
+                                            "storeType",
+                                            POI_TYPE_HOOK_STORE_DESC,
+                                            false
+                                        );
+                                        super.visitTypeInsn(Opcodes.CHECKCAST, "java/util/Optional");
+                                    }
+                                    super.visitInsn(opcode);
+                                }
+                            };
+                        }
+                        if (POI_MANAGER_EXISTS.equals(name) && POI_MANAGER_EXISTS_DESC.equals(descriptor)) {
+                            typeChanged[0] = true;
+                            return new MethodVisitor(Opcodes.ASM9, mv) {
+                                @Override
+                                public void visitCode() {
+                                    super.visitCode();
+                                    Label continueLabel = new Label();
+                                    super.visitVarInsn(Opcodes.ALOAD, 0);
+                                    super.visitVarInsn(Opcodes.ALOAD, 1);
+                                    super.visitVarInsn(Opcodes.ALOAD, 2);
+                                    super.visitMethodInsn(
+                                        Opcodes.INVOKESTATIC,
+                                        "cat/nyaa/yasui/hook/PoiTypeCache",
+                                        "existsCached",
+                                        POI_TYPE_EXISTS_HOOK_DESC,
+                                        false
+                                    );
+                                    super.visitInsn(Opcodes.DUP);
+                                    super.visitJumpInsn(Opcodes.IFNULL, continueLabel);
+                                    super.visitTypeInsn(Opcodes.CHECKCAST, "java/lang/Boolean");
+                                    super.visitMethodInsn(
+                                        Opcodes.INVOKEVIRTUAL,
+                                        "java/lang/Boolean",
+                                        "booleanValue",
+                                        "()Z",
+                                        false
+                                    );
+                                    super.visitInsn(Opcodes.IRETURN);
+                                    super.visitLabel(continueLabel);
+                                    super.visitInsn(Opcodes.POP);
+                                }
+
+                                @Override
+                                public void visitInsn(int opcode) {
+                                    if (opcode == Opcodes.IRETURN) {
+                                        super.visitVarInsn(Opcodes.ALOAD, 0);
+                                        super.visitVarInsn(Opcodes.ALOAD, 1);
+                                        super.visitVarInsn(Opcodes.ALOAD, 2);
+                                        super.visitMethodInsn(
+                                            Opcodes.INVOKESTATIC,
+                                            "cat/nyaa/yasui/hook/PoiTypeCache",
+                                            "storeExists",
+                                            POI_TYPE_EXISTS_STORE_DESC,
+                                            false
+                                        );
+                                    }
+                                    super.visitInsn(opcode);
+                                }
+                            };
+                        }
+                        if ((POI_MANAGER_ADD.equals(name) && POI_MANAGER_ADD_DESC.equals(descriptor))
+                            || (POI_MANAGER_REMOVE.equals(name) && POI_MANAGER_REMOVE_DESC.equals(descriptor))) {
+                            typeChanged[0] = true;
+                            return new MethodVisitor(Opcodes.ASM9, mv) {
+                                @Override
+                                public void visitInsn(int opcode) {
+                                    if (opcode == Opcodes.RETURN) {
+                                        super.visitVarInsn(Opcodes.ALOAD, 0);
+                                        super.visitVarInsn(Opcodes.ALOAD, 1);
+                                        super.visitMethodInsn(
+                                            Opcodes.INVOKESTATIC,
+                                            "cat/nyaa/yasui/hook/PoiTypeCache",
+                                            "onPoiChanged",
+                                            POI_TYPE_CHANGE_HOOK_DESC,
+                                            false
+                                        );
+                                    }
+                                    super.visitInsn(opcode);
+                                }
+
+                                @Override
+                                public void visitMethodInsn(int opcode, String owner, String name, String desc, boolean isInterface) {
+                                    if (opcode == Opcodes.INVOKESTATIC
+                                        && POI_ACCESS_OWNER.equals(owner)
+                                        && POI_ACCESS_FIND_ANY.equals(name)
+                                        && POI_ACCESS_FIND_ANY_DESC.equals(desc)) {
+                                        lookupChanged[0] = true;
+                                        super.visitMethodInsn(
+                                            opcode,
+                                            "cat/nyaa/yasui/hook/PoiLookupCache",
+                                            name,
+                                            POI_LOOKUP_HOOK_ANY_DESC,
+                                            false
+                                        );
+                                        super.visitTypeInsn(Opcodes.CHECKCAST, "net/minecraft/core/BlockPos");
+                                        return;
+                                    }
+                                    if (opcode == Opcodes.INVOKESTATIC
+                                        && POI_ACCESS_OWNER.equals(owner)
+                                        && POI_ACCESS_FIND_CLOSEST.equals(name)
+                                        && POI_ACCESS_FIND_CLOSEST_DESC.equals(desc)) {
+                                        lookupChanged[0] = true;
+                                        super.visitMethodInsn(
+                                            opcode,
+                                            "cat/nyaa/yasui/hook/PoiLookupCache",
+                                            name,
+                                            POI_LOOKUP_HOOK_CLOSEST_DESC,
+                                            false
+                                        );
+                                        super.visitTypeInsn(Opcodes.CHECKCAST, "net/minecraft/core/BlockPos");
+                                        return;
+                                    }
+                                    if (opcode == Opcodes.INVOKESTATIC
+                                        && POI_ACCESS_OWNER.equals(owner)
+                                        && POI_ACCESS_FIND_CLOSEST_WITH_TYPE.equals(name)
+                                        && POI_ACCESS_FIND_CLOSEST_WITH_TYPE_DESC.equals(desc)) {
+                                        lookupChanged[0] = true;
+                                        super.visitMethodInsn(
+                                            opcode,
+                                            "cat/nyaa/yasui/hook/PoiLookupCache",
+                                            name,
+                                            POI_LOOKUP_HOOK_CLOSEST_DESC,
+                                            false
+                                        );
+                                        super.visitTypeInsn(Opcodes.CHECKCAST, "com/mojang/datafixers/util/Pair");
+                                        return;
+                                    }
+                                    super.visitMethodInsn(opcode, owner, name, desc, isInterface);
+                                }
+                            };
+                        }
+                        return new MethodVisitor(Opcodes.ASM9, mv) {
+                            @Override
+                            public void visitMethodInsn(int opcode, String owner, String name, String desc, boolean isInterface) {
+                                if (opcode == Opcodes.INVOKESTATIC
+                                    && POI_ACCESS_OWNER.equals(owner)
+                                    && POI_ACCESS_FIND_ANY.equals(name)
+                                    && POI_ACCESS_FIND_ANY_DESC.equals(desc)) {
+                                    lookupChanged[0] = true;
+                                    super.visitMethodInsn(
+                                        opcode,
+                                        "cat/nyaa/yasui/hook/PoiLookupCache",
+                                        name,
+                                        POI_LOOKUP_HOOK_ANY_DESC,
+                                        false
+                                    );
+                                    super.visitTypeInsn(Opcodes.CHECKCAST, "net/minecraft/core/BlockPos");
+                                    return;
+                                }
+                                if (opcode == Opcodes.INVOKESTATIC
+                                    && POI_ACCESS_OWNER.equals(owner)
+                                    && POI_ACCESS_FIND_CLOSEST.equals(name)
+                                    && POI_ACCESS_FIND_CLOSEST_DESC.equals(desc)) {
+                                    lookupChanged[0] = true;
+                                    super.visitMethodInsn(
+                                        opcode,
+                                        "cat/nyaa/yasui/hook/PoiLookupCache",
+                                        name,
+                                        POI_LOOKUP_HOOK_CLOSEST_DESC,
+                                        false
+                                    );
+                                    super.visitTypeInsn(Opcodes.CHECKCAST, "net/minecraft/core/BlockPos");
+                                    return;
+                                }
+                                if (opcode == Opcodes.INVOKESTATIC
+                                    && POI_ACCESS_OWNER.equals(owner)
+                                    && POI_ACCESS_FIND_CLOSEST_WITH_TYPE.equals(name)
+                                    && POI_ACCESS_FIND_CLOSEST_WITH_TYPE_DESC.equals(desc)) {
+                                    lookupChanged[0] = true;
+                                    super.visitMethodInsn(
+                                        opcode,
+                                        "cat/nyaa/yasui/hook/PoiLookupCache",
+                                        name,
+                                        POI_LOOKUP_HOOK_CLOSEST_DESC,
+                                        false
+                                    );
+                                    super.visitTypeInsn(Opcodes.CHECKCAST, "com/mojang/datafixers/util/Pair");
+                                    return;
+                                }
+                                super.visitMethodInsn(opcode, owner, name, desc, isInterface);
+                            }
+                        };
+                    }
+
+                    @Override
+                    public void visitEnd() {
+                        if (lookupChanged[0]) {
+                            poiLookupTransformed = true;
+                        }
+                        if (typeChanged[0]) {
+                            poiTypeTransformed = true;
+                        }
+                        super.visitEnd();
+                    }
+                };
+                reader.accept(visitor, 0);
+                return lookupChanged[0] || typeChanged[0] ? writer.toByteArray() : null;
+            } catch (Throwable t) {
+                log("PoiManager transformer failed: " + t.getClass().getSimpleName() + " " + t.getMessage());
+                return null;
+            }
+        }
+
         private boolean hopperTransformed() {
             return hopperTransformed;
         }
@@ -467,12 +811,24 @@ public final class YasuiAgent {
             return pathNavTransformed;
         }
 
+        private boolean tickGroupTransformed() {
+            return tickGroupTransformed;
+        }
+
         private boolean poiSearchTransformed() {
             return poiSearchTransformed;
         }
 
         private boolean poiCompetitorTransformed() {
             return poiCompetitorTransformed;
+        }
+
+        private boolean poiLookupTransformed() {
+            return poiLookupTransformed;
+        }
+
+        private boolean poiTypeTransformed() {
+            return poiTypeTransformed;
         }
     }
 

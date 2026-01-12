@@ -26,25 +26,30 @@ public final class PoiCompetitorCache {
     private static volatile int ttlJitterTicks = 0;
     private static volatile int maxEntries = 10000;
     private static volatile boolean cacheEmptyResults = false;
+    private static volatile boolean renewOnHit = false;
     private static volatile boolean hotChunksEnabled = false;
     private static volatile int hotTtlTicks = 2;
     private static volatile int hotTtlJitterTicks = 0;
+    private static volatile boolean hotRenewOnHit = false;
     private static volatile boolean hookActive = false;
 
     private PoiCompetitorCache() {}
 
-    public static void configure(boolean enabled, int ttlTicks, int ttlJitterTicks, int maxEntries, boolean cacheEmptyResults) {
+    public static void configure(boolean enabled, int ttlTicks, int ttlJitterTicks, int maxEntries,
+                                 boolean cacheEmptyResults, boolean renewOnHit) {
         PoiCompetitorCache.enabled = enabled;
         PoiCompetitorCache.ttlTicks = Math.max(0, ttlTicks);
         PoiCompetitorCache.ttlJitterTicks = Math.max(0, ttlJitterTicks);
         PoiCompetitorCache.maxEntries = maxEntries;
         PoiCompetitorCache.cacheEmptyResults = cacheEmptyResults;
+        PoiCompetitorCache.renewOnHit = renewOnHit;
     }
 
-    public static void configureHotChunks(boolean enabled, int ttlTicks, int ttlJitterTicks) {
+    public static void configureHotChunks(boolean enabled, int ttlTicks, int ttlJitterTicks, boolean renewOnHit) {
         PoiCompetitorCache.hotChunksEnabled = enabled;
         PoiCompetitorCache.hotTtlTicks = Math.max(0, ttlTicks);
         PoiCompetitorCache.hotTtlJitterTicks = Math.max(0, ttlJitterTicks);
+        PoiCompetitorCache.hotRenewOnHit = renewOnHit;
     }
 
     public static boolean isHookActive() {
@@ -78,11 +83,15 @@ public final class PoiCompetitorCache {
         long key = NmsReflect.blockPosAsLong(blockPos);
         int effectiveTtl = ttlTicks;
         int effectiveJitter = ttlJitterTicks;
+        boolean canRenew = renewOnHit;
         if (hotChunksEnabled) {
             float heat = HotChunkMap.getHeat(poiManager, HotChunkUtil.chunkKeyFromBlockPos(key));
             if (heat > 0f) {
                 effectiveTtl = scaleInt(ttlTicks, hotTtlTicks, heat);
                 effectiveJitter = scaleInt(ttlJitterTicks, hotTtlJitterTicks, heat);
+                if (hotRenewOnHit) {
+                    canRenew = true;
+                }
             }
         }
         if (effectiveTtl == 0) {
@@ -90,9 +99,14 @@ public final class PoiCompetitorCache {
         }
         int tick = NmsReflect.getCurrentTick();
         CacheEntry entry = managerCache.get(key);
+        int epoch = ChunkEpochMap.getEpoch(poiManager, HotChunkUtil.chunkKeyFromBlockPos(key));
         if (entry != null) {
-            if (entry.isValid(tick)) {
+            if (entry.isValid(tick) && entry.epoch() == epoch) {
                 cacheHits.increment();
+                if (canRenew) {
+                    int expiryTick = tick + effectiveTtl + computeJitter(key, effectiveJitter);
+                    managerCache.put(key, new CacheEntry(expiryTick, epoch, entry.value()));
+                }
                 return entry.value();
             }
             managerCache.remove(key);
@@ -102,7 +116,7 @@ public final class PoiCompetitorCache {
         Optional<?> result = asOptional(NmsReflect.getPoiType(poiManager, blockPos));
         if (result.isPresent() || cacheEmptyResults) {
             int expiryTick = tick + effectiveTtl + computeJitter(key, effectiveJitter);
-            managerCache.put(key, new CacheEntry(expiryTick, result));
+            managerCache.put(key, new CacheEntry(expiryTick, epoch, result));
             cacheStores.increment();
         }
         return result;
@@ -191,7 +205,7 @@ public final class PoiCompetitorCache {
         return base + Math.round(delta * heat);
     }
 
-    private record CacheEntry(int expiryTick, Optional<?> value) {
+    private record CacheEntry(int expiryTick, int epoch, Optional<?> value) {
         private boolean isValid(int currentTick) {
             return currentTick <= this.expiryTick;
         }

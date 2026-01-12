@@ -4,6 +4,8 @@ import cat.nyaa.yasui.Yasui;
 import cat.nyaa.yasui.optimizer.EntitySpreadTicker;
 import cat.nyaa.yasui.optimizer.HopperOptimizer;
 import cat.nyaa.yasui.optimizer.HotChunkTracker;
+import cat.nyaa.yasui.optimizer.PoiLookupCacheTracker;
+import cat.nyaa.yasui.optimizer.PoiTypeCacheTracker;
 import cat.nyaa.yasui.optimizer.PathfindingCacheTracker;
 import cat.nyaa.yasui.optimizer.PoiCompetitorCacheTracker;
 import cat.nyaa.yasui.optimizer.PoiSearchCacheTracker;
@@ -11,11 +13,15 @@ import cat.nyaa.yasui.optimizer.VillagerPOICache;
 import cat.nyaa.yasui.nms.HopperNmsHook;
 import cat.nyaa.yasui.nms.PathfindingNmsHook;
 import cat.nyaa.yasui.nms.PoiCompetitorNmsHook;
+import cat.nyaa.yasui.nms.PoiLookupNmsHook;
 import cat.nyaa.yasui.nms.PoiSearchNmsHook;
+import cat.nyaa.yasui.nms.PoiTypeNmsHook;
+import cat.nyaa.yasui.nms.TickGroupNmsHook;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
+import org.bukkit.World;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -99,6 +105,23 @@ public class YasuiCommand implements CommandExecutor, TabCompleter {
             } else {
                 sender.sendMessage("  §7POI Competitor Cache: §fDisabled");
             }
+            if (plugin.getPoiLookupCacheTracker() != null) {
+                PoiLookupCacheTracker.RollingStats stats = plugin.getPoiLookupCacheTracker().getRollingStats();
+                sender.sendMessage("  §7POI Lookup Cache: §f" + plugin.getPoiLookupCacheTracker().getCacheSize());
+                sender.sendMessage("  §7POI Lookup Hits/Misses (1h): §f" + stats.hits() + "§7/§f" + stats.misses());
+                sender.sendMessage("  §7PoiAccess Hook: §f" + (PoiLookupNmsHook.isHookActive() ? "Active" : "Inactive"));
+            } else {
+                sender.sendMessage("  §7POI Lookup Cache: §fDisabled");
+            }
+            if (plugin.getPoiTypeCacheTracker() != null) {
+                PoiTypeCacheTracker.RollingStats stats = plugin.getPoiTypeCacheTracker().getRollingStats();
+                sender.sendMessage("  §7POI Type Cache: §f" + plugin.getPoiTypeCacheTracker().getCacheSize());
+                sender.sendMessage("  §7POI Type Hits/Misses (1h): §f" + stats.typeHits() + "§7/§f" + stats.typeMisses());
+                sender.sendMessage("  §7POI Exists Hits/Misses (1h): §f" + stats.existsHits() + "§7/§f" + stats.existsMisses());
+                sender.sendMessage("  §7PoiManager Hook: §f" + (PoiTypeNmsHook.isHookActive() ? "Active" : "Inactive"));
+            } else {
+                sender.sendMessage("  §7POI Type Cache: §fDisabled");
+            }
         } else {
             sender.sendMessage("§cVillager POI Cache: §fDisabled");
         }
@@ -128,7 +151,10 @@ public class YasuiCommand implements CommandExecutor, TabCompleter {
             HotChunkTracker.Stats stats = plugin.getHotChunkTracker().getStats();
             var config = plugin.getYasuiConfig();
             sender.sendMessage("§aHot Chunk Tracker: §fEnabled");
-            sender.sendMessage("  §7Hot Chunks: §f" + stats.hotChunks() + " §7(tracked: " + stats.trackedChunks() + ")");
+            int totalLoadedChunks = getTotalLoadedChunks();
+            sender.sendMessage("  §7Hot Chunks: §f" + stats.hotChunks()
+                + " §7(tracked: " + stats.trackedChunks() + ") §7/ §f"
+                + totalLoadedChunks + " §7Total Chunk Loaded");
             sender.sendMessage("  §7Max Heat: §f" + formatHeat(stats.maxHeat()) + " §7(min heat: " + formatHeat(stats.minHeat()) + ")");
             sender.sendMessage("  §7Mob Threshold: §f" + stats.mobThreshold()
                 + " §7(scan " + stats.scanIntervalTicks() + "t, radius " + stats.areaRadius() + ")");
@@ -141,7 +167,18 @@ public class YasuiCommand implements CommandExecutor, TabCompleter {
                 + "§7 | AcquirePoi "
                 + (config.isHotChunkAcquirePoiBoostEnabled() ? "On" : "Off")
                 + "§7 | Competitor "
-                + (config.isHotChunkPoiCompetitorBoostEnabled() ? "On" : "Off"));
+                + (config.isHotChunkPoiCompetitorBoostEnabled() ? "On" : "Off")
+                + "§7 | PoiLookup "
+                + (config.isHotChunkPoiLookupBoostEnabled() ? "On" : "Off")
+                + "§7 | PoiType "
+                + (config.isHotChunkPoiTypeBoostEnabled() ? "On" : "Off"));
+            if (config.getHotChunkTickGroups() > 0) {
+                int groups = config.getHotChunkTickGroups() + 1;
+                sender.sendMessage("  §7Tick Groups: §f" + groups + " §7(tick once every " + groups + "t, hot-only)");
+                sender.sendMessage("  §7TickGroup Hook: §f" + (TickGroupNmsHook.isHookActive() ? "Active" : "Inactive"));
+            } else {
+                sender.sendMessage("  §7Tick Groups: §fDisabled");
+            }
             sender.sendMessage("  §7Villager PDC: §f" + (config.isHotChunkVillagerPdcEnabled() ? "Enabled" : "Disabled"));
             sender.sendMessage("  §7Villager Static: §f" + (config.isHotChunkVillagerStaticEnabled() ? "Enabled" : "Disabled")
                 + " §7(stable " + config.getHotChunkVillagerStaticStableTicks() + "t, scan "
@@ -169,8 +206,12 @@ public class YasuiCommand implements CommandExecutor, TabCompleter {
         sender.sendMessage("  §7- Hopper full-check caching (NMS hook)");
         sender.sendMessage("  §7- Villager job-site restore + AcquirePoi search caching");
         sender.sendMessage("  §7- PoiCompetitorScan POI type caching");
+        sender.sendMessage("  §7- PoiAccess lookup caching (findAny/findClosest)");
+        sender.sendMessage("  §7- PoiManager getType/exists caching");
         sender.sendMessage("  §7- Distance cache for quick near/distant checks");
         sender.sendMessage("  §7- Pathfinding result cache (short TTL)");
+        sender.sendMessage("  §7- Chunk epoch invalidation for caches");
+        sender.sendMessage("  §7- Hot chunk AI tick groups (hot chunks only)");
         sender.sendMessage("");
         sender.sendMessage("§fGoal: §7Reduce server tick time while preserving vanilla behavior");
         sender.sendMessage("§fCommands: §e/yasui status §7| §e/yasui reload §7| §e/yasui info");
@@ -191,6 +232,14 @@ public class YasuiCommand implements CommandExecutor, TabCompleter {
         for (HotChunkTracker.HotChunkInfo chunk : chunks) {
             sender.sendMessage("    §7- §f" + chunk.format(areaRadius));
         }
+    }
+
+    private int getTotalLoadedChunks() {
+        int total = 0;
+        for (World world : plugin.getServer().getWorlds()) {
+            total += world.getLoadedChunks().length;
+        }
+        return total;
     }
 
     @Override

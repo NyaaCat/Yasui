@@ -57,15 +57,23 @@ public final class NmsReflect {
 
     // Entity
     private static volatile MethodHandle entityGetId;
+    private static volatile MethodHandle entityGetUuid;
     private static volatile MethodHandle entityBlockPosition;
     private static volatile MethodHandle entityGetLevel;
+    private static volatile MethodHandle livingEntityNoActionGetter;
+    private static volatile MethodHandle livingEntityNoActionSetter;
+    private static volatile MethodHandle mobAwareGetter;
 
     // BlockPos
     private static volatile MethodHandle blockPosAsLong;
 
     // PoiAccess
     private static volatile MethodHandle poiAccessFindNearest;
+    private static volatile MethodHandle poiAccessFindAny;
+    private static volatile MethodHandle poiAccessFindClosest;
+    private static volatile MethodHandle poiAccessFindClosestWithType;
     private static volatile MethodHandle poiManagerGetType;
+    private static volatile MethodHandle poiManagerExists;
 
     private NmsReflect() {}
 
@@ -152,11 +160,29 @@ public final class NmsReflect {
         // Entity
         Class<?> entityClass = Class.forName("net.minecraft.world.entity.Entity", true, nmsClassLoader);
         entityGetId = lookup.findVirtual(entityClass, "getId", MethodType.methodType(int.class));
+        entityGetUuid = lookup.findVirtual(entityClass, "getUUID", MethodType.methodType(java.util.UUID.class));
         try {
             Class<?> levelClass = Class.forName("net.minecraft.world.level.Level", true, nmsClassLoader);
             entityGetLevel = lookup.findVirtual(entityClass, "level", MethodType.methodType(levelClass));
         } catch (Throwable ignored) {
             entityGetLevel = null;
+        }
+        try {
+            Class<?> livingEntityClass = Class.forName("net.minecraft.world.entity.LivingEntity", true, nmsClassLoader);
+            Field noActionField = livingEntityClass.getDeclaredField("noActionTime");
+            noActionField.setAccessible(true);
+            livingEntityNoActionGetter = lookup.unreflectGetter(noActionField);
+            livingEntityNoActionSetter = lookup.unreflectSetter(noActionField);
+        } catch (Throwable ignored) {
+            livingEntityNoActionGetter = null;
+            livingEntityNoActionSetter = null;
+        }
+        try {
+            Class<?> mobClass = Class.forName("net.minecraft.world.entity.Mob", true, nmsClassLoader);
+            Field awareField = mobClass.getField("aware");
+            mobAwareGetter = lookup.unreflectGetter(awareField);
+        } catch (Throwable ignored) {
+            mobAwareGetter = null;
         }
 
         // BlockPos
@@ -173,10 +199,25 @@ public final class NmsReflect {
         Class<?> poiManagerClass = Class.forName("net.minecraft.world.entity.ai.village.poi.PoiManager", true, nmsClassLoader);
         Class<?> occupancyClass = Class.forName("net.minecraft.world.entity.ai.village.poi.PoiManager$Occupancy", true, nmsClassLoader);
         poiManagerGetType = lookup.findVirtual(poiManagerClass, "getType", MethodType.methodType(Optional.class, blockPosClass));
+        poiManagerExists = lookup.findVirtual(poiManagerClass, "exists",
+            MethodType.methodType(boolean.class, blockPosClass, Predicate.class));
         poiAccessFindNearest = lookup.findStatic(poiAccessClass, "findNearestPoiPositions",
             MethodType.methodType(void.class,
                 poiManagerClass, Predicate.class, Predicate.class, blockPosClass,
                 int.class, double.class, occupancyClass, boolean.class, int.class, List.class));
+        poiAccessFindAny = lookup.findStatic(poiAccessClass, "findAnyPoiPosition",
+            MethodType.methodType(blockPosClass,
+                poiManagerClass, Predicate.class, Predicate.class, blockPosClass,
+                int.class, occupancyClass, boolean.class));
+        poiAccessFindClosest = lookup.findStatic(poiAccessClass, "findClosestPoiDataPosition",
+            MethodType.methodType(blockPosClass,
+                poiManagerClass, Predicate.class, Predicate.class, blockPosClass,
+                int.class, double.class, occupancyClass, boolean.class));
+        Class<?> pairClass = Class.forName("com.mojang.datafixers.util.Pair", true, nmsClassLoader);
+        poiAccessFindClosestWithType = lookup.findStatic(poiAccessClass, "findClosestPoiDataTypeAndPosition",
+            MethodType.methodType(pairClass,
+                poiManagerClass, Predicate.class, Predicate.class, blockPosClass,
+                int.class, double.class, occupancyClass, boolean.class));
     }
 
     public static int getCurrentTick() {
@@ -301,6 +342,17 @@ public final class NmsReflect {
         }
     }
 
+    public static java.util.UUID getEntityUuid(Object entity) {
+        if (entity == null || entityGetUuid == null) {
+            return null;
+        }
+        try {
+            return (java.util.UUID) entityGetUuid.invoke(entity);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
     public static Object getNavigationMob(Object navigation) {
         if (navigation == null || pathNavGetMob == null) {
             return null;
@@ -334,6 +386,28 @@ public final class NmsReflect {
         }
     }
 
+    public static void incrementNoActionTime(Object entity) {
+        if (entity == null || livingEntityNoActionGetter == null || livingEntityNoActionSetter == null) {
+            return;
+        }
+        try {
+            int current = (int) livingEntityNoActionGetter.invoke(entity);
+            livingEntityNoActionSetter.invoke(entity, current + 1);
+        } catch (Throwable ignored) {
+        }
+    }
+
+    public static boolean isMobAware(Object mob) {
+        if (mob == null || mobAwareGetter == null) {
+            return false;
+        }
+        try {
+            return (boolean) mobAwareGetter.invoke(mob);
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
     // BlockPos methods
 
     public static long blockPosAsLong(Object blockPos) {
@@ -357,6 +431,41 @@ public final class NmsReflect {
         }
     }
 
+    public static Object findAnyPoiPosition(Object poiManager, Object villagePlaceType, Object positionPredicate,
+                                            Object sourcePosition, int range, Object occupancy, boolean load) {
+        try {
+            return poiAccessFindAny.invoke(poiManager, villagePlaceType, positionPredicate, sourcePosition,
+                range, occupancy, load);
+        } catch (Throwable t) {
+            log("findAnyPoiPosition failed: " + t.getMessage());
+            return null;
+        }
+    }
+
+    public static Object findClosestPoiDataPosition(Object poiManager, Object villagePlaceType, Object positionPredicate,
+                                                    Object sourcePosition, int range, double maxDistanceSquared,
+                                                    Object occupancy, boolean load) {
+        try {
+            return poiAccessFindClosest.invoke(poiManager, villagePlaceType, positionPredicate, sourcePosition,
+                range, maxDistanceSquared, occupancy, load);
+        } catch (Throwable t) {
+            log("findClosestPoiDataPosition failed: " + t.getMessage());
+            return null;
+        }
+    }
+
+    public static Object findClosestPoiDataTypeAndPosition(Object poiManager, Object villagePlaceType, Object positionPredicate,
+                                                           Object sourcePosition, int range, double maxDistanceSquared,
+                                                           Object occupancy, boolean load) {
+        try {
+            return poiAccessFindClosestWithType.invoke(poiManager, villagePlaceType, positionPredicate, sourcePosition,
+                range, maxDistanceSquared, occupancy, load);
+        } catch (Throwable t) {
+            log("findClosestPoiDataTypeAndPosition failed: " + t.getMessage());
+            return null;
+        }
+    }
+
     public static Object getPoiType(Object poiManager, Object blockPos) {
         if (!initialized || initFailed || poiManagerGetType == null || poiManager == null || blockPos == null) {
             return Optional.empty();
@@ -365,6 +474,17 @@ public final class NmsReflect {
             return poiManagerGetType.invoke(poiManager, blockPos);
         } catch (Throwable t) {
             return Optional.empty();
+        }
+    }
+
+    public static boolean poiManagerExists(Object poiManager, Object blockPos, Object predicate) {
+        if (!initialized || initFailed || poiManagerExists == null || poiManager == null || blockPos == null) {
+            return false;
+        }
+        try {
+            return (boolean) poiManagerExists.invoke(poiManager, blockPos, predicate);
+        } catch (Throwable t) {
+            return false;
         }
     }
 

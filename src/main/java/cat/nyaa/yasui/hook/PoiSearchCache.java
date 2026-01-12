@@ -32,9 +32,11 @@ public final class PoiSearchCache {
     private static volatile boolean predicateAware = false;
     private static volatile int sourceBucketSize = 2;
     private static volatile boolean fallbackOnInsufficient = false;
+    private static volatile boolean renewOnHit = false;
     private static volatile boolean hotChunksEnabled = false;
     private static volatile int hotTtlTicks = 100;
     private static volatile int hotTtlJitterTicks = 0;
+    private static volatile boolean hotRenewOnHit = false;
     private static volatile boolean hookActive = false;
     private static final MethodHandle NULL_PAIR_SECOND = MethodHandles.dropArguments(
         MethodHandles.constant(Object.class, null), 0, Object.class);
@@ -54,7 +56,7 @@ public final class PoiSearchCache {
 
     public static void configure(boolean enabled, int ttlTicks, int ttlJitterTicks, int maxEntries,
                                  boolean cacheEmptyResults, boolean predicateAware, int sourceBucketSize,
-                                 boolean fallbackOnInsufficient) {
+                                 boolean fallbackOnInsufficient, boolean renewOnHit) {
         PoiSearchCache.enabled = enabled;
         PoiSearchCache.ttlTicks = Math.max(0, ttlTicks);
         PoiSearchCache.ttlJitterTicks = Math.max(0, ttlJitterTicks);
@@ -63,12 +65,14 @@ public final class PoiSearchCache {
         PoiSearchCache.predicateAware = predicateAware;
         PoiSearchCache.sourceBucketSize = Math.max(1, sourceBucketSize);
         PoiSearchCache.fallbackOnInsufficient = fallbackOnInsufficient;
+        PoiSearchCache.renewOnHit = renewOnHit;
     }
 
-    public static void configureHotChunks(boolean enabled, int ttlTicks, int ttlJitterTicks) {
+    public static void configureHotChunks(boolean enabled, int ttlTicks, int ttlJitterTicks, boolean renewOnHit) {
         PoiSearchCache.hotChunksEnabled = enabled;
         PoiSearchCache.hotTtlTicks = Math.max(0, ttlTicks);
         PoiSearchCache.hotTtlJitterTicks = Math.max(0, ttlJitterTicks);
+        PoiSearchCache.hotRenewOnHit = renewOnHit;
     }
 
     public static boolean isHookActive() {
@@ -124,11 +128,15 @@ public final class PoiSearchCache {
         long sourceKey = NmsReflect.blockPosAsLong(sourcePosition);
         int effectiveTtl = ttlTicks;
         int effectiveJitter = ttlJitterTicks;
+        boolean canRenew = renewOnHit;
         if (hotChunksEnabled) {
             float heat = HotChunkMap.getHeat(poiManager, HotChunkUtil.chunkKeyFromBlockPos(sourceKey));
             if (heat > 0f) {
                 effectiveTtl = scaleInt(ttlTicks, hotTtlTicks, heat);
                 effectiveJitter = scaleInt(ttlJitterTicks, hotTtlJitterTicks, heat);
+                if (hotRenewOnHit) {
+                    canRenew = true;
+                }
             }
         }
         if (effectiveTtl == 0) {
@@ -153,17 +161,26 @@ public final class PoiSearchCache {
 
         int tick = NmsReflect.getCurrentTick();
         CacheEntry entry = managerCache.get(key);
+        int epoch = ChunkEpochMap.getEpoch(poiManager, HotChunkUtil.chunkKeyFromBlockPos(sourceKey));
         if (entry != null) {
-            if (entry.isValid(tick)) {
+            if (entry.isValid(tick) && entry.epoch() == epoch) {
                 if (!fallbackOnInsufficient || maxResults == 0) {
                     cacheHits.increment();
                     fillResults(entry.results(), positionPredicate, maxResults, ret, sourceKey, range, maxDistanceSquared);
+                    if (canRenew) {
+                        int expiryTick = tick + effectiveTtl + computeJitter(key.hashCode(), effectiveJitter);
+                        managerCache.put(key, new CacheEntry(expiryTick, epoch, entry.results()));
+                    }
                     return;
                 }
                 List cachedResults = new ArrayList();
                 fillResults(entry.results(), positionPredicate, maxResults, cachedResults, sourceKey, range, maxDistanceSquared);
                 if (cachedResults.size() >= maxResults) {
                     cacheHits.increment();
+                    if (canRenew) {
+                        int expiryTick = tick + effectiveTtl + computeJitter(key.hashCode(), effectiveJitter);
+                        managerCache.put(key, new CacheEntry(expiryTick, epoch, entry.results()));
+                    }
                     ret.addAll(cachedResults);
                     return;
                 }
@@ -183,7 +200,7 @@ public final class PoiSearchCache {
 
         if (!results.isEmpty() || cacheEmptyResults) {
             int expiryTick = tick + effectiveTtl + computeJitter(key.hashCode(), effectiveJitter);
-            managerCache.put(key, new CacheEntry(expiryTick, results));
+            managerCache.put(key, new CacheEntry(expiryTick, epoch, results));
             cacheStores.increment();
         }
     }
@@ -222,7 +239,7 @@ public final class PoiSearchCache {
                             int max,
                             boolean predicateAware) {}
 
-    private record CacheEntry(int expiryTick, List<Object> results) {
+    private record CacheEntry(int expiryTick, int epoch, List<Object> results) {
         private boolean isValid(int currentTick) {
             return currentTick <= this.expiryTick;
         }
