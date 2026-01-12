@@ -66,6 +66,7 @@ public final class NmsReflect {
 
     // Level / world access
     private static volatile MethodHandle levelGetBlockStateIfLoadedAndInBounds;
+    private static volatile MethodHandle levelGetBlockStateIfLoaded;
     private static volatile MethodHandle levelIsLoadedAndInBounds;
     private static volatile MethodHandle levelGetWorldBorder;
     private static volatile MethodHandle worldBorderIsWithinBounds;
@@ -189,6 +190,8 @@ public final class NmsReflect {
             Class<?> levelClass = Class.forName("net.minecraft.world.level.Level", true, nmsClassLoader);
             levelGetBlockStateIfLoadedAndInBounds = lookup.findVirtual(
                 levelClass, "getBlockStateIfLoadedAndInBounds", MethodType.methodType(blockStateClass, blockPosClass));
+            levelGetBlockStateIfLoaded = lookup.findVirtual(
+                levelClass, "getBlockStateIfLoaded", MethodType.methodType(blockStateClass, blockPosClass));
             levelIsLoadedAndInBounds = lookup.findVirtual(
                 levelClass, "isLoadedAndInBounds", MethodType.methodType(boolean.class, blockPosClass));
             Class<?> worldBorderClass = Class.forName("net.minecraft.world.level.border.WorldBorder", true, nmsClassLoader);
@@ -205,6 +208,7 @@ public final class NmsReflect {
             chunkPosZField = chunkPosClass.getField("z");
         } catch (Throwable ignored) {
             levelGetBlockStateIfLoadedAndInBounds = null;
+            levelGetBlockStateIfLoaded = null;
             levelIsLoadedAndInBounds = null;
             levelGetWorldBorder = null;
             worldBorderIsWithinBounds = null;
@@ -424,6 +428,17 @@ public final class NmsReflect {
         }
         try {
             return levelGetBlockStateIfLoadedAndInBounds.invoke(level, blockPos);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    public static Object getBlockStateIfLoaded(Object level, Object blockPos) {
+        if (!initialized || initFailed || levelGetBlockStateIfLoaded == null) {
+            return null;
+        }
+        try {
+            return levelGetBlockStateIfLoaded.invoke(level, blockPos);
         } catch (Throwable t) {
             return null;
         }

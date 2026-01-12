@@ -42,10 +42,30 @@ public final class YasuiAgent {
     private static final String SERVER_LEVEL_CLASS = "net/minecraft/server/level/ServerLevel";
     private static final String LEVEL_GETBLOCKSTATE_METHOD = "getBlockStateIfLoadedAndInBounds";
     private static final String LEVEL_GETBLOCKSTATE_DESC = "(Lnet/minecraft/core/BlockPos;)Lnet/minecraft/world/level/block/state/BlockState;";
+    private static final String LEVEL_GETBLOCKSTATE_RAW_METHOD = "getBlockState";
+    private static final String LEVEL_GETBLOCKSTATE_IF_LOADED_METHOD = "getBlockStateIfLoaded";
     private static final String LEVEL_ISLOADED_METHOD = "isLoadedAndInBounds";
     private static final String LEVEL_ISLOADED_DESC = "(Lnet/minecraft/core/BlockPos;)Z";
     private static final String SPAWN_BLOCKSTATE_HOOK_DESC = "(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;";
     private static final String SPAWN_ISLOADED_HOOK_DESC = "(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Z";
+    private static final String LEVEL_CHUNK_CLASS = "net/minecraft/world/level/chunk/LevelChunk";
+    private static final String LEVEL_CHUNK_SETBLOCKSTATE_METHOD = "setBlockState";
+    private static final String LEVEL_CHUNK_SETBLOCKSTATE_DESC = "(Lnet/minecraft/core/BlockPos;Lnet/minecraft/world/level/block/state/BlockState;I)Lnet/minecraft/world/level/block/state/BlockState;";
+    private static final String LEVEL_CHUNK_LEVEL_FIELD = "level";
+    private static final String LEVEL_CHUNK_LEVEL_DESC = "Lnet/minecraft/server/level/ServerLevel;";
+    private static final String BLOCKSTATE_INVALIDATE_DESC = "(Ljava/lang/Object;Ljava/lang/Object;)V";
+    private static final String PATH_NAV_REGION_CLASS = "net/minecraft/world/level/PathNavigationRegion";
+    private static final String PATH_NAV_REGION_LEVEL_FIELD = "level";
+    private static final String PATH_NAV_REGION_LEVEL_DESC = "Lnet/minecraft/world/level/Level;";
+    private static final String PATH_NAV_REGION_GETBLOCKSTATE = "getBlockState";
+    private static final String PATH_NAV_REGION_GETBLOCKSTATE_IF_LOADED = "getBlockStateIfLoaded";
+    private static final String CHUNK_ACCESS_CLASS = "net/minecraft/world/level/chunk/ChunkAccess";
+    private static final String CHUNK_ACCESS_GETBLOCKSTATE = "getBlockState";
+    private static final String BLOCKSTATE_CACHE_LEVEL_DESC = "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;";
+    private static final String BLOCKSTATE_CACHE_CHUNK_DESC = "(Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;";
+    private static final String VALIDATE_POI_CLASS = "net/minecraft/world/entity/ai/behavior/ValidateNearbyPoi";
+    private static final String SLEEP_IN_BED_CLASS = "net/minecraft/world/entity/ai/behavior/SleepInBed";
+    private static final String WORK_AT_COMPOSTER_CLASS = "net/minecraft/world/entity/ai/behavior/WorkAtComposter";
 
     private static final String ACQUIRE_POI_CLASS = "net/minecraft/world/entity/ai/behavior/AcquirePoi";
     private static final String POI_ACCESS_OWNER = "io/papermc/paper/util/PoiAccess";
@@ -102,6 +122,11 @@ public final class YasuiAgent {
             retransform(inst, HOPPER_CLASS);
             retransform(inst, PATHNAV_CLASS);
             retransform(inst, NATURAL_SPAWNER_CLASS);
+            retransform(inst, LEVEL_CHUNK_CLASS);
+            retransform(inst, PATH_NAV_REGION_CLASS);
+            retransform(inst, VALIDATE_POI_CLASS);
+            retransform(inst, SLEEP_IN_BED_CLASS);
+            retransform(inst, WORK_AT_COMPOSTER_CLASS);
             retransform(inst, ACQUIRE_POI_CLASS);
             retransform(inst, POI_COMPETITOR_CLASS);
             retransform(inst, POI_MANAGER_CLASS);
@@ -117,6 +142,14 @@ public final class YasuiAgent {
             if (transformer.naturalSpawnerTransformed()) {
                 markHookActive("cat.nyaa.yasui.hook.SpawnCheckCache", "markHookActive");
                 log("NaturalSpawner cache hook installed");
+            }
+            if (transformer.levelChunkTransformed()) {
+                markHookActive("cat.nyaa.yasui.hook.SpawnCheckCache", "markBlockWriteHookActive");
+                log("BlockState invalidation hook installed");
+            }
+            if (transformer.pathNavRegionTransformed() || transformer.poiBlockStateTransformed()) {
+                markHookActive("cat.nyaa.yasui.hook.SpawnCheckCache", "markHookActive");
+                log("BlockState cache hook installed");
             }
             if (transformer.poiSearchTransformed()) {
                 markHookActive("cat.nyaa.yasui.hook.PoiSearchCache", "markHookActive");
@@ -231,6 +264,9 @@ public final class YasuiAgent {
         private volatile boolean hopperTransformed = false;
         private volatile boolean pathNavTransformed = false;
         private volatile boolean naturalSpawnerTransformed = false;
+        private volatile boolean levelChunkTransformed = false;
+        private volatile boolean pathNavRegionTransformed = false;
+        private volatile boolean poiBlockStateTransformed = false;
         private volatile boolean poiSearchTransformed = false;
         private volatile boolean poiCompetitorTransformed = false;
         private volatile boolean poiLookupTransformed = false;
@@ -248,6 +284,17 @@ public final class YasuiAgent {
             }
             if (NATURAL_SPAWNER_CLASS.equals(className)) {
                 return transformNaturalSpawner(classfileBuffer, loader);
+            }
+            if (LEVEL_CHUNK_CLASS.equals(className)) {
+                return transformLevelChunk(classfileBuffer, loader);
+            }
+            if (PATH_NAV_REGION_CLASS.equals(className)) {
+                return transformPathNavigationRegion(classfileBuffer, loader);
+            }
+            if (VALIDATE_POI_CLASS.equals(className)
+                || SLEEP_IN_BED_CLASS.equals(className)
+                || WORK_AT_COMPOSTER_CLASS.equals(className)) {
+                return transformPoiBlockStateReads(classfileBuffer, loader);
             }
             if (ACQUIRE_POI_CLASS.equals(className)) {
                 return transformAcquirePoi(classfileBuffer, loader);
@@ -469,6 +516,190 @@ public final class YasuiAgent {
                 return changed[0] ? writer.toByteArray() : null;
             } catch (Throwable t) {
                 log("NaturalSpawner transformer failed: " + t.getClass().getSimpleName() + " " + t.getMessage());
+                return null;
+            }
+        }
+
+        private byte[] transformLevelChunk(byte[] classfileBuffer, ClassLoader loader) {
+            try {
+                ClassReader reader = new ClassReader(classfileBuffer);
+                ClassWriter writer = newClassWriter(reader, loader);
+                boolean[] changed = new boolean[] {false};
+                ClassVisitor visitor = new ClassVisitor(Opcodes.ASM9, writer) {
+                    @Override
+                    public MethodVisitor visitMethod(int access, String name, String descriptor,
+                                                     String signature, String[] exceptions) {
+                        MethodVisitor mv = super.visitMethod(access, name, descriptor, signature, exceptions);
+                        if (!LEVEL_CHUNK_SETBLOCKSTATE_METHOD.equals(name)
+                            || !LEVEL_CHUNK_SETBLOCKSTATE_DESC.equals(descriptor)) {
+                            return mv;
+                        }
+                        return new MethodVisitor(Opcodes.ASM9, mv) {
+                            @Override
+                            public void visitInsn(int opcode) {
+                                if (opcode == Opcodes.ARETURN) {
+                                    changed[0] = true;
+                                    Label skip = new Label();
+                                    super.visitInsn(Opcodes.DUP);
+                                    super.visitJumpInsn(Opcodes.IFNULL, skip);
+                                    super.visitVarInsn(Opcodes.ALOAD, 0);
+                                    super.visitFieldInsn(
+                                        Opcodes.GETFIELD,
+                                        LEVEL_CHUNK_CLASS,
+                                        LEVEL_CHUNK_LEVEL_FIELD,
+                                        LEVEL_CHUNK_LEVEL_DESC
+                                    );
+                                    super.visitVarInsn(Opcodes.ALOAD, 1);
+                                    super.visitMethodInsn(
+                                        Opcodes.INVOKESTATIC,
+                                        "cat/nyaa/yasui/hook/SpawnCheckCache",
+                                        "invalidateBlockState",
+                                        BLOCKSTATE_INVALIDATE_DESC,
+                                        false
+                                    );
+                                    super.visitLabel(skip);
+                                }
+                                super.visitInsn(opcode);
+                            }
+                        };
+                    }
+
+                    @Override
+                    public void visitEnd() {
+                        if (changed[0]) {
+                            levelChunkTransformed = true;
+                        }
+                        super.visitEnd();
+                    }
+                };
+                reader.accept(visitor, 0);
+                return changed[0] ? writer.toByteArray() : null;
+            } catch (Throwable t) {
+                log("LevelChunk transformer failed: " + t.getClass().getSimpleName() + " " + t.getMessage());
+                return null;
+            }
+        }
+
+        private byte[] transformPathNavigationRegion(byte[] classfileBuffer, ClassLoader loader) {
+            try {
+                ClassReader reader = new ClassReader(classfileBuffer);
+                ClassWriter writer = newClassWriter(reader, loader);
+                boolean[] changed = new boolean[] {false};
+                ClassVisitor visitor = new ClassVisitor(Opcodes.ASM9, writer) {
+                    @Override
+                    public MethodVisitor visitMethod(int access, String name, String descriptor,
+                                                     String signature, String[] exceptions) {
+                        MethodVisitor mv = super.visitMethod(access, name, descriptor, signature, exceptions);
+                        if (!PATH_NAV_REGION_GETBLOCKSTATE.equals(name)
+                            && !PATH_NAV_REGION_GETBLOCKSTATE_IF_LOADED.equals(name)) {
+                            return mv;
+                        }
+                        return new MethodVisitor(Opcodes.ASM9, mv) {
+                            @Override
+                            public void visitMethodInsn(int opcode, String owner, String name, String desc, boolean isInterface) {
+                                if (opcode == Opcodes.INVOKEVIRTUAL
+                                    && CHUNK_ACCESS_CLASS.equals(owner)
+                                    && CHUNK_ACCESS_GETBLOCKSTATE.equals(name)
+                                    && LEVEL_GETBLOCKSTATE_DESC.equals(desc)) {
+                                    changed[0] = true;
+                                    super.visitVarInsn(Opcodes.ALOAD, 0);
+                                    super.visitFieldInsn(
+                                        Opcodes.GETFIELD,
+                                        PATH_NAV_REGION_CLASS,
+                                        PATH_NAV_REGION_LEVEL_FIELD,
+                                        PATH_NAV_REGION_LEVEL_DESC
+                                    );
+                                    super.visitMethodInsn(
+                                        Opcodes.INVOKESTATIC,
+                                        "cat/nyaa/yasui/hook/BlockStateCache",
+                                        "getBlockStateFromChunk",
+                                        BLOCKSTATE_CACHE_CHUNK_DESC,
+                                        false
+                                    );
+                                    super.visitTypeInsn(Opcodes.CHECKCAST, "net/minecraft/world/level/block/state/BlockState");
+                                    return;
+                                }
+                                super.visitMethodInsn(opcode, owner, name, desc, isInterface);
+                            }
+                        };
+                    }
+
+                    @Override
+                    public void visitEnd() {
+                        if (changed[0]) {
+                            pathNavRegionTransformed = true;
+                        }
+                        super.visitEnd();
+                    }
+                };
+                reader.accept(visitor, 0);
+                return changed[0] ? writer.toByteArray() : null;
+            } catch (Throwable t) {
+                log("PathNavigationRegion transformer failed: " + t.getClass().getSimpleName() + " " + t.getMessage());
+                return null;
+            }
+        }
+
+        private byte[] transformPoiBlockStateReads(byte[] classfileBuffer, ClassLoader loader) {
+            try {
+                ClassReader reader = new ClassReader(classfileBuffer);
+                ClassWriter writer = newClassWriter(reader, loader);
+                boolean[] changed = new boolean[] {false};
+                ClassVisitor visitor = new ClassVisitor(Opcodes.ASM9, writer) {
+                    @Override
+                    public MethodVisitor visitMethod(int access, String name, String descriptor,
+                                                     String signature, String[] exceptions) {
+                        MethodVisitor mv = super.visitMethod(access, name, descriptor, signature, exceptions);
+                        return new MethodVisitor(Opcodes.ASM9, mv) {
+                            @Override
+                            public void visitMethodInsn(int opcode, String owner, String name, String desc, boolean isInterface) {
+                                if (opcode == Opcodes.INVOKEVIRTUAL
+                                    && (SERVER_LEVEL_CLASS.equals(owner) || LEVEL_CLASS.equals(owner))
+                                    && LEVEL_GETBLOCKSTATE_RAW_METHOD.equals(name)
+                                    && LEVEL_GETBLOCKSTATE_DESC.equals(desc)) {
+                                    changed[0] = true;
+                                    super.visitMethodInsn(
+                                        Opcodes.INVOKESTATIC,
+                                        "cat/nyaa/yasui/hook/BlockStateCache",
+                                        "getBlockStateFromLevel",
+                                        BLOCKSTATE_CACHE_LEVEL_DESC,
+                                        false
+                                    );
+                                    super.visitTypeInsn(Opcodes.CHECKCAST, "net/minecraft/world/level/block/state/BlockState");
+                                    return;
+                                }
+                                if (opcode == Opcodes.INVOKEVIRTUAL
+                                    && (SERVER_LEVEL_CLASS.equals(owner) || LEVEL_CLASS.equals(owner))
+                                    && LEVEL_GETBLOCKSTATE_IF_LOADED_METHOD.equals(name)
+                                    && LEVEL_GETBLOCKSTATE_DESC.equals(desc)) {
+                                    changed[0] = true;
+                                    super.visitMethodInsn(
+                                        Opcodes.INVOKESTATIC,
+                                        "cat/nyaa/yasui/hook/BlockStateCache",
+                                        "getBlockStateIfLoadedFromLevel",
+                                        BLOCKSTATE_CACHE_LEVEL_DESC,
+                                        false
+                                    );
+                                    super.visitTypeInsn(Opcodes.CHECKCAST, "net/minecraft/world/level/block/state/BlockState");
+                                    return;
+                                }
+                                super.visitMethodInsn(opcode, owner, name, desc, isInterface);
+                            }
+                        };
+                    }
+
+                    @Override
+                    public void visitEnd() {
+                        if (changed[0]) {
+                            poiBlockStateTransformed = true;
+                        }
+                        super.visitEnd();
+                    }
+                };
+                reader.accept(visitor, 0);
+                return changed[0] ? writer.toByteArray() : null;
+            } catch (Throwable t) {
+                log("POI block-state transformer failed: " + t.getClass().getSimpleName() + " " + t.getMessage());
                 return null;
             }
         }
@@ -838,6 +1069,18 @@ public final class YasuiAgent {
 
         private boolean naturalSpawnerTransformed() {
             return naturalSpawnerTransformed;
+        }
+
+        private boolean levelChunkTransformed() {
+            return levelChunkTransformed;
+        }
+
+        private boolean pathNavRegionTransformed() {
+            return pathNavRegionTransformed;
+        }
+
+        private boolean poiBlockStateTransformed() {
+            return poiBlockStateTransformed;
         }
 
         private boolean poiSearchTransformed() {
