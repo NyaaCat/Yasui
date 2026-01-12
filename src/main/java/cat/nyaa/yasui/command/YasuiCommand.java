@@ -16,7 +16,6 @@ import cat.nyaa.yasui.nms.PoiCompetitorNmsHook;
 import cat.nyaa.yasui.nms.PoiLookupNmsHook;
 import cat.nyaa.yasui.nms.PoiSearchNmsHook;
 import cat.nyaa.yasui.nms.PoiTypeNmsHook;
-import cat.nyaa.yasui.nms.TickGroupNmsHook;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -172,13 +171,6 @@ public class YasuiCommand implements CommandExecutor, TabCompleter {
                 + (config.isHotChunkPoiLookupBoostEnabled() ? "On" : "Off")
                 + "§7 | PoiType "
                 + (config.isHotChunkPoiTypeBoostEnabled() ? "On" : "Off"));
-            if (config.getHotChunkTickGroups() > 0) {
-                int groups = config.getHotChunkTickGroups() + 1;
-                sender.sendMessage("  §7Tick Groups: §f" + groups + " §7(tick once every " + groups + "t, hot-only)");
-                sender.sendMessage("  §7TickGroup Hook: §f" + (TickGroupNmsHook.isHookActive() ? "Active" : "Inactive"));
-            } else {
-                sender.sendMessage("  §7Tick Groups: §fDisabled");
-            }
             sender.sendMessage("  §7Villager PDC: §f" + (config.isHotChunkVillagerPdcEnabled() ? "Enabled" : "Disabled"));
             sender.sendMessage("  §7Villager Static: §f" + (config.isHotChunkVillagerStaticEnabled() ? "Enabled" : "Disabled")
                 + " §7(stable " + config.getHotChunkVillagerStaticStableTicks() + "t, scan "
@@ -211,7 +203,6 @@ public class YasuiCommand implements CommandExecutor, TabCompleter {
         sender.sendMessage("  §7- Distance cache for quick near/distant checks");
         sender.sendMessage("  §7- Pathfinding result cache (short TTL)");
         sender.sendMessage("  §7- Chunk epoch invalidation for caches");
-        sender.sendMessage("  §7- Hot chunk AI tick groups (hot chunks only)");
         sender.sendMessage("");
         sender.sendMessage("§fGoal: §7Reduce server tick time while preserving vanilla behavior");
         sender.sendMessage("§fCommands: §e/yasui status §7| §e/yasui reload §7| §e/yasui info");

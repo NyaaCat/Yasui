@@ -102,10 +102,6 @@ optimizations:
     heat-decay: 0.85
     # Minimum heat to keep a chunk tracked
     min-heat: 0.15
-    # Spread AI ticks across groups in hot chunks (0 = disabled)
-    tick-groups: 0
-    # Rescan loaded chunks in batches to refresh tick group PDCs
-    tick-group-rescan-chunks: 16
     # Persist villager POI cache in hot chunks to avoid load hitches
     villager-pdc:
       enabled: true

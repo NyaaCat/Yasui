@@ -53,10 +53,7 @@ Detects hot areas by mob density and scales cache behavior without changing vani
 - Heat is a [0,1] value that decays each scan and spikes based on mob density
 - In hot chunks, pathfinding + POI caches (AcquirePoi/Competitor/PoiAccess/PoiType) scale linearly by heat
 - Villagers in hot chunks can persist POI cache via PDC and skip scans if static
-- Optional tick groups spread Mob AI ticks across N+1 groups (hot chunks only)
 - Reuses Entity Distance Cache snapshots to avoid extra main-thread scans (optional)
-
-Tick groups skip Mob `serverAiStep` (AI/navigation/control updates) but still allow normal movement/physics ticks.
 
 ### Pathfinding Cache
 
@@ -153,8 +150,6 @@ optimizations:
     snapshot-max-age-ms: 10000
     heat-decay: 0.85
     min-heat: 0.15
-    tick-groups: 0
-    tick-group-rescan-chunks: 16
     villager-pdc:
       enabled: true
     villager-static:

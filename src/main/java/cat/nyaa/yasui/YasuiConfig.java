@@ -81,8 +81,6 @@ public class YasuiConfig {
     private long hotChunkSnapshotMaxAgeMs;
     private double hotChunkHeatDecay;
     private double hotChunkMinHeat;
-    private int hotChunkTickGroups;
-    private int hotChunkTickGroupRescanChunks;
     private boolean hotChunkVillagerPdcEnabled;
     private boolean hotChunkVillagerStaticEnabled;
     private int hotChunkVillagerStaticStableTicks;
@@ -179,8 +177,6 @@ public class YasuiConfig {
         hotChunkSnapshotMaxAgeMs = 10000L;
         hotChunkHeatDecay = 0.85;
         hotChunkMinHeat = 0.15;
-        hotChunkTickGroups = 0;
-        hotChunkTickGroupRescanChunks = 16;
         hotChunkVillagerPdcEnabled = true;
         hotChunkVillagerStaticEnabled = true;
         hotChunkVillagerStaticStableTicks = 100;
@@ -316,8 +312,6 @@ public class YasuiConfig {
             hotChunkSnapshotMaxAgeMs = Math.max(0L, hotSection.getLong("snapshot-max-age-ms", 10000L));
             hotChunkHeatDecay = clampDouble(hotSection.getDouble("heat-decay", 0.85), 0.0, 1.0);
             hotChunkMinHeat = clampDouble(hotSection.getDouble("min-heat", 0.15), 0.0, 1.0);
-            hotChunkTickGroups = Math.max(0, hotSection.getInt("tick-groups", 0));
-            hotChunkTickGroupRescanChunks = Math.max(1, hotSection.getInt("tick-group-rescan-chunks", 16));
 
             ConfigurationSection pdcSection = hotSection.getConfigurationSection("villager-pdc");
             if (pdcSection != null) {
@@ -618,14 +612,6 @@ public class YasuiConfig {
 
     public double getHotChunkMinHeat() {
         return hotChunkMinHeat;
-    }
-
-    public int getHotChunkTickGroups() {
-        return hotChunkTickGroups;
-    }
-
-    public int getHotChunkTickGroupRescanChunks() {
-        return hotChunkTickGroupRescanChunks;
     }
 
     public boolean isHotChunkVillagerPdcEnabled() {

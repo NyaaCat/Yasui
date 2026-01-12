@@ -60,9 +60,6 @@ public final class NmsReflect {
     private static volatile MethodHandle entityGetUuid;
     private static volatile MethodHandle entityBlockPosition;
     private static volatile MethodHandle entityGetLevel;
-    private static volatile MethodHandle livingEntityNoActionGetter;
-    private static volatile MethodHandle livingEntityNoActionSetter;
-    private static volatile MethodHandle mobAwareGetter;
 
     // BlockPos
     private static volatile MethodHandle blockPosAsLong;
@@ -167,24 +164,6 @@ public final class NmsReflect {
         } catch (Throwable ignored) {
             entityGetLevel = null;
         }
-        try {
-            Class<?> livingEntityClass = Class.forName("net.minecraft.world.entity.LivingEntity", true, nmsClassLoader);
-            Field noActionField = livingEntityClass.getDeclaredField("noActionTime");
-            noActionField.setAccessible(true);
-            livingEntityNoActionGetter = lookup.unreflectGetter(noActionField);
-            livingEntityNoActionSetter = lookup.unreflectSetter(noActionField);
-        } catch (Throwable ignored) {
-            livingEntityNoActionGetter = null;
-            livingEntityNoActionSetter = null;
-        }
-        try {
-            Class<?> mobClass = Class.forName("net.minecraft.world.entity.Mob", true, nmsClassLoader);
-            Field awareField = mobClass.getField("aware");
-            mobAwareGetter = lookup.unreflectGetter(awareField);
-        } catch (Throwable ignored) {
-            mobAwareGetter = null;
-        }
-
         // BlockPos
         Class<?> blockPosClass = Class.forName("net.minecraft.core.BlockPos", true, nmsClassLoader);
         blockPosAsLong = lookup.findVirtual(blockPosClass, "asLong", MethodType.methodType(long.class));
@@ -383,28 +362,6 @@ public final class NmsReflect {
             return entityGetLevel.invoke(entity);
         } catch (Throwable t) {
             return null;
-        }
-    }
-
-    public static void incrementNoActionTime(Object entity) {
-        if (entity == null || livingEntityNoActionGetter == null || livingEntityNoActionSetter == null) {
-            return;
-        }
-        try {
-            int current = (int) livingEntityNoActionGetter.invoke(entity);
-            livingEntityNoActionSetter.invoke(entity, current + 1);
-        } catch (Throwable ignored) {
-        }
-    }
-
-    public static boolean isMobAware(Object mob) {
-        if (mob == null || mobAwareGetter == null) {
-            return false;
-        }
-        try {
-            return (boolean) mobAwareGetter.invoke(mob);
-        } catch (Throwable ignored) {
-            return false;
         }
     }
 

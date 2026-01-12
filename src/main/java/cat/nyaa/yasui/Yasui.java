@@ -3,7 +3,6 @@ package cat.nyaa.yasui;
 import cat.nyaa.yasui.command.YasuiCommand;
 import cat.nyaa.yasui.optimizer.HopperOptimizer;
 import cat.nyaa.yasui.optimizer.HotChunkTracker;
-import cat.nyaa.yasui.optimizer.HotChunkTickGroup;
 import cat.nyaa.yasui.optimizer.VillagerPOICache;
 import cat.nyaa.yasui.optimizer.EntitySpreadTicker;
 import cat.nyaa.yasui.optimizer.PathfindingCacheTracker;
@@ -18,7 +17,6 @@ import cat.nyaa.yasui.nms.PoiCompetitorNmsHook;
 import cat.nyaa.yasui.nms.PoiSearchNmsHook;
 import cat.nyaa.yasui.nms.PoiLookupNmsHook;
 import cat.nyaa.yasui.nms.PoiTypeNmsHook;
-import cat.nyaa.yasui.nms.TickGroupNmsHook;
 import org.bukkit.event.HandlerList;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -44,7 +42,6 @@ public class Yasui extends JavaPlugin {
     private PoiLookupCacheTracker poiLookupCacheTracker;
     private PoiTypeCacheTracker poiTypeCacheTracker;
     private HotChunkTracker hotChunkTracker;
-    private HotChunkTickGroup hotChunkTickGroup;
     private ChunkEpochTracker chunkEpochTracker;
 
     @Override
@@ -59,8 +56,6 @@ public class Yasui extends JavaPlugin {
         boolean competitorCacheEnabled = config.isVillagerPOIEnabled() && config.isPoiCompetitorCacheEnabled();
         boolean poiLookupEnabled = config.isVillagerPOIEnabled() && config.isPoiLookupCacheEnabled();
         boolean poiTypeEnabled = config.isVillagerPOIEnabled() && config.isPoiTypeCacheEnabled();
-        boolean tickGroupEnabled = config.isHotChunksEnabled() && config.getHotChunkTickGroups() > 0;
-
         if (config.isHopperFullCacheEnabled()) {
             boolean hookActive = HopperNmsHook.install(this);
             if (hookActive) {
@@ -84,19 +79,6 @@ public class Yasui extends JavaPlugin {
                     getLogger().warning("Pathfinding cache hook failed: " + error);
                 } else {
                     getLogger().warning("Pathfinding cache hook failed");
-                }
-            }
-        }
-        if (tickGroupEnabled) {
-            boolean hookActive = TickGroupNmsHook.install(this);
-            if (hookActive) {
-                getLogger().info("Tick group hook active");
-            } else {
-                String error = TickGroupNmsHook.getErrorMessage();
-                if (error != null) {
-                    getLogger().warning("Tick group hook failed: " + error);
-                } else {
-                    getLogger().warning("Tick group hook failed");
                 }
             }
         }
@@ -167,7 +149,6 @@ public class Yasui extends JavaPlugin {
             config.getPathfindingCacheTargetMoveThreshold(),
             config.getPathfindingCacheNegativeTtlTicks()
         );
-        TickGroupNmsHook.configure(tickGroupEnabled, config.getHotChunkTickGroups());
         PoiSearchNmsHook.configure(
             acquirePoiEnabled,
             config.getAcquirePoiCacheTtlTicks(),
@@ -271,12 +252,6 @@ public class Yasui extends JavaPlugin {
             hotChunkTracker.start();
             getLogger().info("Hot chunk tracker enabled");
         }
-        if (tickGroupEnabled) {
-            hotChunkTickGroup = new HotChunkTickGroup(this, config);
-            getServer().getPluginManager().registerEvents(hotChunkTickGroup, this);
-            hotChunkTickGroup.start();
-            getLogger().info("Hot chunk tick groups enabled");
-        }
 
         // Register command
         getCommand("yasui").setExecutor(new YasuiCommand(this));
@@ -326,10 +301,6 @@ public class Yasui extends JavaPlugin {
         if (hotChunkTracker != null) {
             hotChunkTracker.shutdown();
         }
-        if (hotChunkTickGroup != null) {
-            HandlerList.unregisterAll(hotChunkTickGroup);
-            hotChunkTickGroup.shutdown();
-        }
 
         getLogger().info("Yasui optimization plugin disabled");
     }
@@ -346,8 +317,6 @@ public class Yasui extends JavaPlugin {
 
         // Reload config object
         config = new YasuiConfig(this);
-        boolean tickGroupEnabled = config.isHotChunksEnabled() && config.getHotChunkTickGroups() > 0;
-
         if (config.isHopperFullCacheEnabled() && !HopperNmsHook.isHookActive()) {
             boolean hookActive = HopperNmsHook.install(this);
             if (hookActive) {
@@ -371,19 +340,6 @@ public class Yasui extends JavaPlugin {
                     getLogger().warning("Pathfinding cache hook failed: " + error);
                 } else {
                     getLogger().warning("Pathfinding cache hook failed");
-                }
-            }
-        }
-        if (tickGroupEnabled && !TickGroupNmsHook.isHookActive()) {
-            boolean hookActive = TickGroupNmsHook.install(this);
-            if (hookActive) {
-                getLogger().info("Tick group hook active");
-            } else {
-                String error = TickGroupNmsHook.getErrorMessage();
-                if (error != null) {
-                    getLogger().warning("Tick group hook failed: " + error);
-                } else {
-                    getLogger().warning("Tick group hook failed");
                 }
             }
         }
@@ -458,7 +414,6 @@ public class Yasui extends JavaPlugin {
             config.getPathfindingCacheTargetMoveThreshold(),
             config.getPathfindingCacheNegativeTtlTicks()
         );
-        TickGroupNmsHook.configure(tickGroupEnabled, config.getHotChunkTickGroups());
         PoiSearchNmsHook.configure(
             acquirePoiEnabled,
             config.getAcquirePoiCacheTtlTicks(),
@@ -629,20 +584,6 @@ public class Yasui extends JavaPlugin {
             getLogger().info("Hot chunk tracker disabled");
         }
 
-        if (hotChunkTickGroup != null) {
-            HandlerList.unregisterAll(hotChunkTickGroup);
-            hotChunkTickGroup.shutdown();
-            hotChunkTickGroup = null;
-        }
-        if (tickGroupEnabled) {
-            hotChunkTickGroup = new HotChunkTickGroup(this, config);
-            getServer().getPluginManager().registerEvents(hotChunkTickGroup, this);
-            hotChunkTickGroup.start();
-            getLogger().info("Hot chunk tick groups reloaded");
-        } else {
-            getLogger().info("Hot chunk tick groups disabled");
-        }
-
         getLogger().info("Configuration reload complete!");
     }
 
@@ -684,10 +625,6 @@ public class Yasui extends JavaPlugin {
 
     public HotChunkTracker getHotChunkTracker() {
         return hotChunkTracker;
-    }
-
-    public HotChunkTickGroup getHotChunkTickGroup() {
-        return hotChunkTickGroup;
     }
 
     private void ensureConfigDefaults() {

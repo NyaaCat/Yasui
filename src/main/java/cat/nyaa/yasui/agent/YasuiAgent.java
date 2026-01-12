@@ -28,11 +28,6 @@ public final class YasuiAgent {
     // Hook uses Object and int ordinal to avoid classloader issues
     private static final String HOPPER_HOOK_DESC = "(Ljava/lang/Object;I)Z";
 
-    private static final String MOB_CLASS = "net/minecraft/world/entity/Mob";
-    private static final String MOB_SERVER_AI_METHOD = "serverAiStep";
-    private static final String MOB_SERVER_AI_DESC = "()V";
-    private static final String TICK_GROUP_HOOK_DESC = "(Ljava/lang/Object;)Z";
-
     private static final String PATHNAV_CLASS = "net/minecraft/world/entity/ai/navigation/PathNavigation";
     private static final String PATHNAV_METHOD = "createPath";
     private static final String PATHNAV_DESC = "(Ljava/util/Set;Lnet/minecraft/world/entity/Entity;IZIF)Lnet/minecraft/world/level/pathfinder/Path;";
@@ -93,7 +88,6 @@ public final class YasuiAgent {
         inst.addTransformer(transformer, true);
         try {
             retransform(inst, HOPPER_CLASS);
-            retransform(inst, MOB_CLASS);
             retransform(inst, PATHNAV_CLASS);
             retransform(inst, ACQUIRE_POI_CLASS);
             retransform(inst, POI_COMPETITOR_CLASS);
@@ -106,10 +100,6 @@ public final class YasuiAgent {
             if (transformer.pathNavTransformed()) {
                 markHookActive("cat.nyaa.yasui.hook.PathfindingCache", "markHookActive");
                 log("Pathfinding cache hook installed");
-            }
-            if (transformer.tickGroupTransformed()) {
-                markHookActive("cat.nyaa.yasui.hook.TickGroupGate", "markHookActive");
-                log("Tick group hook installed");
             }
             if (transformer.poiSearchTransformed()) {
                 markHookActive("cat.nyaa.yasui.hook.PoiSearchCache", "markHookActive");
@@ -223,7 +213,6 @@ public final class YasuiAgent {
     private static final class YasuiTransformer implements ClassFileTransformer {
         private volatile boolean hopperTransformed = false;
         private volatile boolean pathNavTransformed = false;
-        private volatile boolean tickGroupTransformed = false;
         private volatile boolean poiSearchTransformed = false;
         private volatile boolean poiCompetitorTransformed = false;
         private volatile boolean poiLookupTransformed = false;
@@ -235,9 +224,6 @@ public final class YasuiAgent {
                                 byte[] classfileBuffer) {
             if (HOPPER_CLASS.equals(className)) {
                 return transformHopper(classfileBuffer, loader);
-            }
-            if (MOB_CLASS.equals(className)) {
-                return transformMob(classfileBuffer, loader);
             }
             if (PATHNAV_CLASS.equals(className)) {
                 return transformPathNavigation(classfileBuffer, loader);
@@ -394,56 +380,6 @@ public final class YasuiAgent {
                 return writer.toByteArray();
             } catch (Throwable t) {
                 log("PathNavigation transformer failed: " + t.getClass().getSimpleName() + " " + t.getMessage());
-                return null;
-            }
-        }
-
-        private byte[] transformMob(byte[] classfileBuffer, ClassLoader loader) {
-            try {
-                ClassReader reader = new ClassReader(classfileBuffer);
-                ClassWriter writer = newClassWriter(reader, loader);
-                boolean[] changed = new boolean[] {false};
-                ClassVisitor visitor = new ClassVisitor(Opcodes.ASM9, writer) {
-                    @Override
-                    public MethodVisitor visitMethod(int access, String name, String descriptor,
-                                                     String signature, String[] exceptions) {
-                        MethodVisitor mv = super.visitMethod(access, name, descriptor, signature, exceptions);
-                        if (!MOB_SERVER_AI_METHOD.equals(name) || !MOB_SERVER_AI_DESC.equals(descriptor)) {
-                            return mv;
-                        }
-                        changed[0] = true;
-                        return new MethodVisitor(Opcodes.ASM9, mv) {
-                            @Override
-                            public void visitCode() {
-                                super.visitCode();
-                                Label continueLabel = new Label();
-                                super.visitVarInsn(Opcodes.ALOAD, 0);
-                                super.visitMethodInsn(
-                                    Opcodes.INVOKESTATIC,
-                                    "cat/nyaa/yasui/hook/TickGroupGate",
-                                    "shouldSkipAi",
-                                    TICK_GROUP_HOOK_DESC,
-                                    false
-                                );
-                                super.visitJumpInsn(Opcodes.IFEQ, continueLabel);
-                                super.visitInsn(Opcodes.RETURN);
-                                super.visitLabel(continueLabel);
-                            }
-                        };
-                    }
-
-                    @Override
-                    public void visitEnd() {
-                        if (changed[0]) {
-                            tickGroupTransformed = true;
-                        }
-                        super.visitEnd();
-                    }
-                };
-                reader.accept(visitor, 0);
-                return changed[0] ? writer.toByteArray() : null;
-            } catch (Throwable t) {
-                log("Mob transformer failed: " + t.getClass().getSimpleName() + " " + t.getMessage());
                 return null;
             }
         }
@@ -809,10 +745,6 @@ public final class YasuiAgent {
 
         private boolean pathNavTransformed() {
             return pathNavTransformed;
-        }
-
-        private boolean tickGroupTransformed() {
-            return tickGroupTransformed;
         }
 
         private boolean poiSearchTransformed() {
