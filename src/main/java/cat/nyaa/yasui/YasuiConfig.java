@@ -346,10 +346,10 @@ public class YasuiConfig {
             hotChunkHeatDecay = clampDouble(hotSection.getDouble("heat-decay", 0.85), 0.0, 1.0);
             hotChunkMinHeat = clampDouble(hotSection.getDouble("min-heat", 0.15), 0.0, 1.0);
 
-            ConfigurationSection blockStateSection = hotSection.getConfigurationSection("blockstate-cache");
-            if (blockStateSection != null) {
-                hotChunkBlockStateCacheEnabled = blockStateSection.getBoolean("enabled", true);
-                hotChunkBlockStateCacheTtlTicks = Math.max(0, blockStateSection.getInt("ttl-ticks", 100));
+            ConfigurationSection hotBlockStateSection = hotSection.getConfigurationSection("blockstate-cache");
+            if (hotBlockStateSection != null) {
+                hotChunkBlockStateCacheEnabled = hotBlockStateSection.getBoolean("enabled", true);
+                hotChunkBlockStateCacheTtlTicks = Math.max(0, hotBlockStateSection.getInt("ttl-ticks", 100));
             }
 
             ConfigurationSection pdcSection = hotSection.getConfigurationSection("villager-pdc");
