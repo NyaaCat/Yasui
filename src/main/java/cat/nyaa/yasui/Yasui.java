@@ -22,6 +22,11 @@ import cat.nyaa.yasui.nms.SpawnCheckNmsHook;
 import org.bukkit.event.HandlerList;
 import org.bukkit.plugin.java.JavaPlugin;
 
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.atomic.AtomicInteger;
+
 /**
  * Yasui - Paper 1.21.8 Server Optimization Plugin
  *
@@ -46,6 +51,7 @@ public class Yasui extends JavaPlugin {
     private PoiTypeCacheTracker poiTypeCacheTracker;
     private HotChunkTracker hotChunkTracker;
     private ChunkEpochTracker chunkEpochTracker;
+    private ExecutorService workerPool;
 
     @Override
     public void onEnable() {
@@ -331,6 +337,11 @@ public class Yasui extends JavaPlugin {
 
         if (hotChunkTracker != null) {
             hotChunkTracker.shutdown();
+        }
+
+        if (workerPool != null) {
+            workerPool.shutdown();
+            workerPool = null;
         }
 
         getLogger().info("Yasui optimization plugin disabled");
@@ -662,6 +673,28 @@ public class Yasui extends JavaPlugin {
 
     public EntitySpreadTicker getEntitySpread() {
         return entitySpread;
+    }
+
+    public synchronized ExecutorService getWorkerPool() {
+        if (!isEnabled()) {
+            return workerPool;
+        }
+        if (workerPool == null || workerPool.isShutdown()) {
+            workerPool = createWorkerPool();
+        }
+        return workerPool;
+    }
+
+    private static ExecutorService createWorkerPool() {
+        int threads = Math.max(2, Runtime.getRuntime().availableProcessors());
+        AtomicInteger id = new AtomicInteger(1);
+        ThreadFactory factory = runnable -> {
+            Thread thread = new Thread(runnable);
+            thread.setDaemon(true);
+            thread.setName("Yasui Worker #" + id.getAndIncrement());
+            return thread;
+        };
+        return Executors.newFixedThreadPool(threads, factory);
     }
 
     public PathfindingCacheTracker getPathfindingCacheTracker() {

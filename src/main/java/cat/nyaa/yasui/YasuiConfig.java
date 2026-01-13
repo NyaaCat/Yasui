@@ -575,6 +575,18 @@ public class YasuiConfig {
         return type == EntityType.VILLAGER;
     }
 
+    public boolean shouldOptimizePOISquared(EntityType type, boolean hasName, double nearestPlayerDistanceSquared) {
+        if (poiRules == null || poiRules.isEmpty()) {
+            return type == EntityType.VILLAGER;
+        }
+        for (POIRule rule : poiRules) {
+            if (rule.matchesSquared(type, hasName, nearestPlayerDistanceSquared)) {
+                return rule.optimize();
+            }
+        }
+        return type == EntityType.VILLAGER;
+    }
+
     // Entity distance cache getters
     public boolean isEntitySpreadEnabled() {
         return entitySpreadEnabled;
@@ -805,6 +817,16 @@ public class YasuiConfig {
             }
             return distanceRule == null || distanceRule.matches(distance);
         }
+
+        public boolean matchesSquared(EntityType type, boolean hasName, double distanceSquared) {
+            if (this.type != type) {
+                return false;
+            }
+            if (this.named != hasName) {
+                return false;
+            }
+            return distanceRule == null || distanceRule.matchesSquared(distanceSquared);
+        }
     }
 
     public enum DistanceOp {
@@ -819,6 +841,23 @@ public class YasuiConfig {
                 case LT -> distance < value;
                 case LE -> distance <= value;
                 case EQ -> distance == value;
+            };
+        }
+
+        public boolean matchesSquared(double distanceSquared) {
+            if (value < 0) {
+                return switch (op) {
+                    case GT, GE -> true;
+                    case LT, LE, EQ -> false;
+                };
+            }
+            double limit = value * value;
+            return switch (op) {
+                case GT -> distanceSquared > limit;
+                case GE -> distanceSquared >= limit;
+                case LT -> distanceSquared < limit;
+                case LE -> distanceSquared <= limit;
+                case EQ -> distanceSquared == limit;
             };
         }
 

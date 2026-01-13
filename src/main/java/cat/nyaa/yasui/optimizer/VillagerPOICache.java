@@ -147,13 +147,13 @@ public class VillagerPOICache implements Listener {
             }
 
             for (Entity entity : world.getEntitiesByClass(org.bukkit.entity.Villager.class)) {
-                double nearestDistance = getNearestPlayerDistance(entity, playerLocations);
-                if (!shouldOptimize(entity, nearestDistance)) {
+                double nearestDistanceSquared = getNearestPlayerDistanceSquared(entity, playerLocations);
+                if (!shouldOptimize(entity, nearestDistanceSquared)) {
                     continue;
                 }
 
                 org.bukkit.entity.Villager bukkitVillager = (org.bukkit.entity.Villager) entity;
-                optimizeVillager(bukkitVillager, nearestDistance, false);
+                optimizeVillager(bukkitVillager, nearestDistanceSquared, false);
             }
         }
     }
@@ -189,11 +189,11 @@ public class VillagerPOICache implements Listener {
             if (!(entity instanceof org.bukkit.entity.Villager villager)) {
                 continue;
             }
-            double nearestDistance = getNearestPlayerDistance(villager, playerLocations);
-            if (!shouldOptimize(villager, nearestDistance)) {
+            double nearestDistanceSquared = getNearestPlayerDistanceSquared(villager, playerLocations);
+            if (!shouldOptimize(villager, nearestDistanceSquared)) {
                 continue;
             }
-            optimizeVillager(villager, nearestDistance, true);
+            optimizeVillager(villager, nearestDistanceSquared, true);
         }
     }
 
@@ -206,7 +206,7 @@ public class VillagerPOICache implements Listener {
         lastCleanupTime = now;
     }
 
-    private void optimizeVillager(org.bukkit.entity.Villager bukkitVillager, double nearestDistance, boolean hotHint) {
+    private void optimizeVillager(org.bukkit.entity.Villager bukkitVillager, double nearestDistanceSquared, boolean hotHint) {
         UUID uuid = bukkitVillager.getUniqueId();
         World world = bukkitVillager.getWorld();
         if (world == null) {
@@ -250,7 +250,7 @@ public class VillagerPOICache implements Listener {
                 }
             } else if (config.isRestoreJobSiteEnabled()) {
                 loadPoiFromPdc(bukkitVillager, hotHint);
-                tryRestoreJobSite(bukkitVillager, nmsVillager, serverLevel, nearestDistance);
+                tryRestoreJobSite(bukkitVillager, nmsVillager, serverLevel, nearestDistanceSquared);
             }
         } catch (Exception e) {
             removePOI(uuid);
@@ -270,12 +270,12 @@ public class VillagerPOICache implements Listener {
     /**
      * Check if should optimize this entity
      */
-    public boolean shouldOptimize(Entity entity, double nearestPlayerDistance) {
+    public boolean shouldOptimize(Entity entity, double nearestPlayerDistanceSquared) {
         if (entity.getType() != EntityType.VILLAGER) {
             return false;
         }
         boolean hasName = entity.customName() != null;
-        return config.shouldOptimizePOI(entity.getType(), hasName, nearestPlayerDistance);
+        return config.shouldOptimizePOISquared(entity.getType(), hasName, nearestPlayerDistanceSquared);
     }
 
     /**
@@ -573,8 +573,8 @@ public class VillagerPOICache implements Listener {
         return false;
     }
 
-    private boolean tryRestoreJobSite(org.bukkit.entity.Villager bukkitVillager, Villager nmsVillager, ServerLevel level, double nearestDistance) {
-        POICache cached = getRestoreCandidate(bukkitVillager, nmsVillager, nearestDistance);
+    private boolean tryRestoreJobSite(org.bukkit.entity.Villager bukkitVillager, Villager nmsVillager, ServerLevel level, double nearestDistanceSquared) {
+        POICache cached = getRestoreCandidate(bukkitVillager, nmsVillager, nearestDistanceSquared);
         if (cached == null) {
             return false;
         }
@@ -609,7 +609,7 @@ public class VillagerPOICache implements Listener {
         return villager.getVillagerData().profession().value().heldJobSite();
     }
 
-    private POICache getRestoreCandidate(org.bukkit.entity.Villager bukkitVillager, Villager nmsVillager, double nearestDistance) {
+    private POICache getRestoreCandidate(org.bukkit.entity.Villager bukkitVillager, Villager nmsVillager, double nearestDistanceSquared) {
         if (!config.isRestoreJobSiteEnabled()) {
             return null;
         }
@@ -621,7 +621,7 @@ public class VillagerPOICache implements Listener {
             return null;
         }
         boolean hasName = bukkitVillager.customName() != null;
-        if (!config.shouldOptimizePOI(EntityType.VILLAGER, hasName, nearestDistance)) {
+        if (!config.shouldOptimizePOISquared(EntityType.VILLAGER, hasName, nearestDistanceSquared)) {
             return null;
         }
 
@@ -699,12 +699,12 @@ public class VillagerPOICache implements Listener {
         return (now / ROLLING_BUCKET_MS) * ROLLING_BUCKET_MS;
     }
 
-    private double getNearestPlayerDistance(Entity entity, List<Location> playerLocations) {
+    private double getNearestPlayerDistanceSquared(Entity entity, List<Location> playerLocations) {
         EntitySpreadTicker spread = plugin.getEntitySpread();
         if (spread != null) {
             double distanceSquared = spread.getNearestPlayerDistanceSquared(entity.getUniqueId());
             if (Double.isFinite(distanceSquared)) {
-                return Math.sqrt(distanceSquared);
+                return distanceSquared;
             }
         }
 
@@ -722,7 +722,7 @@ public class VillagerPOICache implements Listener {
             }
         }
 
-        return Math.sqrt(minDistanceSquared);
+        return minDistanceSquared;
     }
 
     public record RollingRestoreStats(long attempts, long applied, long candidates) {}

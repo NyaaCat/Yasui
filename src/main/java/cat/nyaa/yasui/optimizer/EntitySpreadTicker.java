@@ -16,8 +16,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.logging.Level;
 
 /**
  * Entity Distance Cache
@@ -28,8 +31,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class EntitySpreadTicker implements Listener {
     private final Yasui plugin;
     private final YasuiConfig config;
-    private final Map<UUID, DistanceCategory> distanceCache = new ConcurrentHashMap<>();
-    private final Map<UUID, Double> distanceSquaredCache = new ConcurrentHashMap<>();
+    private volatile Map<UUID, DistanceCategory> distanceCache = Map.of();
+    private volatile Map<UUID, Double> distanceSquaredCache = Map.of();
     private final AtomicBoolean scanRunning = new AtomicBoolean(false);
     private volatile List<MobChunkSnapshot> lastMobChunkSnapshots = List.of();
     private volatile long lastSnapshotTimeMs = 0L;
@@ -71,8 +74,8 @@ public class EntitySpreadTicker implements Listener {
         if (distanceScanTask != null) {
             distanceScanTask.cancel();
         }
-        distanceCache.clear();
-        distanceSquaredCache.clear();
+        distanceCache = Map.of();
+        distanceSquaredCache = Map.of();
     }
 
     /**
@@ -84,24 +87,26 @@ public class EntitySpreadTicker implements Listener {
         }
 
         double nearDistanceSquared = config.getNearDistance() * config.getNearDistance();
-        List<EntitySnapshot> entitySnapshots = new ArrayList<>();
+        List<WorldSnapshot> worldSnapshots = new ArrayList<>();
         List<MobChunkSnapshot> mobChunkSnapshots = new ArrayList<>();
-        Map<UUID, List<PlayerSnapshot>> playerSnapshots = new HashMap<>();
+        int entityCount = 0;
 
         for (World world : plugin.getServer().getWorlds()) {
-            List<PlayerSnapshot> players = new ArrayList<>();
-            for (Player player : world.getPlayers()) {
+            List<Player> players = world.getPlayers();
+            List<PlayerSnapshot> playerSnapshots = new ArrayList<>(players.size());
+            for (Player player : players) {
                 Location loc = player.getLocation();
-                players.add(new PlayerSnapshot(loc.getX(), loc.getY(), loc.getZ()));
+                playerSnapshots.add(new PlayerSnapshot(loc.getX(), loc.getY(), loc.getZ()));
             }
-            playerSnapshots.put(world.getUID(), players);
 
-            for (Entity entity : world.getEntities()) {
+            List<Entity> entities = world.getEntities();
+            List<EntitySnapshot> entitySnapshots = new ArrayList<>(entities.size());
+            for (Entity entity : entities) {
                 if (entity instanceof Player) {
                     continue;
                 }
                 Location loc = entity.getLocation();
-                entitySnapshots.add(new EntitySnapshot(entity.getUniqueId(), world.getUID(), loc.getX(), loc.getY(), loc.getZ()));
+                entitySnapshots.add(new EntitySnapshot(entity.getUniqueId(), loc.getX(), loc.getY(), loc.getZ()));
                 if (entity instanceof Mob) {
                     mobChunkSnapshots.add(new MobChunkSnapshot(
                         world.getUID(),
@@ -110,51 +115,56 @@ public class EntitySpreadTicker implements Listener {
                     ));
                 }
             }
+            worldSnapshots.add(new WorldSnapshot(playerSnapshots, entitySnapshots));
+            entityCount += entitySnapshots.size();
         }
 
         lastMobChunkSnapshots = List.copyOf(mobChunkSnapshots);
         lastSnapshotTimeMs = System.currentTimeMillis();
+        int totalEntities = entityCount;
 
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
-            Map<UUID, DistanceCategory> updated = new HashMap<>(entitySnapshots.size());
-            Map<UUID, Double> updatedDistances = new HashMap<>(entitySnapshots.size());
-
-            for (EntitySnapshot snapshot : entitySnapshots) {
-                List<PlayerSnapshot> players = playerSnapshots.get(snapshot.worldId());
-                if (players == null || players.isEmpty()) {
-                    updated.put(snapshot.uuid(), DistanceCategory.DISTANT);
-                    updatedDistances.put(snapshot.uuid(), Double.POSITIVE_INFINITY);
-                    continue;
-                }
-
-                double minDistanceSquared = Double.MAX_VALUE;
-                for (PlayerSnapshot player : players) {
-                    double dx = snapshot.x() - player.x();
-                    double dy = snapshot.y() - player.y();
-                    double dz = snapshot.z() - player.z();
-                    double distanceSquared = dx * dx + dy * dy + dz * dz;
-                    if (distanceSquared < minDistanceSquared) {
-                        minDistanceSquared = distanceSquared;
+            Map<UUID, DistanceCategory> updated = new HashMap<>(Math.max(totalEntities, 16));
+            Map<UUID, Double> updatedDistances = new HashMap<>(Math.max(totalEntities, 16));
+            try {
+                ExecutorService workerPool = plugin.getWorkerPool();
+                List<CompletableFuture<WorldResult>> futures = new ArrayList<>(worldSnapshots.size());
+                for (WorldSnapshot snapshot : worldSnapshots) {
+                    if (workerPool != null && !workerPool.isShutdown()) {
+                        futures.add(CompletableFuture.supplyAsync(
+                            () -> computeWorld(snapshot, nearDistanceSquared),
+                            workerPool
+                        ));
+                    } else {
+                        futures.add(CompletableFuture.completedFuture(
+                            computeWorld(snapshot, nearDistanceSquared)
+                        ));
                     }
                 }
-
-                DistanceCategory category = minDistanceSquared < nearDistanceSquared
-                    ? DistanceCategory.NEAR
-                    : DistanceCategory.DISTANT;
-                updated.put(snapshot.uuid(), category);
-                updatedDistances.put(snapshot.uuid(), minDistanceSquared);
+                for (CompletableFuture<WorldResult> future : futures) {
+                    try {
+                        WorldResult result = future.join();
+                        updated.putAll(result.categories());
+                        updatedDistances.putAll(result.distances());
+                    } catch (CompletionException e) {
+                        Throwable cause = e.getCause() == null ? e : e.getCause();
+                        plugin.getLogger().log(Level.WARNING, "Entity distance worker failed", cause);
+                    }
+                }
+            } catch (Throwable t) {
+                plugin.getLogger().log(Level.WARNING, "Entity distance scan failed", t);
             }
 
-            Bukkit.getScheduler().runTask(plugin, () -> {
-                try {
-                    distanceCache.clear();
-                    distanceCache.putAll(updated);
-                    distanceSquaredCache.clear();
-                    distanceSquaredCache.putAll(updatedDistances);
-                } finally {
-                    scanRunning.set(false);
-                }
-            });
+            Runnable apply = () -> {
+                distanceCache = updated;
+                distanceSquaredCache = updatedDistances;
+                scanRunning.set(false);
+            };
+            if (plugin.isEnabled()) {
+                Bukkit.getScheduler().runTask(plugin, apply);
+            } else {
+                apply.run();
+            }
         });
     }
 
@@ -192,7 +202,45 @@ public class EntitySpreadTicker implements Listener {
         return new Stats(nearCount, distantCount, distanceCache.size());
     }
 
-    private record EntitySnapshot(UUID uuid, UUID worldId, double x, double y, double z) {}
+    private WorldResult computeWorld(WorldSnapshot snapshot, double nearDistanceSquared) {
+        List<PlayerSnapshot> players = snapshot.players();
+        List<EntitySnapshot> entities = snapshot.entities();
+        Map<UUID, DistanceCategory> categories = new HashMap<>(Math.max(entities.size(), 16));
+        Map<UUID, Double> distances = new HashMap<>(Math.max(entities.size(), 16));
+
+        if (players.isEmpty()) {
+            for (EntitySnapshot entity : entities) {
+                categories.put(entity.uuid(), DistanceCategory.DISTANT);
+                distances.put(entity.uuid(), Double.POSITIVE_INFINITY);
+            }
+            return new WorldResult(categories, distances);
+        }
+
+        for (EntitySnapshot entity : entities) {
+            double minDistanceSquared = Double.MAX_VALUE;
+            for (PlayerSnapshot player : players) {
+                double dx = entity.x() - player.x();
+                double dy = entity.y() - player.y();
+                double dz = entity.z() - player.z();
+                double distanceSquared = dx * dx + dy * dy + dz * dz;
+                if (distanceSquared < minDistanceSquared) {
+                    minDistanceSquared = distanceSquared;
+                }
+            }
+
+            DistanceCategory category = minDistanceSquared < nearDistanceSquared
+                ? DistanceCategory.NEAR
+                : DistanceCategory.DISTANT;
+            categories.put(entity.uuid(), category);
+            distances.put(entity.uuid(), minDistanceSquared);
+        }
+
+        return new WorldResult(categories, distances);
+    }
+
+    private record WorldSnapshot(List<PlayerSnapshot> players, List<EntitySnapshot> entities) {}
+    private record WorldResult(Map<UUID, DistanceCategory> categories, Map<UUID, Double> distances) {}
+    private record EntitySnapshot(UUID uuid, double x, double y, double z) {}
     private record PlayerSnapshot(double x, double y, double z) {}
     public record MobChunkSnapshot(UUID worldId, int chunkX, int chunkZ) {}
 

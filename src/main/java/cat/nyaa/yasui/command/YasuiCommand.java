@@ -75,7 +75,7 @@ public class YasuiCommand implements CommandExecutor, TabCompleter {
             int activeHoppers = plugin.getHopperOptimizer().getActiveHopperCount();
             sender.sendMessage("§aHopper Optimizer: §fEnabled");
             sender.sendMessage("  §7Active Hoppers: §f" + activeHoppers);
-            sender.sendMessage("  §7Full Cache Hits/Misses (1h): §f" + rollingStats.fullCacheHits() + "§7/§f" + rollingStats.fullCacheMisses());
+            sender.sendMessage("  §7Full Cache Hits/Misses (1h): §f" + formatHitRatio(rollingStats.fullCacheHits(), rollingStats.fullCacheMisses()));
             sender.sendMessage("  §7Full Cache Stores/Invalidations (1h): §f" + rollingStats.fullCacheStores() + "§7/§f" + rollingStats.fullCacheInvalidations());
             sender.sendMessage("  §7NMS Full-Check Hook: §f" + (HopperNmsHook.isHookActive() ? "Active" : "Inactive"));
         } else {
@@ -93,7 +93,7 @@ public class YasuiCommand implements CommandExecutor, TabCompleter {
             if (plugin.getPoiSearchCacheTracker() != null) {
                 PoiSearchCacheTracker.RollingStats searchStats = plugin.getPoiSearchCacheTracker().getRollingStats();
                 sender.sendMessage("  §7POI Search Cache: §f" + plugin.getPoiSearchCacheTracker().getCacheSize());
-                sender.sendMessage("  §7POI Search Hits/Misses (1h): §f" + searchStats.hits() + "§7/§f" + searchStats.misses());
+                sender.sendMessage("  §7POI Search Hits/Misses (1h): §f" + formatHitRatio(searchStats.hits(), searchStats.misses()));
                 sender.sendMessage("  §7AcquirePoi Hook: §f" + (PoiSearchNmsHook.isHookActive() ? "Active" : "Inactive"));
             } else {
                 sender.sendMessage("  §7POI Search Cache: §fDisabled");
@@ -101,7 +101,7 @@ public class YasuiCommand implements CommandExecutor, TabCompleter {
             if (plugin.getPoiCompetitorCacheTracker() != null) {
                 PoiCompetitorCacheTracker.RollingStats stats = plugin.getPoiCompetitorCacheTracker().getRollingStats();
                 sender.sendMessage("  §7POI Competitor Cache: §f" + plugin.getPoiCompetitorCacheTracker().getCacheSize());
-                sender.sendMessage("  §7POI Competitor Hits/Misses (1h): §f" + stats.hits() + "§7/§f" + stats.misses());
+                sender.sendMessage("  §7POI Competitor Hits/Misses (1h): §f" + formatHitRatio(stats.hits(), stats.misses()));
                 sender.sendMessage("  §7CompetitorScan Hook: §f" + (PoiCompetitorNmsHook.isHookActive() ? "Active" : "Inactive"));
             } else {
                 sender.sendMessage("  §7POI Competitor Cache: §fDisabled");
@@ -109,7 +109,7 @@ public class YasuiCommand implements CommandExecutor, TabCompleter {
             if (plugin.getPoiLookupCacheTracker() != null) {
                 PoiLookupCacheTracker.RollingStats stats = plugin.getPoiLookupCacheTracker().getRollingStats();
                 sender.sendMessage("  §7POI Lookup Cache: §f" + plugin.getPoiLookupCacheTracker().getCacheSize());
-                sender.sendMessage("  §7POI Lookup Hits/Misses (1h): §f" + stats.hits() + "§7/§f" + stats.misses());
+                sender.sendMessage("  §7POI Lookup Hits/Misses (1h): §f" + formatHitRatio(stats.hits(), stats.misses()));
                 sender.sendMessage("  §7PoiAccess Hook: §f" + (PoiLookupNmsHook.isHookActive() ? "Active" : "Inactive"));
             } else {
                 sender.sendMessage("  §7POI Lookup Cache: §fDisabled");
@@ -117,8 +117,8 @@ public class YasuiCommand implements CommandExecutor, TabCompleter {
             if (plugin.getPoiTypeCacheTracker() != null) {
                 PoiTypeCacheTracker.RollingStats stats = plugin.getPoiTypeCacheTracker().getRollingStats();
                 sender.sendMessage("  §7POI Type Cache: §f" + plugin.getPoiTypeCacheTracker().getCacheSize());
-                sender.sendMessage("  §7POI Type Hits/Misses (1h): §f" + stats.typeHits() + "§7/§f" + stats.typeMisses());
-                sender.sendMessage("  §7POI Exists Hits/Misses (1h): §f" + stats.existsHits() + "§7/§f" + stats.existsMisses());
+                sender.sendMessage("  §7POI Type Hits/Misses (1h): §f" + formatHitRatio(stats.typeHits(), stats.typeMisses()));
+                sender.sendMessage("  §7POI Exists Hits/Misses (1h): §f" + formatHitRatio(stats.existsHits(), stats.existsMisses()));
                 sender.sendMessage("  §7PoiManager Hook: §f" + (PoiTypeNmsHook.isHookActive() ? "Active" : "Inactive"));
             } else {
                 sender.sendMessage("  §7POI Type Cache: §fDisabled");
@@ -141,7 +141,7 @@ public class YasuiCommand implements CommandExecutor, TabCompleter {
         if (plugin.getPathfindingCacheTracker() != null) {
             PathfindingCacheTracker.RollingStats stats = plugin.getPathfindingCacheTracker().getRollingStats();
             sender.sendMessage("§aPathfinding Cache: §fEnabled");
-            sender.sendMessage("  §7Cache Hits/Misses (1h): §f" + stats.hits() + "§7/§f" + stats.misses());
+            sender.sendMessage("  §7Cache Hits/Misses (1h): §f" + formatHitRatio(stats.hits(), stats.misses()));
             sender.sendMessage("  §7Cache Stores (1h): §f" + stats.stores());
             sender.sendMessage("  §7NMS Path Cache Hook: §f" + (PathfindingNmsHook.isHookActive() ? "Active" : "Inactive"));
         } else {
@@ -152,7 +152,7 @@ public class YasuiCommand implements CommandExecutor, TabCompleter {
             SpawnCheckCacheTracker.RollingStats stats = plugin.getSpawnCheckCacheTracker().getRollingStats();
             sender.sendMessage("§aNatural Spawner Cache: §fEnabled");
             sender.sendMessage("  §7BlockState Cache: §f" + plugin.getSpawnCheckCacheTracker().getCacheSize());
-            sender.sendMessage("  §7BlockState Hits/Misses (1h): §f" + stats.hits() + "§7/§f" + stats.misses());
+            sender.sendMessage("  §7BlockState Hits/Misses (1h): §f" + formatHitRatio(stats.hits(), stats.misses()));
             sender.sendMessage("  §7BlockState Stores (1h): §f" + stats.stores());
             sender.sendMessage("  §7NMS Spawn Hook: §f" + (SpawnCheckNmsHook.isHookActive() ? "Active" : "Inactive"));
         } else {
@@ -231,6 +231,15 @@ public class YasuiCommand implements CommandExecutor, TabCompleter {
 
     private String formatHeat(float heat) {
         return String.format(Locale.ROOT, "%.2f", heat);
+    }
+
+    private String formatHitRatio(long hits, long misses) {
+        long total = hits + misses;
+        if (total <= 0) {
+            return hits + "§7/§f" + misses + " §7(n/a)";
+        }
+        double ratio = (hits * 100.0) / total;
+        return hits + "§7/§f" + misses + " §7(" + String.format(Locale.ROOT, "%.1f", ratio) + "%)";
     }
 
     private void sendTopChunks(CommandSender sender, List<HotChunkTracker.HotChunkInfo> chunks, int areaRadius) {

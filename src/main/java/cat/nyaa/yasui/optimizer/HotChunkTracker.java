@@ -3,6 +3,13 @@ package cat.nyaa.yasui.optimizer;
 import cat.nyaa.yasui.Yasui;
 import cat.nyaa.yasui.YasuiConfig;
 import cat.nyaa.yasui.nms.HotChunkMapBridge;
+import it.unimi.dsi.fastutil.longs.Long2FloatMap;
+import it.unimi.dsi.fastutil.longs.Long2FloatOpenHashMap;
+import it.unimi.dsi.fastutil.longs.Long2IntMap;
+import it.unimi.dsi.fastutil.longs.Long2IntMaps;
+import it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap;
+import it.unimi.dsi.fastutil.longs.LongIterator;
+import it.unimi.dsi.fastutil.objects.ObjectIterator;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.ai.village.poi.PoiManager;
 import org.bukkit.Bukkit;
@@ -13,12 +20,11 @@ import org.bukkit.entity.Entity;
 import org.bukkit.entity.Mob;
 import org.bukkit.scheduler.BukkitTask;
 
+import java.util.Arrays;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -42,9 +48,9 @@ public class HotChunkTracker {
     private final Yasui plugin;
     private final YasuiConfig config;
     private final AtomicBoolean scanRunning = new AtomicBoolean(false);
-    private final Map<UUID, Map<Long, Float>> heatByWorld = new HashMap<>();
-    private final Map<UUID, Map<Long, Integer>> lastCountsByWorld = new HashMap<>();
-    private final Map<UUID, Map<Long, Integer>> lastAreaCountsByWorld = new HashMap<>();
+    private final Map<UUID, Long2FloatMap> heatByWorld = new HashMap<>();
+    private final Map<UUID, Long2IntMap> lastCountsByWorld = new HashMap<>();
+    private final Map<UUID, Long2IntMap> lastAreaCountsByWorld = new HashMap<>();
     private BukkitTask scanTask;
     private long lastScanTimeMs = 0L;
 
@@ -79,11 +85,11 @@ public class HotChunkTracker {
         if (world == null) {
             return 0f;
         }
-        Map<Long, Float> heatMap = heatByWorld.get(world.getUID());
+        Long2FloatMap heatMap = heatByWorld.get(world.getUID());
         if (heatMap == null) {
             return 0f;
         }
-        return heatMap.getOrDefault(packChunkKey(chunkX, chunkZ), 0f);
+        return heatMap.get(packChunkKey(chunkX, chunkZ));
     }
 
     public Stats getStats() {
@@ -94,25 +100,28 @@ public class HotChunkTracker {
 
         for (World world : Bukkit.getWorlds()) {
             UUID worldId = world.getUID();
-            Map<Long, Float> heatMap = heatByWorld.get(worldId);
+            Long2FloatMap heatMap = heatByWorld.get(worldId);
             if (heatMap == null || heatMap.isEmpty()) {
                 continue;
             }
             trackedChunks += heatMap.size();
-            Map<Long, Integer> counts = lastCountsByWorld.getOrDefault(worldId, Collections.emptyMap());
-            Map<Long, Integer> areaCounts = lastAreaCountsByWorld.getOrDefault(worldId, counts);
-            for (Map.Entry<Long, Float> entry : heatMap.entrySet()) {
-                float heat = entry.getValue();
+            Long2IntMap counts = lastCountsByWorld.getOrDefault(worldId, Long2IntMaps.EMPTY_MAP);
+            Long2IntMap areaCounts = lastAreaCountsByWorld.getOrDefault(worldId, counts);
+            for (Long2FloatMap.Entry entry : heatMap.long2FloatEntrySet()) {
+                long key = entry.getLongKey();
+                float heat = entry.getFloatValue();
                 if (heat > maxHeat) {
                     maxHeat = heat;
                 }
+                int mobCount = counts.get(key);
+                int areaMobCount = areaCounts.get(key);
                 addTopChunk(topChunks, limit, new HotChunkInfo(
                     world.getName(),
-                    unpackChunkX(entry.getKey()),
-                    unpackChunkZ(entry.getKey()),
+                    unpackChunkX(key),
+                    unpackChunkZ(key),
                     heat,
-                    counts.getOrDefault(entry.getKey(), 0),
-                    areaCounts.getOrDefault(entry.getKey(), counts.getOrDefault(entry.getKey(), 0))
+                    mobCount,
+                    areaMobCount
                 ));
             }
         }
@@ -182,11 +191,11 @@ public class HotChunkTracker {
 
     private void submitMobSnapshots(List<EntitySpreadTicker.MobChunkSnapshot> snapshots) {
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
-            Map<UUID, Map<Long, Integer>> counts = new HashMap<>();
+            Map<UUID, Long2IntMap> counts = new HashMap<>();
             for (EntitySpreadTicker.MobChunkSnapshot snapshot : snapshots) {
-                Map<Long, Integer> worldCounts = counts.computeIfAbsent(snapshot.worldId(), id -> new HashMap<>());
+                Long2IntMap worldCounts = counts.computeIfAbsent(snapshot.worldId(), id -> new Long2IntOpenHashMap());
                 long key = packChunkKey(snapshot.chunkX(), snapshot.chunkZ());
-                worldCounts.merge(key, 1, Integer::sum);
+                worldCounts.put(key, worldCounts.get(key) + 1);
             }
             submitCounts(counts);
         });
@@ -194,55 +203,58 @@ public class HotChunkTracker {
 
     private void submitSnapshots(List<EntityChunkSnapshot> snapshots) {
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
-            Map<UUID, Map<Long, Integer>> counts = new HashMap<>();
+            Map<UUID, Long2IntMap> counts = new HashMap<>();
             for (EntityChunkSnapshot snapshot : snapshots) {
-                Map<Long, Integer> worldCounts = counts.computeIfAbsent(snapshot.worldId(), id -> new HashMap<>());
+                Long2IntMap worldCounts = counts.computeIfAbsent(snapshot.worldId(), id -> new Long2IntOpenHashMap());
                 long key = packChunkKey(snapshot.chunkX(), snapshot.chunkZ());
-                worldCounts.merge(key, 1, Integer::sum);
+                worldCounts.put(key, worldCounts.get(key) + 1);
             }
             submitCounts(counts);
         });
     }
 
-    private void submitCounts(Map<UUID, Map<Long, Integer>> countsByWorld) {
+    private void submitCounts(Map<UUID, Long2IntMap> countsByWorld) {
         int radius = Math.max(0, config.getHotChunkAreaRadius());
-        Map<UUID, Map<Long, Integer>> areaCountsByWorld = radius > 0
+        Map<UUID, Long2IntMap> areaCountsByWorld = radius > 0
             ? computeAreaCountsByWorld(countsByWorld, radius)
             : countsByWorld;
-        Bukkit.getScheduler().runTask(plugin, () -> {
+        Runnable apply = () -> {
             try {
                 applyCounts(countsByWorld, areaCountsByWorld);
             } finally {
                 scanRunning.set(false);
             }
-        });
+        };
+        if (plugin.isEnabled()) {
+            Bukkit.getScheduler().runTask(plugin, apply);
+        } else {
+            apply.run();
+        }
     }
 
-    private Map<UUID, Map<Long, Integer>> computeAreaCountsByWorld(Map<UUID, Map<Long, Integer>> countsByWorld, int radius) {
-        Map<UUID, Map<Long, Integer>> areaCounts = new HashMap<>();
-        for (Map.Entry<UUID, Map<Long, Integer>> entry : countsByWorld.entrySet()) {
+    private Map<UUID, Long2IntMap> computeAreaCountsByWorld(Map<UUID, Long2IntMap> countsByWorld, int radius) {
+        Map<UUID, Long2IntMap> areaCounts = new HashMap<>();
+        for (Map.Entry<UUID, Long2IntMap> entry : countsByWorld.entrySet()) {
             areaCounts.put(entry.getKey(), computeAreaCounts(entry.getValue(), radius));
         }
         return areaCounts;
     }
 
-    private Map<Long, Integer> computeAreaCounts(Map<Long, Integer> counts, int radius) {
+    private Long2IntMap computeAreaCounts(Long2IntMap counts, int radius) {
         if (counts.isEmpty() || radius <= 0) {
             return counts;
         }
-        Map<Long, Integer> areaCounts = new HashMap<>(counts.size());
-        for (Map.Entry<Long, Integer> entry : counts.entrySet()) {
-            long key = entry.getKey();
+        Long2IntOpenHashMap areaCounts = new Long2IntOpenHashMap(counts.size());
+        LongIterator iterator = counts.keySet().iterator();
+        while (iterator.hasNext()) {
+            long key = iterator.nextLong();
             int chunkX = unpackChunkX(key);
             int chunkZ = unpackChunkZ(key);
             int sum = 0;
             for (int dx = -radius; dx <= radius; dx++) {
                 for (int dz = -radius; dz <= radius; dz++) {
                     long neighbor = packChunkKey(chunkX + dx, chunkZ + dz);
-                    Integer count = counts.get(neighbor);
-                    if (count != null) {
-                        sum += count;
-                    }
+                    sum += counts.get(neighbor);
                 }
             }
             areaCounts.put(key, sum);
@@ -250,8 +262,8 @@ public class HotChunkTracker {
         return areaCounts;
     }
 
-    private void applyCounts(Map<UUID, Map<Long, Integer>> countsByWorld,
-                             Map<UUID, Map<Long, Integer>> areaCountsByWorld) {
+    private void applyCounts(Map<UUID, Long2IntMap> countsByWorld,
+                             Map<UUID, Long2IntMap> areaCountsByWorld) {
         float decay = clamp((float) config.getHotChunkHeatDecay(), 0f, 1f);
         float minHeat = clamp((float) config.getHotChunkMinHeat(), 0f, 1f);
         int threshold = Math.max(1, config.getHotChunkMobThreshold());
@@ -261,11 +273,11 @@ public class HotChunkTracker {
             UUID worldId = world.getUID();
             activeWorlds.add(worldId);
 
-            Map<Long, Float> heatMap = heatByWorld.computeIfAbsent(worldId, id -> new HashMap<>());
-            Iterator<Map.Entry<Long, Float>> iterator = heatMap.entrySet().iterator();
+            Long2FloatMap heatMap = heatByWorld.computeIfAbsent(worldId, id -> new Long2FloatOpenHashMap());
+            ObjectIterator<Long2FloatMap.Entry> iterator = heatMap.long2FloatEntrySet().fastIterator();
             while (iterator.hasNext()) {
-                Map.Entry<Long, Float> entry = iterator.next();
-                float heat = entry.getValue() * decay;
+                Long2FloatMap.Entry entry = iterator.next();
+                float heat = entry.getFloatValue() * decay;
                 if (heat < minHeat) {
                     iterator.remove();
                 } else {
@@ -273,17 +285,18 @@ public class HotChunkTracker {
                 }
             }
 
-            Map<Long, Integer> counts = countsByWorld.getOrDefault(worldId, Collections.emptyMap());
-            Map<Long, Integer> areaCounts = areaCountsByWorld.getOrDefault(worldId, counts);
+            Long2IntMap counts = countsByWorld.getOrDefault(worldId, Long2IntMaps.EMPTY_MAP);
+            Long2IntMap areaCounts = areaCountsByWorld.getOrDefault(worldId, counts);
             lastCountsByWorld.put(worldId, counts);
             lastAreaCountsByWorld.put(worldId, areaCounts);
-            for (Map.Entry<Long, Integer> entry : areaCounts.entrySet()) {
-                float pressure = Math.min(1f, entry.getValue() / (float) threshold);
-                float updated = Math.max(pressure, heatMap.getOrDefault(entry.getKey(), 0f));
+            for (Long2IntMap.Entry entry : areaCounts.long2IntEntrySet()) {
+                long key = entry.getLongKey();
+                float pressure = Math.min(1f, entry.getIntValue() / (float) threshold);
+                float updated = Math.max(pressure, heatMap.get(key));
                 if (updated < minHeat) {
-                    heatMap.remove(entry.getKey());
+                    heatMap.remove(key);
                 } else {
-                    heatMap.put(entry.getKey(), updated);
+                    heatMap.put(key, updated);
                 }
             }
 
@@ -296,20 +309,17 @@ public class HotChunkTracker {
         lastScanTimeMs = System.currentTimeMillis();
     }
 
-    private void updateHookMaps(World world, Map<Long, Float> heatMap) {
+    private void updateHookMaps(World world, Long2FloatMap heatMap) {
         if (heatMap.isEmpty()) {
             clearHookMap(world);
             return;
         }
 
-        List<Map.Entry<Long, Float>> entries = new ArrayList<>(heatMap.entrySet());
-        entries.sort(Comparator.comparingLong(Map.Entry::getKey));
-        long[] keys = new long[entries.size()];
-        float[] heat = new float[entries.size()];
-        for (int i = 0; i < entries.size(); i++) {
-            Map.Entry<Long, Float> entry = entries.get(i);
-            keys[i] = entry.getKey();
-            heat[i] = entry.getValue();
+        long[] keys = heatMap.keySet().toLongArray();
+        Arrays.sort(keys);
+        float[] heat = new float[keys.length];
+        for (int i = 0; i < keys.length; i++) {
+            heat[i] = heatMap.get(keys[i]);
         }
 
         ServerLevel level = ((CraftWorld) world).getHandle();
