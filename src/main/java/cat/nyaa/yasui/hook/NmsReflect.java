@@ -74,6 +74,7 @@ public final class NmsReflect {
     private static volatile MethodHandle chunkAccessGetPos;
     private static volatile Field chunkPosXField;
     private static volatile Field chunkPosZField;
+    private static volatile MethodHandle levelGetPoiManager;
 
     // PoiAccess
     private static volatile MethodHandle poiAccessFindNearest;
@@ -242,6 +243,13 @@ public final class NmsReflect {
             MethodType.methodType(pairClass,
                 poiManagerClass, Predicate.class, Predicate.class, blockPosClass,
                 int.class, double.class, occupancyClass, boolean.class));
+        try {
+            Class<?> serverLevelClass = Class.forName("net.minecraft.server.level.ServerLevel", true, nmsClassLoader);
+            levelGetPoiManager = lookup.findVirtual(serverLevelClass, "getPoiManager",
+                MethodType.methodType(poiManagerClass));
+        } catch (Throwable ignored) {
+            levelGetPoiManager = null;
+        }
     }
 
     public static int getCurrentTick() {
@@ -439,6 +447,17 @@ public final class NmsReflect {
         }
         try {
             return levelGetBlockStateIfLoaded.invoke(level, blockPos);
+        } catch (Throwable t) {
+            return null;
+        }
+    }
+
+    public static Object getPoiManager(Object level) {
+        if (!initialized || initFailed || levelGetPoiManager == null || level == null) {
+            return null;
+        }
+        try {
+            return levelGetPoiManager.invoke(level);
         } catch (Throwable t) {
             return null;
         }

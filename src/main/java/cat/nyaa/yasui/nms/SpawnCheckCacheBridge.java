@@ -13,6 +13,7 @@ final class SpawnCheckCacheBridge {
     private static volatile MethodHandle drainStatsHandle;
     private static volatile MethodHandle cacheSizeHandle;
     private static volatile MethodHandle hookActiveHandle;
+    private static volatile MethodHandle blockWriteHookActiveHandle;
 
     private SpawnCheckCacheBridge() {}
 
@@ -78,6 +79,20 @@ final class SpawnCheckCacheBridge {
         return false;
     }
 
+    static boolean isBlockWriteHookActive() {
+        if (!resolve()) {
+            return false;
+        }
+        try {
+            Object value = blockWriteHookActiveHandle.invokeWithArguments();
+            if (value instanceof Boolean active) {
+                return active;
+            }
+        } catch (Throwable ignored) {
+        }
+        return false;
+    }
+
     private static boolean resolve() {
         if (resolved) {
             return cacheClass != null;
@@ -99,6 +114,8 @@ final class SpawnCheckCacheBridge {
                 cacheSizeHandle = lookup.findStatic(cacheClass, "getCacheSize",
                     MethodType.methodType(int.class));
                 hookActiveHandle = lookup.findStatic(cacheClass, "isHookActive",
+                    MethodType.methodType(boolean.class));
+                blockWriteHookActiveHandle = lookup.findStatic(cacheClass, "isBlockWriteHookActive",
                     MethodType.methodType(boolean.class));
                 resolved = true;
                 return true;

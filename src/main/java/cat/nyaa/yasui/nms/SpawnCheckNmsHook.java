@@ -48,4 +48,8 @@ public final class SpawnCheckNmsHook {
     public static boolean isHookActive() {
         return SpawnCheckCacheBridge.isHookActive();
     }
+
+    public static boolean isBlockWriteHookActive() {
+        return SpawnCheckCacheBridge.isBlockWriteHookActive();
+    }
 }

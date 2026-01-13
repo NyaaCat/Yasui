@@ -41,6 +41,10 @@ public final class BlockStateCache {
         return hookActive;
     }
 
+    public static boolean isBlockWriteHookActive() {
+        return exactInvalidationActive;
+    }
+
     public static void markHookActive() {
         hookActive = true;
     }
@@ -56,12 +60,12 @@ public final class BlockStateCache {
         if (!NmsReflect.init(level)) {
             return;
         }
-        LongLruCache<CacheEntry> levelCache = getLevelCacheOrNull(level);
-        if (levelCache == null) {
-            return;
-        }
         long posKey = NmsReflect.blockPosAsLong(pos);
-        levelCache.remove(posKey);
+        LongLruCache<CacheEntry> levelCache = getLevelCacheOrNull(level);
+        if (levelCache != null) {
+            levelCache.remove(posKey);
+        }
+        bumpEpochs(level, posKey);
     }
 
     public static Object getBlockStateIfLoadedAndInBounds(Object level, Object pos, Object chunk) {
@@ -355,6 +359,18 @@ public final class BlockStateCache {
             for (LongLruCache<CacheEntry> entries : CACHE.values()) {
                 entries.setLimit(maxEntries);
             }
+        }
+    }
+
+    private static void bumpEpochs(Object level, long posKey) {
+        if (level == null) {
+            return;
+        }
+        long chunkKey = HotChunkUtil.chunkKeyFromBlockPos(posKey);
+        ChunkEpochMap.bumpEpoch(level, chunkKey);
+        Object poiManager = NmsReflect.getPoiManager(level);
+        if (poiManager != null) {
+            ChunkEpochMap.bumpEpoch(poiManager, chunkKey);
         }
     }
 }

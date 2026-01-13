@@ -18,6 +18,10 @@ public final class SpawnCheckCache {
         return BlockStateCache.isHookActive();
     }
 
+    public static boolean isBlockWriteHookActive() {
+        return BlockStateCache.isBlockWriteHookActive();
+    }
+
     public static void markHookActive() {
         BlockStateCache.markHookActive();
     }

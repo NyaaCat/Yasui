@@ -3,6 +3,7 @@ package cat.nyaa.yasui.optimizer;
 import cat.nyaa.yasui.Yasui;
 import cat.nyaa.yasui.YasuiConfig;
 import cat.nyaa.yasui.nms.ChunkEpochNmsHook;
+import cat.nyaa.yasui.nms.SpawnCheckNmsHook;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.ai.village.poi.PoiManager;
 import org.bukkit.World;
@@ -145,14 +146,14 @@ public class ChunkEpochTracker implements Listener {
     }
 
     private void bumpBlock(Block block) {
-        if (!config.isChunkEpochEnabled() || block == null) {
+        if (!shouldTrackBlockChanges() || block == null) {
             return;
         }
         bumpChunk(block.getWorld(), block.getX() >> 4, block.getZ() >> 4);
     }
 
     private void bumpBlocks(Collection<Block> blocks) {
-        if (!config.isChunkEpochEnabled() || blocks == null || blocks.isEmpty()) {
+        if (!shouldTrackBlockChanges() || blocks == null || blocks.isEmpty()) {
             return;
         }
         World world = null;
@@ -170,7 +171,7 @@ public class ChunkEpochTracker implements Listener {
     }
 
     private void bumpBlockStates(List<BlockState> blocks) {
-        if (!config.isChunkEpochEnabled() || blocks == null || blocks.isEmpty()) {
+        if (!shouldTrackBlockChanges() || blocks == null || blocks.isEmpty()) {
             return;
         }
         World world = null;
@@ -216,5 +217,15 @@ public class ChunkEpochTracker implements Listener {
 
     private static long packChunkKey(int chunkX, int chunkZ) {
         return (((long) chunkX) << 32) ^ (chunkZ & 0xffffffffL);
+    }
+
+    private boolean shouldTrackBlockChanges() {
+        if (!config.isChunkEpochEnabled()) {
+            return false;
+        }
+        if (!config.isBlockStateCacheEnabled()) {
+            return true;
+        }
+        return !SpawnCheckNmsHook.isBlockWriteHookActive();
     }
 }
