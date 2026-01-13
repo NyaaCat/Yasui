@@ -30,10 +30,11 @@ import org.bukkit.event.world.StructureGrowEvent;
 import org.bukkit.event.block.LeavesDecayEvent;
 import org.bukkit.event.block.SpongeAbsorbEvent;
 
+import it.unimi.dsi.fastutil.longs.LongIterator;
+import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
+import it.unimi.dsi.fastutil.longs.LongSet;
 import java.util.Collection;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 /**
  * Tracks chunk epoch bumps for block/POI-affecting changes.
@@ -155,7 +156,7 @@ public class ChunkEpochTracker implements Listener {
             return;
         }
         World world = null;
-        Set<Long> keys = new HashSet<>();
+        LongSet keys = new LongOpenHashSet();
         for (Block block : blocks) {
             if (block == null) {
                 continue;
@@ -173,7 +174,7 @@ public class ChunkEpochTracker implements Listener {
             return;
         }
         World world = null;
-        Set<Long> keys = new HashSet<>();
+        LongSet keys = new LongOpenHashSet();
         for (BlockState state : blocks) {
             if (state == null) {
                 continue;
@@ -197,14 +198,15 @@ public class ChunkEpochTracker implements Listener {
         ChunkEpochNmsHook.bumpEpoch(poiManager, key);
     }
 
-    private void bumpChunks(World world, Set<Long> keys) {
+    private void bumpChunks(World world, LongSet keys) {
         if (!config.isChunkEpochEnabled() || world == null || keys == null || keys.isEmpty()) {
             return;
         }
         long[] values = new long[keys.size()];
         int i = 0;
-        for (Long key : keys) {
-            values[i++] = key;
+        LongIterator iterator = keys.iterator();
+        while (iterator.hasNext()) {
+            values[i++] = iterator.nextLong();
         }
         ServerLevel level = ((CraftWorld) world).getHandle();
         PoiManager poiManager = level.getPoiManager();

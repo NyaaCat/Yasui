@@ -12,15 +12,18 @@ import org.bukkit.event.Listener;
 import org.bukkit.scheduler.BukkitTask;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.logging.Level;
+import it.unimi.dsi.fastutil.objects.Object2DoubleMap;
+import it.unimi.dsi.fastutil.objects.Object2DoubleOpenHashMap;
+import it.unimi.dsi.fastutil.objects.Object2ObjectMap;
+import it.unimi.dsi.fastutil.objects.Object2ObjectMaps;
+import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 
 /**
  * Entity Distance Cache
@@ -31,8 +34,8 @@ import java.util.logging.Level;
 public class EntitySpreadTicker implements Listener {
     private final Yasui plugin;
     private final YasuiConfig config;
-    private volatile Map<UUID, DistanceCategory> distanceCache = Map.of();
-    private volatile Map<UUID, Double> distanceSquaredCache = Map.of();
+    private volatile Object2ObjectMap<UUID, DistanceCategory> distanceCache = Object2ObjectMaps.emptyMap();
+    private volatile Object2DoubleMap<UUID> distanceSquaredCache = createDistanceMap(0);
     private final AtomicBoolean scanRunning = new AtomicBoolean(false);
     private volatile List<MobChunkSnapshot> lastMobChunkSnapshots = List.of();
     private volatile long lastSnapshotTimeMs = 0L;
@@ -74,8 +77,8 @@ public class EntitySpreadTicker implements Listener {
         if (distanceScanTask != null) {
             distanceScanTask.cancel();
         }
-        distanceCache = Map.of();
-        distanceSquaredCache = Map.of();
+        distanceCache = Object2ObjectMaps.emptyMap();
+        distanceSquaredCache = createDistanceMap(0);
     }
 
     /**
@@ -124,8 +127,9 @@ public class EntitySpreadTicker implements Listener {
         int totalEntities = entityCount;
 
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
-            Map<UUID, DistanceCategory> updated = new HashMap<>(Math.max(totalEntities, 16));
-            Map<UUID, Double> updatedDistances = new HashMap<>(Math.max(totalEntities, 16));
+            Object2ObjectOpenHashMap<UUID, DistanceCategory> updated =
+                new Object2ObjectOpenHashMap<>(Math.max(totalEntities, 16));
+            Object2DoubleOpenHashMap<UUID> updatedDistances = createDistanceMap(Math.max(totalEntities, 16));
             try {
                 ExecutorService workerPool = plugin.getWorkerPool();
                 List<CompletableFuture<WorldResult>> futures = new ArrayList<>(worldSnapshots.size());
@@ -176,7 +180,7 @@ public class EntitySpreadTicker implements Listener {
     }
 
     public double getNearestPlayerDistanceSquared(UUID entityUUID) {
-        return distanceSquaredCache.getOrDefault(entityUUID, Double.POSITIVE_INFINITY);
+        return distanceSquaredCache.getDouble(entityUUID);
     }
 
     public List<MobChunkSnapshot> getLastMobChunkSnapshots() {
@@ -205,8 +209,9 @@ public class EntitySpreadTicker implements Listener {
     private WorldResult computeWorld(WorldSnapshot snapshot, double nearDistanceSquared) {
         List<PlayerSnapshot> players = snapshot.players();
         List<EntitySnapshot> entities = snapshot.entities();
-        Map<UUID, DistanceCategory> categories = new HashMap<>(Math.max(entities.size(), 16));
-        Map<UUID, Double> distances = new HashMap<>(Math.max(entities.size(), 16));
+        Object2ObjectOpenHashMap<UUID, DistanceCategory> categories =
+            new Object2ObjectOpenHashMap<>(Math.max(entities.size(), 16));
+        Object2DoubleOpenHashMap<UUID> distances = createDistanceMap(Math.max(entities.size(), 16));
 
         if (players.isEmpty()) {
             for (EntitySnapshot entity : entities) {
@@ -239,10 +244,17 @@ public class EntitySpreadTicker implements Listener {
     }
 
     private record WorldSnapshot(List<PlayerSnapshot> players, List<EntitySnapshot> entities) {}
-    private record WorldResult(Map<UUID, DistanceCategory> categories, Map<UUID, Double> distances) {}
+    private record WorldResult(Object2ObjectMap<UUID, DistanceCategory> categories,
+                               Object2DoubleMap<UUID> distances) {}
     private record EntitySnapshot(UUID uuid, double x, double y, double z) {}
     private record PlayerSnapshot(double x, double y, double z) {}
     public record MobChunkSnapshot(UUID worldId, int chunkX, int chunkZ) {}
 
     public record Stats(long nearEntities, long distantEntities, int trackedEntities) {}
+
+    private static Object2DoubleOpenHashMap<UUID> createDistanceMap(int size) {
+        Object2DoubleOpenHashMap<UUID> map = new Object2DoubleOpenHashMap<>(Math.max(0, size));
+        map.defaultReturnValue(Double.POSITIVE_INFINITY);
+        return map;
+    }
 }

@@ -9,7 +9,11 @@ import it.unimi.dsi.fastutil.longs.Long2IntMap;
 import it.unimi.dsi.fastutil.longs.Long2IntMaps;
 import it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap;
 import it.unimi.dsi.fastutil.longs.LongIterator;
+import it.unimi.dsi.fastutil.objects.Object2ObjectMap;
+import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
 import it.unimi.dsi.fastutil.objects.ObjectIterator;
+import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
+import it.unimi.dsi.fastutil.objects.ObjectSet;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.ai.village.poi.PoiManager;
 import org.bukkit.Bukkit;
@@ -23,12 +27,8 @@ import org.bukkit.scheduler.BukkitTask;
 import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -48,9 +48,9 @@ public class HotChunkTracker {
     private final Yasui plugin;
     private final YasuiConfig config;
     private final AtomicBoolean scanRunning = new AtomicBoolean(false);
-    private final Map<UUID, Long2FloatMap> heatByWorld = new HashMap<>();
-    private final Map<UUID, Long2IntMap> lastCountsByWorld = new HashMap<>();
-    private final Map<UUID, Long2IntMap> lastAreaCountsByWorld = new HashMap<>();
+    private final Object2ObjectMap<UUID, Long2FloatMap> heatByWorld = new Object2ObjectOpenHashMap<>();
+    private final Object2ObjectMap<UUID, Long2IntMap> lastCountsByWorld = new Object2ObjectOpenHashMap<>();
+    private final Object2ObjectMap<UUID, Long2IntMap> lastAreaCountsByWorld = new Object2ObjectOpenHashMap<>();
     private BukkitTask scanTask;
     private long lastScanTimeMs = 0L;
 
@@ -191,7 +191,7 @@ public class HotChunkTracker {
 
     private void submitMobSnapshots(List<EntitySpreadTicker.MobChunkSnapshot> snapshots) {
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
-            Map<UUID, Long2IntMap> counts = new HashMap<>();
+            Object2ObjectMap<UUID, Long2IntMap> counts = new Object2ObjectOpenHashMap<>();
             for (EntitySpreadTicker.MobChunkSnapshot snapshot : snapshots) {
                 Long2IntMap worldCounts = counts.computeIfAbsent(snapshot.worldId(), id -> new Long2IntOpenHashMap());
                 long key = packChunkKey(snapshot.chunkX(), snapshot.chunkZ());
@@ -203,7 +203,7 @@ public class HotChunkTracker {
 
     private void submitSnapshots(List<EntityChunkSnapshot> snapshots) {
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
-            Map<UUID, Long2IntMap> counts = new HashMap<>();
+            Object2ObjectMap<UUID, Long2IntMap> counts = new Object2ObjectOpenHashMap<>();
             for (EntityChunkSnapshot snapshot : snapshots) {
                 Long2IntMap worldCounts = counts.computeIfAbsent(snapshot.worldId(), id -> new Long2IntOpenHashMap());
                 long key = packChunkKey(snapshot.chunkX(), snapshot.chunkZ());
@@ -213,9 +213,9 @@ public class HotChunkTracker {
         });
     }
 
-    private void submitCounts(Map<UUID, Long2IntMap> countsByWorld) {
+    private void submitCounts(Object2ObjectMap<UUID, Long2IntMap> countsByWorld) {
         int radius = Math.max(0, config.getHotChunkAreaRadius());
-        Map<UUID, Long2IntMap> areaCountsByWorld = radius > 0
+        Object2ObjectMap<UUID, Long2IntMap> areaCountsByWorld = radius > 0
             ? computeAreaCountsByWorld(countsByWorld, radius)
             : countsByWorld;
         Runnable apply = () -> {
@@ -232,9 +232,10 @@ public class HotChunkTracker {
         }
     }
 
-    private Map<UUID, Long2IntMap> computeAreaCountsByWorld(Map<UUID, Long2IntMap> countsByWorld, int radius) {
-        Map<UUID, Long2IntMap> areaCounts = new HashMap<>();
-        for (Map.Entry<UUID, Long2IntMap> entry : countsByWorld.entrySet()) {
+    private Object2ObjectMap<UUID, Long2IntMap> computeAreaCountsByWorld(Object2ObjectMap<UUID, Long2IntMap> countsByWorld,
+                                                                         int radius) {
+        Object2ObjectMap<UUID, Long2IntMap> areaCounts = new Object2ObjectOpenHashMap<>();
+        for (Object2ObjectMap.Entry<UUID, Long2IntMap> entry : countsByWorld.object2ObjectEntrySet()) {
             areaCounts.put(entry.getKey(), computeAreaCounts(entry.getValue(), radius));
         }
         return areaCounts;
@@ -262,19 +263,25 @@ public class HotChunkTracker {
         return areaCounts;
     }
 
-    private void applyCounts(Map<UUID, Long2IntMap> countsByWorld,
-                             Map<UUID, Long2IntMap> areaCountsByWorld) {
+    private void applyCounts(Object2ObjectMap<UUID, Long2IntMap> countsByWorld,
+                             Object2ObjectMap<UUID, Long2IntMap> areaCountsByWorld) {
         float decay = clamp((float) config.getHotChunkHeatDecay(), 0f, 1f);
         float minHeat = clamp((float) config.getHotChunkMinHeat(), 0f, 1f);
         int threshold = Math.max(1, config.getHotChunkMobThreshold());
 
-        Set<UUID> activeWorlds = new HashSet<>();
+        ObjectOpenHashSet<UUID> activeWorlds = new ObjectOpenHashSet<>();
         for (World world : Bukkit.getWorlds()) {
             UUID worldId = world.getUID();
             activeWorlds.add(worldId);
 
             Long2FloatMap heatMap = heatByWorld.computeIfAbsent(worldId, id -> new Long2FloatOpenHashMap());
-            ObjectIterator<Long2FloatMap.Entry> iterator = heatMap.long2FloatEntrySet().fastIterator();
+            ObjectSet<Long2FloatMap.Entry> entries = heatMap.long2FloatEntrySet();
+            ObjectIterator<Long2FloatMap.Entry> iterator;
+            if (entries instanceof Long2FloatMap.FastEntrySet fastEntries) {
+                iterator = fastEntries.fastIterator();
+            } else {
+                iterator = entries.iterator();
+            }
             while (iterator.hasNext()) {
                 Long2FloatMap.Entry entry = iterator.next();
                 float heat = entry.getFloatValue() * decay;
