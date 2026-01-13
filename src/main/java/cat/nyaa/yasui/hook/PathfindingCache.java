@@ -1,7 +1,6 @@
 package cat.nyaa.yasui.hook;
 
 import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.WeakHashMap;
@@ -14,7 +13,7 @@ import java.util.concurrent.atomic.LongAdder;
  * Uses only JDK types to avoid classloader issues - NMS access via reflection.
  */
 public final class PathfindingCache {
-    private static final Map<Object, LruCache<Long, CacheEntry>> CACHE =
+    private static final Map<Object, LongLruCache<CacheEntry>> CACHE =
         Collections.synchronizedMap(new WeakHashMap<>());
     private static final LongAdder cacheHits = new LongAdder();
     private static final LongAdder cacheMisses = new LongAdder();
@@ -45,6 +44,7 @@ public final class PathfindingCache {
         PathfindingCache.mobMoveThreshold = Math.max(0, mobMoveThreshold);
         PathfindingCache.targetMoveThreshold = Math.max(0, targetMoveThreshold);
         PathfindingCache.negativeTtlTicks = Math.max(0, negativeTtlTicks);
+        applyCacheLimit();
     }
 
     public static void configureHotChunks(boolean enabled, int ttlTicks, int ttlJitterTicks,
@@ -93,7 +93,7 @@ public final class PathfindingCache {
         }
         int tick = NmsReflect.getCurrentTick();
         long key = computeKey(targets, target, regionOffset, offsetUpward, accuracy, followRange);
-        LruCache<Long, CacheEntry> navCache = getNavigationCache(navigation);
+        LongLruCache<CacheEntry> navCache = getNavigationCache(navigation);
         CacheEntry entry = navCache.get(key);
         if (entry == null) {
             cacheMisses.increment();
@@ -236,7 +236,7 @@ public final class PathfindingCache {
                 return path;
             }
         }
-        LruCache<Long, CacheEntry> navCache = getNavigationCache(navigation);
+        LongLruCache<CacheEntry> navCache = getNavigationCache(navigation);
         navCache.put(key, new CacheEntry(key, expiryTick, pathCopy, mobPosKey, targetPosKey, hasTargetPos, mobEpoch, targetEpoch));
         cacheStores.increment();
         return path;
@@ -284,9 +284,9 @@ public final class PathfindingCache {
         return Math.floorMod(hash, jitterTicks + 1);
     }
 
-    private static LruCache<Long, CacheEntry> getNavigationCache(Object navigation) {
+    private static LongLruCache<CacheEntry> getNavigationCache(Object navigation) {
         synchronized (CACHE) {
-            return CACHE.computeIfAbsent(navigation, key -> new LruCache<>());
+            return CACHE.computeIfAbsent(navigation, key -> new LongLruCache<>(maxEntriesPerNav));
         }
     }
 
@@ -343,25 +343,11 @@ public final class PathfindingCache {
         }
     }
 
-    private static final class LruCache<K, V> {
-        private final LinkedHashMap<K, V> map = new LinkedHashMap<>(16, 0.75f, true) {
-            @Override
-            protected boolean removeEldestEntry(Map.Entry<K, V> eldest) {
-                int limit = PathfindingCache.maxEntriesPerNav;
-                return limit > 0 && size() > limit;
+    private static void applyCacheLimit() {
+        synchronized (CACHE) {
+            for (LongLruCache<CacheEntry> entries : CACHE.values()) {
+                entries.setLimit(maxEntriesPerNav);
             }
-        };
-
-        synchronized V get(K key) {
-            return map.get(key);
-        }
-
-        synchronized void put(K key, V value) {
-            map.put(key, value);
-        }
-
-        synchronized void remove(K key) {
-            map.remove(key);
         }
     }
 }

@@ -1,7 +1,6 @@
 package cat.nyaa.yasui.hook;
 
 import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.WeakHashMap;
@@ -14,9 +13,9 @@ import java.util.concurrent.atomic.LongAdder;
  * Uses only JDK types to avoid classloader issues - NMS access via reflection.
  */
 public final class PoiTypeCache {
-    private static final Map<Object, LruCache<Long, TypeEntry>> TYPE_CACHE =
+    private static final Map<Object, LongLruCache<TypeEntry>> TYPE_CACHE =
         Collections.synchronizedMap(new WeakHashMap<>());
-    private static final Map<Object, LruCache<ExistsKey, ExistsEntry>> EXISTS_CACHE =
+    private static final Map<Object, ObjectLruCache<ExistsKey, ExistsEntry>> EXISTS_CACHE =
         Collections.synchronizedMap(new WeakHashMap<>());
     private static final LongAdder typeHits = new LongAdder();
     private static final LongAdder typeMisses = new LongAdder();
@@ -44,10 +43,11 @@ public final class PoiTypeCache {
         PoiTypeCache.enabled = enabled;
         PoiTypeCache.ttlTicks = Math.max(0, ttlTicks);
         PoiTypeCache.ttlJitterTicks = Math.max(0, ttlJitterTicks);
-        PoiTypeCache.maxEntries = maxEntries;
+        PoiTypeCache.maxEntries = Math.max(0, maxEntries);
         PoiTypeCache.cacheEmptyResults = cacheEmptyResults;
         PoiTypeCache.predicateAware = predicateAware;
         PoiTypeCache.renewOnHit = renewOnHit;
+        applyCacheLimit();
     }
 
     public static void configureHotChunks(boolean enabled, int ttlTicks, int ttlJitterTicks, boolean renewOnHit) {
@@ -95,7 +95,7 @@ public final class PoiTypeCache {
 
         int tick = NmsReflect.getCurrentTick();
         int epoch = ChunkEpochMap.getEpoch(poiManager, chunkKey);
-        LruCache<Long, TypeEntry> managerCache = getTypeCache(poiManager);
+        LongLruCache<TypeEntry> managerCache = getTypeCache(poiManager);
         TypeEntry entry = managerCache.get(key);
         if (entry != null) {
             if (entry.isValid(tick) && entry.epoch() == epoch) {
@@ -140,7 +140,7 @@ public final class PoiTypeCache {
         int tick = NmsReflect.getCurrentTick();
         int epoch = ChunkEpochMap.getEpoch(poiManager, chunkKey);
         int expiryTick = tick + effectiveTtl + computeJitter(key, effectiveJitter);
-        LruCache<Long, TypeEntry> managerCache = getTypeCache(poiManager);
+        LongLruCache<TypeEntry> managerCache = getTypeCache(poiManager);
         managerCache.put(key, new TypeEntry(expiryTick, epoch, result));
         typeStores.increment();
         return result;
@@ -180,7 +180,7 @@ public final class PoiTypeCache {
         int tick = NmsReflect.getCurrentTick();
         int epoch = ChunkEpochMap.getEpoch(poiManager, chunkKey);
         ExistsKey existsKey = new ExistsKey(key, predicateAware ? predicate : null);
-        LruCache<ExistsKey, ExistsEntry> managerCache = getExistsCache(poiManager);
+        ObjectLruCache<ExistsKey, ExistsEntry> managerCache = getExistsCache(poiManager);
         ExistsEntry entry = managerCache.get(existsKey);
         if (entry != null) {
             if (entry.isValid(tick) && entry.epoch() == epoch) {
@@ -229,7 +229,7 @@ public final class PoiTypeCache {
         int epoch = ChunkEpochMap.getEpoch(poiManager, chunkKey);
         ExistsKey existsKey = new ExistsKey(key, predicateAware ? predicate : null);
         int expiryTick = tick + effectiveTtl + computeJitter(existsKey.hashCode(), effectiveJitter);
-        LruCache<ExistsKey, ExistsEntry> managerCache = getExistsCache(poiManager);
+        ObjectLruCache<ExistsKey, ExistsEntry> managerCache = getExistsCache(poiManager);
         managerCache.put(existsKey, new ExistsEntry(expiryTick, epoch, result));
         existsStores.increment();
         return result;
@@ -257,12 +257,12 @@ public final class PoiTypeCache {
     public static int getCacheSize() {
         int total = 0;
         synchronized (TYPE_CACHE) {
-            for (LruCache<Long, TypeEntry> entries : TYPE_CACHE.values()) {
+            for (LongLruCache<TypeEntry> entries : TYPE_CACHE.values()) {
                 total += entries.size();
             }
         }
         synchronized (EXISTS_CACHE) {
-            for (LruCache<ExistsKey, ExistsEntry> entries : EXISTS_CACHE.values()) {
+            for (ObjectLruCache<ExistsKey, ExistsEntry> entries : EXISTS_CACHE.values()) {
                 total += entries.size();
             }
         }
@@ -276,15 +276,15 @@ public final class PoiTypeCache {
         return false;
     }
 
-    private static LruCache<Long, TypeEntry> getTypeCache(Object manager) {
+    private static LongLruCache<TypeEntry> getTypeCache(Object manager) {
         synchronized (TYPE_CACHE) {
-            return TYPE_CACHE.computeIfAbsent(manager, key -> new LruCache<>());
+            return TYPE_CACHE.computeIfAbsent(manager, key -> new LongLruCache<>(maxEntries));
         }
     }
 
-    private static LruCache<ExistsKey, ExistsEntry> getExistsCache(Object manager) {
+    private static ObjectLruCache<ExistsKey, ExistsEntry> getExistsCache(Object manager) {
         synchronized (EXISTS_CACHE) {
-            return EXISTS_CACHE.computeIfAbsent(manager, key -> new LruCache<>());
+            return EXISTS_CACHE.computeIfAbsent(manager, key -> new ObjectLruCache<>(maxEntries));
         }
     }
 
@@ -322,29 +322,16 @@ public final class PoiTypeCache {
         }
     }
 
-    private static final class LruCache<K, V> {
-        private final LinkedHashMap<K, V> map = new LinkedHashMap<>(16, 0.75f, true) {
-            @Override
-            protected boolean removeEldestEntry(Map.Entry<K, V> eldest) {
-                int limit = PoiTypeCache.maxEntries;
-                return limit > 0 && size() > limit;
+    private static void applyCacheLimit() {
+        synchronized (TYPE_CACHE) {
+            for (LongLruCache<TypeEntry> entries : TYPE_CACHE.values()) {
+                entries.setLimit(maxEntries);
             }
-        };
-
-        synchronized V get(K key) {
-            return map.get(key);
         }
-
-        synchronized void put(K key, V value) {
-            map.put(key, value);
-        }
-
-        synchronized void remove(K key) {
-            map.remove(key);
-        }
-
-        synchronized int size() {
-            return map.size();
+        synchronized (EXISTS_CACHE) {
+            for (ObjectLruCache<ExistsKey, ExistsEntry> entries : EXISTS_CACHE.values()) {
+                entries.setLimit(maxEntries);
+            }
         }
     }
 }

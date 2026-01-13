@@ -1,7 +1,5 @@
 package cat.nyaa.yasui.hook;
 
-import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.WeakHashMap;
 import java.util.concurrent.atomic.LongAdder;
@@ -13,8 +11,7 @@ import java.util.concurrent.atomic.LongAdder;
  * Uses only JDK types to avoid classloader issues - NMS access via reflection.
  */
 public final class BlockStateCache {
-    private static final Map<Object, LruCache<Long, CacheEntry>> CACHE =
-        Collections.synchronizedMap(new WeakHashMap<>());
+    private static final Map<Object, LongLruCache<CacheEntry>> CACHE = new WeakHashMap<>();
     private static final LongAdder cacheHits = new LongAdder();
     private static final LongAdder cacheMisses = new LongAdder();
     private static final LongAdder cacheStores = new LongAdder();
@@ -32,6 +29,7 @@ public final class BlockStateCache {
         BlockStateCache.enabled = enabled;
         BlockStateCache.ttlTicks = Math.max(0, ttlTicks);
         BlockStateCache.maxEntries = Math.max(0, maxEntries);
+        applyCacheLimit();
     }
 
     public static void configureHotChunks(boolean enabled, int hotTtlTicks) {
@@ -55,13 +53,10 @@ public final class BlockStateCache {
         if (!enabled || level == null || pos == null) {
             return;
         }
-        if (maxEntries <= 0 || CACHE.isEmpty()) {
-            return;
-        }
         if (!NmsReflect.init(level)) {
             return;
         }
-        LruCache<Long, CacheEntry> levelCache = getLevelCacheOrNull(level);
+        LongLruCache<CacheEntry> levelCache = getLevelCacheOrNull(level);
         if (levelCache == null) {
             return;
         }
@@ -97,7 +92,7 @@ public final class BlockStateCache {
             Object state = NmsReflect.getBlockState(chunk, pos);
             return state != null ? state : NmsReflect.getBlockStateIfLoadedAndInBounds(level, pos);
         }
-        LruCache<Long, CacheEntry> levelCache = getLevelCache(level);
+        LongLruCache<CacheEntry> levelCache = getLevelCache(level);
         CacheEntry entry = levelCache.get(posKey);
         int tick = NmsReflect.getCurrentTick();
         boolean checkEpoch = !exactInvalidationActive;
@@ -160,7 +155,7 @@ public final class BlockStateCache {
         if (effectiveTtl <= 0) {
             return NmsReflect.getBlockState(level, pos);
         }
-        LruCache<Long, CacheEntry> levelCache = getLevelCache(level);
+        LongLruCache<CacheEntry> levelCache = getLevelCache(level);
         CacheEntry entry = levelCache.get(posKey);
         int tick = NmsReflect.getCurrentTick();
         boolean checkEpoch = !exactInvalidationActive;
@@ -198,7 +193,7 @@ public final class BlockStateCache {
         if (effectiveTtl <= 0) {
             return NmsReflect.getBlockStateIfLoaded(level, pos);
         }
-        LruCache<Long, CacheEntry> levelCache = getLevelCache(level);
+        LongLruCache<CacheEntry> levelCache = getLevelCache(level);
         CacheEntry entry = levelCache.get(posKey);
         int tick = NmsReflect.getCurrentTick();
         boolean checkEpoch = !exactInvalidationActive;
@@ -245,7 +240,7 @@ public final class BlockStateCache {
             Object state = NmsReflect.getBlockState(chunk, pos);
             return state != null ? state : NmsReflect.getBlockState(cacheOwner, pos);
         }
-        LruCache<Long, CacheEntry> levelCache = getLevelCache(cacheOwner);
+        LongLruCache<CacheEntry> levelCache = getLevelCache(cacheOwner);
         CacheEntry entry = levelCache.get(posKey);
         int tick = NmsReflect.getCurrentTick();
         boolean checkEpoch = !exactInvalidationActive;
@@ -278,20 +273,20 @@ public final class BlockStateCache {
     public static int getCacheSize() {
         int total = 0;
         synchronized (CACHE) {
-            for (LruCache<Long, CacheEntry> entries : CACHE.values()) {
+            for (LongLruCache<CacheEntry> entries : CACHE.values()) {
                 total += entries.size();
             }
         }
         return total;
     }
 
-    private static LruCache<Long, CacheEntry> getLevelCache(Object level) {
+    private static LongLruCache<CacheEntry> getLevelCache(Object level) {
         synchronized (CACHE) {
-            return CACHE.computeIfAbsent(level, key -> new LruCache<>());
+            return CACHE.computeIfAbsent(level, key -> new LongLruCache<>(maxEntries));
         }
     }
 
-    private static LruCache<Long, CacheEntry> getLevelCacheOrNull(Object level) {
+    private static LongLruCache<CacheEntry> getLevelCacheOrNull(Object level) {
         synchronized (CACHE) {
             return CACHE.get(level);
         }
@@ -355,29 +350,11 @@ public final class BlockStateCache {
         }
     }
 
-    private static final class LruCache<K, V> {
-        private final LinkedHashMap<K, V> map = new LinkedHashMap<>(16, 0.75f, true) {
-            @Override
-            protected boolean removeEldestEntry(Map.Entry<K, V> eldest) {
-                int limit = BlockStateCache.maxEntries;
-                return limit > 0 && size() > limit;
+    private static void applyCacheLimit() {
+        synchronized (CACHE) {
+            for (LongLruCache<CacheEntry> entries : CACHE.values()) {
+                entries.setLimit(maxEntries);
             }
-        };
-
-        synchronized V get(K key) {
-            return map.get(key);
-        }
-
-        synchronized void put(K key, V value) {
-            map.put(key, value);
-        }
-
-        synchronized void remove(K key) {
-            map.remove(key);
-        }
-
-        synchronized int size() {
-            return map.size();
         }
     }
 }

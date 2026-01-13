@@ -6,7 +6,6 @@ import java.lang.invoke.MethodType;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.WeakHashMap;
 import java.util.concurrent.atomic.LongAdder;
@@ -19,7 +18,7 @@ import java.util.function.Predicate;
  * Uses only JDK types to avoid classloader issues - NMS access via reflection.
  */
 public final class PoiSearchCache {
-    private static final Map<Object, LruCache<CacheKey, CacheEntry>> CACHE =
+    private static final Map<Object, ObjectLruCache<CacheKey, CacheEntry>> CACHE =
         Collections.synchronizedMap(new WeakHashMap<>());
     private static final LongAdder cacheHits = new LongAdder();
     private static final LongAdder cacheMisses = new LongAdder();
@@ -60,12 +59,13 @@ public final class PoiSearchCache {
         PoiSearchCache.enabled = enabled;
         PoiSearchCache.ttlTicks = Math.max(0, ttlTicks);
         PoiSearchCache.ttlJitterTicks = Math.max(0, ttlJitterTicks);
-        PoiSearchCache.maxEntries = maxEntries;
+        PoiSearchCache.maxEntries = Math.max(0, maxEntries);
         PoiSearchCache.cacheEmptyResults = cacheEmptyResults;
         PoiSearchCache.predicateAware = predicateAware;
         PoiSearchCache.sourceBucketSize = Math.max(1, sourceBucketSize);
         PoiSearchCache.fallbackOnInsufficient = fallbackOnInsufficient;
         PoiSearchCache.renewOnHit = renewOnHit;
+        applyCacheLimit();
     }
 
     public static void configureHotChunks(boolean enabled, int ttlTicks, int ttlJitterTicks, boolean renewOnHit) {
@@ -146,7 +146,7 @@ public final class PoiSearchCache {
             return;
         }
         long bucketKey = bucketSourceKey(sourceKey);
-        LruCache<CacheKey, CacheEntry> managerCache = getManagerCache(poiManager);
+        ObjectLruCache<CacheKey, CacheEntry> managerCache = getManagerCache(poiManager);
         CacheKey key = new CacheKey(
             bucketKey,
             range,
@@ -216,16 +216,16 @@ public final class PoiSearchCache {
     public static int getCacheSize() {
         int total = 0;
         synchronized (CACHE) {
-            for (LruCache<CacheKey, CacheEntry> entries : CACHE.values()) {
+            for (ObjectLruCache<CacheKey, CacheEntry> entries : CACHE.values()) {
                 total += entries.size();
             }
         }
         return total;
     }
 
-    private static LruCache<CacheKey, CacheEntry> getManagerCache(Object manager) {
+    private static ObjectLruCache<CacheKey, CacheEntry> getManagerCache(Object manager) {
         synchronized (CACHE) {
-            return CACHE.computeIfAbsent(manager, key -> new LruCache<>());
+            return CACHE.computeIfAbsent(manager, key -> new ObjectLruCache<>(maxEntries));
         }
     }
 
@@ -349,29 +349,11 @@ public final class PoiSearchCache {
         return ((x & 67108863L) << 38) | ((y & 4095L)) | ((z & 67108863L) << 12);
     }
 
-    private static final class LruCache<K, V> {
-        private final LinkedHashMap<K, V> map = new LinkedHashMap<>(16, 0.75f, true) {
-            @Override
-            protected boolean removeEldestEntry(Map.Entry<K, V> eldest) {
-                int limit = PoiSearchCache.maxEntries;
-                return limit > 0 && size() > limit;
+    private static void applyCacheLimit() {
+        synchronized (CACHE) {
+            for (ObjectLruCache<CacheKey, CacheEntry> entries : CACHE.values()) {
+                entries.setLimit(maxEntries);
             }
-        };
-
-        synchronized V get(K key) {
-            return map.get(key);
-        }
-
-        synchronized void put(K key, V value) {
-            map.put(key, value);
-        }
-
-        synchronized void remove(K key) {
-            map.remove(key);
-        }
-
-        synchronized int size() {
-            return map.size();
         }
     }
 }
