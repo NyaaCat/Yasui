@@ -2,6 +2,8 @@
 
 Server optimization plugin for Paper 1.21.8. Reduces tick time by caching expensive operations while keeping AI and collision behavior vanilla.
 
+THIS PLUGIN HAS BEEN DEPRECATED IN FAVOR OF [Pewpew](https://github.com/NyaaCat/Pewpew).
+
 **Requirements:** Paper 1.21.8, Java 21+
 
 Start parameters:
